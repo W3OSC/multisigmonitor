@@ -1,3 +1,4 @@
+
 import type { Config } from "tailwindcss";
 
 export default {
@@ -61,6 +62,18 @@ export default {
 					'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
+				},
+				// Updated Jet Set Radio inspired colors to match the screenshots
+				jsr: {
+					lime: '#c4ff00',      // Brighter lime green
+					green: '#00c837',     // More vibrant green
+					blue: '#5b66ff',      // Richer electric blue
+					purple: '#9152ff',    // More saturated purple
+					lightblue: '#7bd8ff', // Brighter light blue
+					orange: '#ff6a3a',    // Vivid orange
+					pink: '#ff4987',      // Brighter hot pink
+					darkblue: '#2f47c9',  // Deeper blue
+					coral: '#ff8561',     // Coral/salmon color from the screenshots
 				}
 			},
 			borderRadius: {
@@ -84,11 +97,16 @@ export default {
 					to: {
 						height: '0'
 					}
+				},
+				'float': {
+					'0%, 100%': { transform: 'translateY(0)' },
+					'50%': { transform: 'translateY(-10px)' }
 				}
 			},
 			animation: {
 				'accordion-down': 'accordion-down 0.2s ease-out',
-				'accordion-up': 'accordion-up 0.2s ease-out'
+				'accordion-up': 'accordion-up 0.2s ease-out',
+				'float': 'float 3s ease-in-out infinite'
 			}
 		}
 	},

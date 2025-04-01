@@ -63,16 +63,17 @@ export default {
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
 				},
-				// Jet Set Radio inspired colors
+				// Updated Jet Set Radio inspired colors to match the screenshots
 				jsr: {
-					lime: '#c4ff00',
-					green: '#19d600',
-					blue: '#6964ff',
-					lightblue: '#90d0ff',
-					orange: '#ff6a3a',
-					pink: '#ff5a87',
-					purple: '#8052ff',
-					darkblue: '#403ca0',
+					lime: '#c4ff00',      // Brighter lime green
+					green: '#00c837',     // More vibrant green
+					blue: '#5b66ff',      // Richer electric blue
+					purple: '#9152ff',    // More saturated purple
+					lightblue: '#7bd8ff', // Brighter light blue
+					orange: '#ff6a3a',    // Vivid orange
+					pink: '#ff4987',      // Brighter hot pink
+					darkblue: '#2f47c9',  // Deeper blue
+					coral: '#ff8561',     // Coral/salmon color from the screenshots
 				}
 			},
 			borderRadius: {

@@ -15,20 +15,33 @@ export function ThemeToggle() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="icon" className="rounded-full">
-          <Sun className="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-          <Moon className="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+        <Button 
+          variant="outline" 
+          size="icon" 
+          className="rounded-full border-jsr-lime/30 hover:border-jsr-lime/60 hover:bg-jsr-lime/5"
+        >
+          <Sun className="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 text-jsr-orange transition-all dark:-rotate-90 dark:scale-0" />
+          <Moon className="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 text-jsr-lightblue transition-all dark:rotate-0 dark:scale-100" />
           <span className="sr-only">Toggle theme</span>
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuItem onClick={() => setTheme("light")}>
+      <DropdownMenuContent align="end" className="border-jsr-lime/20">
+        <DropdownMenuItem 
+          onClick={() => setTheme("light")}
+          className="hover:bg-jsr-lime/10 hover:text-jsr-darkblue"
+        >
           Light
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => setTheme("dark")}>
+        <DropdownMenuItem 
+          onClick={() => setTheme("dark")}
+          className="hover:bg-jsr-blue/10 hover:text-jsr-lightblue"
+        >
           Dark
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => setTheme("system")}>
+        <DropdownMenuItem 
+          onClick={() => setTheme("system")}
+          className="hover:bg-gradient-to-r hover:from-jsr-lime/10 hover:to-jsr-blue/10"
+        >
           System
         </DropdownMenuItem>
       </DropdownMenuContent>

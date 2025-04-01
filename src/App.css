@@ -1,3 +1,4 @@
+
 #root {
   max-width: 1280px;
   margin: 0 auto;
@@ -12,10 +13,10 @@
   transition: filter 300ms;
 }
 .logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
+  filter: drop-shadow(0 0 2em #c4ff00aa);
 }
 .logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+  filter: drop-shadow(0 0 2em #5b66ffaa);
 }
 
 @keyframes logo-spin {
@@ -39,4 +40,20 @@
 
 .read-the-docs {
   color: #888;
+}
+
+/* Add new JSR-specific styles */
+.jsr-gradient-bg {
+  background: linear-gradient(135deg, #5b66ff 0%, #2f47c9 100%);
+}
+
+.jsr-gradient-text {
+  background: linear-gradient(90deg, #c4ff00 0%, #00c837 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.jsr-button-glow:hover {
+  box-shadow: 0 0 15px #c4ff00;
 }

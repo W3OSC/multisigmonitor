@@ -16,15 +16,17 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/80 backdrop-blur-sm">
-      <div className="container flex h-16 items-center justify-between">
-        <Link 
-          to="/" 
-          className="flex items-center gap-2 font-bold text-xl"
-          onClick={() => setIsMenuOpen(false)}
-        >
-          <Shield className="h-6 w-6 text-jsr-purple" />
-          <span className="jsr-text-gradient">SafeWatch</span>
-        </Link>
+      <div className="w-full px-4 flex h-16 items-center justify-between">
+        <div className="flex-shrink-0">
+          <Link 
+            to="/" 
+            className="flex items-center gap-2 font-bold text-xl"
+            onClick={() => setIsMenuOpen(false)}
+          >
+            <Shield className="h-6 w-6 text-jsr-purple" />
+            <span className="jsr-text-gradient">SafeWatch</span>
+          </Link>
+        </div>
 
         {isMobile ? (
           <>
@@ -55,13 +57,6 @@ export function Header() {
                 >
                   Dashboard
                 </Link>
-                <Link 
-                  to="/about" 
-                  className="flex items-center px-4 py-2 text-lg font-medium hover:text-primary"
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  About
-                </Link>
                 {user ? (
                   <div className="px-4 py-2">
                     <UserDropdownMenu />
@@ -82,30 +77,30 @@ export function Header() {
             </div>
           </>
         ) : (
-          <div className="flex items-center gap-6">
-            <nav className="flex items-center gap-6 text-sm font-medium">
-              <Link to="/monitor" className="hover:text-primary">
+          <div className="flex items-center justify-end flex-shrink-0">
+            <div className="flex items-center gap-6">
+              <Link to="/monitor" className="hover:text-primary text-sm font-medium">
                 Dashboard
               </Link>
               <Link to="/about" className="hover:text-primary">
                 About
               </Link>
-            </nav>
-            <div className="flex items-center gap-4">
-              {user ? (
-                <UserDropdownMenu />
-              ) : (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsLoginDialogOpen(true)}
-                  className="flex items-center gap-1"
-                >
-                  <LogIn className="h-4 w-4" />
-                  <span>Login</span>
-                </Button>
-              )}
-              <ThemeToggle />
+              <div className="flex items-center gap-4">
+                {user ? (
+                  <UserDropdownMenu />
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsLoginDialogOpen(true)}
+                    className="flex items-center gap-1"
+                  >
+                    <LogIn className="h-4 w-4" />
+                    <span>Login</span>
+                  </Button>
+                )}
+                <ThemeToggle />
+              </div>
             </div>
           </div>
         )}

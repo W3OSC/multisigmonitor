@@ -1,10 +1,24 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { HeaderWithLoginDialog } from "@/components/Header";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { AlertCircle, Eye, PlusCircle, Settings, ToggleLeft, ToggleRight, Trash2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { 
+  AlertCircle, 
+  Eye, 
+  PlusCircle, 
+  Settings, 
+  ToggleLeft, 
+  ToggleRight, 
+  Trash2,
+  FileDown,
+  ExternalLink,
+  ChevronLeft,
+  ChevronRight,
+  Loader2
+} from "lucide-react";
 import {
   Table,
   TableBody,
@@ -13,6 +27,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -37,13 +58,45 @@ interface Monitor {
   created_at: string;
 }
 
+// Interface for Alert data
+interface Alert {
+  id: string;
+  address: string;
+  alias?: string;
+  network: string;
+  txHash: string;
+  description: string;
+  timestamp: string;
+  type: 'normal' | 'suspicious';
+}
+
+interface AlertFilter {
+  safe: string | null;
+  type: string | null;
+}
+
 const Monitor = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { toast } = useToast();
   const [monitors, setMonitors] = useState<Monitor[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Alert pagination and filtering state
+  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [isLoadingAlerts, setIsLoadingAlerts] = useState(false);
+  const [alertsPage, setAlertsPage] = useState(1);
+  const [alertsPerPage, setAlertsPerPage] = useState(10);
+  const [totalAlerts, setTotalAlerts] = useState(0);
+  const [alertsFilter, setAlertsFilter] = useState<AlertFilter>({
+    safe: null,
+    type: null
+  });
+  
+  // Calculate total pages based on total alerts and items per page
+  const totalPages = Math.max(1, Math.ceil(totalAlerts / alertsPerPage));
 
+  // Fetch monitors on load
   useEffect(() => {
     async function fetchMonitors() {
       if (!user) {
@@ -93,6 +146,112 @@ const Monitor = () => {
 
     fetchMonitors();
   }, [user, toast]);
+  
+  // Fetch alerts when page, filters, or per page settings change
+  useEffect(() => {
+    if (!user) return;
+    
+    async function fetchAlerts() {
+      setIsLoadingAlerts(true);
+      
+      try {
+        // In a real app, this would be an API call with filtering and pagination
+        // For this demo, we'll simulate some data
+        
+        // Wait a moment to simulate loading
+        await new Promise(resolve => setTimeout(resolve, 800));
+        
+        // Generate mock alerts - in a real app this would come from your API
+        const mockAlerts: Alert[] = [
+          {
+            id: '1',
+            address: '0x1234567890123456789012345678901234567890',
+            alias: 'Main Treasury',
+            network: 'Ethereum',
+            txHash: '0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890',
+            description: 'Suspicious multi-sig execution with unknown contract',
+            timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(), // 2 hours ago
+            type: 'suspicious'
+          },
+          {
+            id: '2',
+            address: '0x0987654321098765432109876543210987654321',
+            alias: 'Grants Safe',
+            network: 'Polygon',
+            txHash: '0x0987654321098765432109876543210987654321098765432109876543210987',
+            description: 'Normal token transfer of 5,000 USDC',
+            timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(), // 1 day ago
+            type: 'normal'
+          },
+          {
+            id: '3',
+            address: '0x0987654321098765432109876543210987654321',
+            alias: 'Grants Safe',
+            network: 'Polygon',
+            txHash: '0x1111222233334444555566667777888899990000111122223333444455556666',
+            description: 'Suspicious contract interaction with blacklisted address',
+            timestamp: new Date(Date.now() - 1000 * 60 * 60 * 48).toISOString(), // 2 days ago
+            type: 'suspicious'
+          },
+          {
+            id: '4',
+            address: '0x1234567890123456789012345678901234567890',
+            alias: 'Main Treasury',
+            network: 'Ethereum',
+            txHash: '0x2222333344445555666677778888999900001111222233334444555566667777',
+            description: 'Normal interaction with Uniswap router',
+            timestamp: new Date(Date.now() - 1000 * 60 * 60 * 72).toISOString(), // 3 days ago
+            type: 'normal'
+          },
+          {
+            id: '5',
+            address: '0x5678901234567890123456789012345678901234',
+            network: 'Arbitrum',
+            txHash: '0x3333444455556666777788889999000011112222333344445555666677778888',
+            description: 'Normal token approval to verified contract',
+            timestamp: new Date(Date.now() - 1000 * 60 * 60 * 96).toISOString(), // 4 days ago
+            type: 'normal'
+          }
+        ];
+        
+        // Apply filters
+        let filteredAlerts = [...mockAlerts];
+        
+        if (alertsFilter.safe) {
+          filteredAlerts = filteredAlerts.filter(alert => 
+            alert.address === alertsFilter.safe ||
+            monitors.find(m => m.id === alertsFilter.safe)?.safe_address === alert.address
+          );
+        }
+        
+        if (alertsFilter.type) {
+          filteredAlerts = filteredAlerts.filter(alert => 
+            alert.type === alertsFilter.type
+          );
+        }
+        
+        // Calculate pagination
+        const total = filteredAlerts.length;
+        const startIndex = (alertsPage - 1) * alertsPerPage;
+        const endIndex = startIndex + alertsPerPage;
+        const pagedAlerts = filteredAlerts.slice(startIndex, endIndex);
+        
+        setAlerts(pagedAlerts);
+        setTotalAlerts(total);
+      } catch (error) {
+        console.error('Error fetching alerts:', error);
+        toast({
+          title: "Error Fetching Alerts",
+          description: "There was a problem retrieving alert data",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoadingAlerts(false);
+      }
+    }
+    
+    fetchAlerts();
+  }, [user, alertsPage, alertsPerPage, alertsFilter, monitors, toast]);
 
   const toggleMonitor = async (id: string) => {
     const monitor = monitors.find(m => m.id === id);
@@ -191,6 +350,48 @@ const Monitor = () => {
     return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
   };
 
+  // Function to generate and download CSV data
+  const downloadCsv = () => {
+    // Create CSV header
+    const header = ['Safe', 'Network', 'Transaction', 'Time', 'Type'].join(',');
+    
+    // Convert alerts to CSV rows
+    const rows = alerts.map(alert => {
+      const safeName = alert.alias || truncateAddress(alert.address);
+      const txDescription = alert.description.replace(/,/g, ';'); // Replace commas to avoid CSV issues
+      return [
+        safeName,
+        alert.network,
+        txDescription,
+        new Date(alert.timestamp).toLocaleString(),
+        alert.type
+      ].join(',');
+    });
+    
+    // Combine header and rows
+    const csvContent = [header, ...rows].join('\n');
+    
+    // Create a Blob with the CSV content
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    
+    // Create a download link and trigger it
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `safe-watch-alerts-${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    
+    // Clean up
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    
+    toast({
+      title: "CSV Export Complete",
+      description: `${alerts.length} alerts exported successfully`
+    });
+  };
+  
   const truncateAddress = (address: string) => {
     return `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
   };
@@ -329,54 +530,190 @@ const Monitor = () => {
             </div>
             
             <Card>
-              <CardHeader>
-                <CardTitle>Recent Alerts</CardTitle>
-                <CardDescription>
-                  Last 7 days of monitoring alerts across all your Safe vaults
-                </CardDescription>
+              <CardHeader className="pb-2">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                  <div>
+                    <CardTitle>Alert History</CardTitle>
+                    <CardDescription>
+                      Transaction alerts from your monitored Safe vaults
+                    </CardDescription>
+                  </div>
+                  
+                  <div className="flex flex-row gap-2 items-center">
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      className="text-xs flex items-center gap-1 h-8 px-2"
+                      onClick={downloadCsv}
+                    >
+                      <FileDown className="h-3 w-3" />
+                      CSV Export
+                    </Button>
+                  </div>
+                </div>
               </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Safe</TableHead>
-                      <TableHead>Network</TableHead>
-                      <TableHead>Issue</TableHead>
-                      <TableHead>Time</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {monitors.some(m => (m.alertCount || 0) > 0) ? (
-                      <>
-                        <TableRow>
-                          <TableCell className="font-medium">
-                            0x0987...4321
-                          </TableCell>
-                          <TableCell>Polygon</TableCell>
-                          <TableCell>Suspicious transaction pattern</TableCell>
-                          <TableCell>Yesterday, 15:42</TableCell>
-                          <TableCell className="text-destructive">Active</TableCell>
-                        </TableRow>
-                        <TableRow>
-                          <TableCell className="font-medium">
-                            0x0987...4321
-                          </TableCell>
-                          <TableCell>Polygon</TableCell>
-                          <TableCell>High-risk contract interaction</TableCell>
-                          <TableCell>3 days ago</TableCell>
-                          <TableCell className="text-destructive">Active</TableCell>
-                        </TableRow>
-                      </>
-                    ) : (
+              
+              <CardContent className="space-y-4">
+                <div className="flex flex-col md:flex-row justify-between gap-4">
+                  <div className="flex flex-wrap gap-2">
+                    <div className="flex items-center gap-2">
+                      <Select 
+                        value={alertsFilter.safe || "all"} 
+                        onValueChange={(value) => setAlertsFilter(prev => ({ ...prev, safe: value === "all" ? null : value }))}
+                      >
+                        <SelectTrigger className="h-8 text-xs min-w-[140px] w-fit">
+                          <SelectValue placeholder="Filter by Safe" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Safes</SelectItem>
+                          {monitors.map(monitor => (
+                            <SelectItem key={monitor.id} value={monitor.id}>
+                              {monitor.alias || truncateAddress(monitor.safe_address)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                      <Select 
+                        value={alertsFilter.type || "all"} 
+                        onValueChange={(value) => setAlertsFilter(prev => ({ ...prev, type: value === "all" ? null : value }))}
+                      >
+                        <SelectTrigger className="h-8 text-xs min-w-[140px] w-fit">
+                          <SelectValue placeholder="Alert Type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Alerts</SelectItem>
+                          <SelectItem value="suspicious">Suspicious Only</SelectItem>
+                          <SelectItem value="normal">Normal Transactions</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-2 w-full md:w-auto justify-end">
+                    <p className="text-xs text-muted-foreground whitespace-nowrap mr-2">
+                      {totalAlerts === 0
+                        ? 'No alerts'
+                        : `Showing ${(alertsPage - 1) * alertsPerPage + 1}-${Math.min(alertsPage * alertsPerPage, totalAlerts)} of ${totalAlerts}`}
+                    </p>
+                    <Select 
+                      value={alertsPerPage.toString()} 
+                      onValueChange={(value) => {
+                        setAlertsPerPage(parseInt(value));
+                        setAlertsPage(1); // Reset to first page when changing items per page
+                      }}
+                    >
+                      <SelectTrigger className="h-8 text-xs w-[70px]">
+                        <SelectValue placeholder="Show" />
+                      </SelectTrigger>
+                      <SelectContent align="end">
+                        <SelectItem value="10">10</SelectItem>
+                        <SelectItem value="25">25</SelectItem>
+                        <SelectItem value="50">50</SelectItem>
+                        <SelectItem value="100">100</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                
+                <div>
+                  <Table>
+                    <TableHeader>
                       <TableRow>
-                        <TableCell colSpan={5} className="text-center h-24 text-muted-foreground">
-                          No alerts detected in the past 7 days
-                        </TableCell>
+                        <TableHead>Safe</TableHead>
+                        <TableHead>Network</TableHead>
+                        <TableHead>Transaction</TableHead>
+                        <TableHead>Time</TableHead>
+                        <TableHead>Type</TableHead>
                       </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {isLoadingAlerts ? (
+                        <TableRow>
+                          <TableCell colSpan={5} className="h-24 text-center">
+                            <Loader2 className="h-4 w-4 animate-spin mx-auto" />
+                          </TableCell>
+                        </TableRow>
+                      ) : alerts.length > 0 ? (
+                        alerts.map((alert, i) => (
+                          <TableRow key={i}>
+                            <TableCell className="font-medium">
+                              {alert.alias || truncateAddress(alert.address)}
+                            </TableCell>
+                            <TableCell>{alert.network}</TableCell>
+                            <TableCell>
+                              <div className="max-w-xs truncate">
+                                <Link 
+                                  to={`https://etherscan.io/tx/${alert.txHash}`} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="text-blue-500 dark:text-blue-400 hover:underline flex items-center gap-1"
+                                >
+                                  {alert.description}
+                                  <ExternalLink className="h-3 w-3" />
+                                </Link>
+                              </div>
+                            </TableCell>
+                            <TableCell>{formatTimeAgo(alert.timestamp)}</TableCell>
+                            <TableCell>
+                              {alert.type === 'suspicious' ? (
+                                <Badge variant="destructive">Suspicious</Badge>
+                              ) : (
+                                <Badge variant="outline">Normal</Badge>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      ) : (
+                        <TableRow>
+                          <TableCell colSpan={5} className="text-center h-24 text-muted-foreground">
+                            No alerts found with the current filters
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+                
+                <div className="flex items-center justify-end space-x-2 py-4">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setAlertsPage(1)}
+                    disabled={alertsPage === 1}
+                  >
+                    First
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setAlertsPage(prev => Math.max(prev - 1, 1))}
+                    disabled={alertsPage === 1}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <div className="flex items-center gap-1 text-sm">
+                    <span>Page {alertsPage} of {totalPages}</span>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setAlertsPage(prev => Math.min(prev + 1, totalPages))}
+                    disabled={alertsPage === totalPages}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setAlertsPage(totalPages)}
+                    disabled={alertsPage === totalPages}
+                  >
+                    Last
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           </div>

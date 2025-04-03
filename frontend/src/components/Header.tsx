@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
-import { Shield, Menu, X, LogIn } from "lucide-react";
+import { Shield, Menu, X, LogIn, LogOut } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
@@ -19,7 +19,7 @@ export function Header() {
       <div className="w-full px-4 flex h-16 items-center justify-between">
         <div className="flex-shrink-0">
           <Link 
-            to="/" 
+            to={user ? "/monitor" : "/"} 
             className="flex items-center gap-2 font-bold text-xl"
             onClick={() => setIsMenuOpen(false)}
           >
@@ -50,15 +50,6 @@ export function Header() {
               )}
             >
               <nav className="flex flex-col gap-4">
-                {user && (
-                  <Link 
-                    to="/monitor" 
-                    className="flex items-center px-4 py-2 text-lg font-medium hover:text-primary"
-                    onClick={() => setIsMenuOpen(false)}
-                  >
-                    Dashboard
-                  </Link>
-                )}
                 {user ? (
                   <div className="px-4 py-2">
                     <UserDropdownMenu />

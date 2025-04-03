@@ -117,13 +117,19 @@ const NewMonitor = () => {
     setIsSubmitting(true);
     
     try {
+      // Get notification target - use user's email automatically when method is email
+      const finalNotificationTarget = 
+        notificationsEnabled && notificationMethod === "email" && user?.email 
+          ? user.email 
+          : notificationTarget;
+          
       // Create settings object with all configuration
       const settings = {
         alias: alias || null,
         network,
         active: true,
         notificationMethod: notificationsEnabled ? notificationMethod : null,
-        notificationTarget: notificationsEnabled ? notificationTarget : null
+        notificationTarget: notificationsEnabled ? finalNotificationTarget : null
       };
 
       // Insert into Supabase
@@ -294,21 +300,33 @@ const NewMonitor = () => {
                         </Select>
                       </div>
                       
-                      {notificationMethod && (
-                        <div className="space-y-2">
-                          <Label htmlFor="notification-target">
-                            {notificationMethod === "email" ? "Email Address" :
-                             notificationMethod === "telegram" ? "Telegram Username" :
-                             notificationMethod === "discord" ? "Discord Webhook" :
-                             notificationMethod === "slack" ? "Slack Webhook" :
-                             "Webhook URL"}
-                          </Label>
+                  {notificationMethod && (
+                    <div className="space-y-2">
+                      <Label htmlFor="notification-target">
+                        {notificationMethod === "email" ? "Email Address" :
+                         notificationMethod === "telegram" ? "Telegram Username" :
+                         notificationMethod === "discord" ? "Discord Webhook" :
+                         notificationMethod === "slack" ? "Slack Webhook" :
+                         "Webhook URL"}
+                      </Label>
+                      {notificationMethod === "email" && user?.email ? (
+                        <div className="flex items-center gap-2">
                           <Input
-                            id="notification-target"
-                            value={notificationTarget}
-                            onChange={(e) => setNotificationTarget(e.target.value)}
-                            placeholder={getTargetPlaceholder()}
+                            id="notification-target" 
+                            value={user.email}
+                            readOnly
+                            className="bg-muted"
                           />
+                          <p className="text-sm text-muted-foreground">Your account email</p>
+                        </div>
+                      ) : (
+                        <Input
+                          id="notification-target"
+                          value={notificationTarget}
+                          onChange={(e) => setNotificationTarget(e.target.value)}
+                          placeholder={getTargetPlaceholder()}
+                        />
+                      )}
                         </div>
                       )}
                     </div>

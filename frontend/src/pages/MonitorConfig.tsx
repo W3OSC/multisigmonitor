@@ -1,7 +1,7 @@
-
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { HeaderWithLoginDialog } from "@/components/Header";
+import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { AddressInput } from "@/components/AddressInput";
@@ -39,6 +39,7 @@ const MonitorConfig = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user } = useAuth();
   
   const [address, setAddress] = useState("");
   const [alias, setAlias] = useState("");
@@ -104,7 +105,7 @@ const MonitorConfig = () => {
       address.match(/^0x[a-fA-F0-9]{40}$/) &&
       network &&
       notificationMethod &&
-      notificationTarget
+      (notificationMethod === "email" && user?.email ? true : notificationTarget)
     );
   };
 
@@ -121,6 +122,12 @@ const MonitorConfig = () => {
     }
     
     setIsSubmitting(true);
+    
+    // Get notification target - use user's email automatically when method is email
+    const finalNotificationTarget = 
+      notificationMethod === "email" && user?.email 
+        ? user.email 
+        : notificationTarget;
     
     // In a real app, this would update the monitor in your database
     setTimeout(() => {
@@ -244,12 +251,24 @@ const MonitorConfig = () => {
                        notificationMethod === "slack" ? "Slack Webhook" :
                        "Webhook URL"}
                     </Label>
-                    <Input
-                      id="notification-target"
-                      value={notificationTarget}
-                      onChange={(e) => setNotificationTarget(e.target.value)}
-                      placeholder={getTargetPlaceholder()}
-                    />
+                    {notificationMethod === "email" && user?.email ? (
+                      <div className="flex items-center gap-2">
+                        <Input
+                          id="notification-target" 
+                          value={user.email}
+                          readOnly
+                          className="bg-muted"
+                        />
+                        <p className="text-sm text-muted-foreground">Your account email</p>
+                      </div>
+                    ) : (
+                      <Input
+                        id="notification-target"
+                        value={notificationTarget}
+                        onChange={(e) => setNotificationTarget(e.target.value)}
+                        placeholder={getTargetPlaceholder()}
+                      />
+                    )}
                   </div>
                 )}
               </CardContent>

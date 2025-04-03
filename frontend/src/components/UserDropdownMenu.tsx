@@ -8,9 +8,11 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { LogOut } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
+import { useNavigate } from "react-router-dom";
 
 export function UserDropdownMenu({ className }: { className?: string }) {
   const { user, signOut } = useAuth();
+  const navigate = useNavigate();
   
   if (!user) return null;
   
@@ -39,7 +41,14 @@ export function UserDropdownMenu({ className }: { className?: string }) {
           <span className="font-semibold">{name}</span>
           <span className="text-xs text-muted-foreground">{email}</span>
         </div>
-        <DropdownMenuItem onClick={signOut} className="text-destructive focus:text-destructive cursor-pointer">
+        <DropdownMenuItem 
+          onClick={() => {
+            signOut().then(() => {
+              navigate('/');
+            });
+          }} 
+          className="text-destructive focus:text-destructive cursor-pointer"
+        >
           <LogOut className="mr-2 h-4 w-4" />
           <span>Sign out</span>
         </DropdownMenuItem>

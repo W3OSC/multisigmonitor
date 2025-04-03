@@ -81,11 +81,6 @@ export function Header() {
         ) : (
           <div className="flex items-center justify-end flex-shrink-0">
             <div className="flex items-center gap-6">
-              {user && (
-                <Link to="/monitor" className="hover:text-primary text-sm font-medium">
-                  Dashboard
-                </Link>
-              )}
               <div className="flex items-center gap-4">
                 {user ? (
                   <UserDropdownMenu />

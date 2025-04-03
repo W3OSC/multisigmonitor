@@ -8,6 +8,8 @@ import { AddressInput } from "@/components/AddressInput";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Select,
   SelectContent,
@@ -16,7 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { ChevronLeft, Loader2 } from "lucide-react";
+import { ChevronLeft, Loader2, Plus, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 // This would be fetched from your API in a real app
@@ -37,6 +39,25 @@ const NOTIFICATION_METHODS = [
   { id: "webhook", name: "Webhook" },
 ];
 
+// Alert type options
+const ALERT_TYPES = [
+  { id: "suspicious", name: "Suspicious transactions only" },
+  { id: "all", name: "All transactions" }
+];
+
+// Type for notification config
+interface NotificationConfig {
+  method: string;
+  enabled: boolean;
+  // For email
+  email?: string;
+  // For telegram
+  telegramBotApiKey?: string;
+  telegramChatId?: string;
+  // For discord, slack, webhook
+  webhookUrl?: string;
+}
+
 const NewMonitor = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -46,10 +67,21 @@ const NewMonitor = () => {
   const [alias, setAlias] = useState("");
   const [network, setNetwork] = useState("ethereum");
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
-  const [notificationMethod, setNotificationMethod] = useState("");
-  const [notificationTarget, setNotificationTarget] = useState("");
+  const [notifications, setNotifications] = useState<NotificationConfig[]>([]);
+  const [alertType, setAlertType] = useState<string>("suspicious");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
   const { user, setIsLoginDialogOpen } = useAuth();
+
+  // Initialize notification methods
+  useEffect(() => {
+    setNotifications(
+      NOTIFICATION_METHODS.map(method => ({
+        method: method.id,
+        enabled: false
+      }))
+    );
+  }, []);
 
   useEffect(() => {
     const searchParams = new URLSearchParams(location.search);
@@ -63,30 +95,54 @@ const NewMonitor = () => {
     setIsLoginDialogOpen(true);
   };
 
-  const getTargetPlaceholder = () => {
-    switch (notificationMethod) {
-      case "email":
-        return "your@email.com";
-      case "telegram":
-        return "@username or chat ID";
-      case "discord":
-        return "Webhook URL";
-      case "slack":
-        return "Webhook URL";
-      case "webhook":
-        return "https://your-webhook-url.com";
-      default:
-        return "Notification destination";
-    }
+  const toggleNotificationMethod = (methodId: string, enabled: boolean) => {
+    setNotifications(prevState => 
+      prevState.map(notification => 
+        notification.method === methodId 
+          ? { ...notification, enabled } 
+          : notification
+      )
+    );
+  };
+
+  const updateNotificationField = (methodId: string, field: string, value: string) => {
+    setNotifications(prevState => 
+      prevState.map(notification => 
+        notification.method === methodId 
+          ? { ...notification, [field]: value } 
+          : notification
+      )
+    );
   };
 
   const isFormValid = () => {
     // Address and network are always required
     const baseValid = address.match(/^0x[a-fA-F0-9]{40}$/) && network;
     
-    // If notifications are enabled, then method and target are required
+    // If notifications are enabled, check that at least one method is enabled and its required fields are filled
     if (notificationsEnabled) {
-      return baseValid && notificationMethod && notificationTarget;
+      const enabledNotifications = notifications.filter(n => n.enabled);
+      if (enabledNotifications.length === 0) {
+        return false;
+      }
+      
+      // Check each enabled notification method has required fields
+      const allValid = enabledNotifications.every(notification => {
+        switch (notification.method) {
+          case "email":
+            return user?.email || (notification.email && notification.email.includes('@'));
+          case "telegram":
+            return notification.telegramBotApiKey && notification.telegramChatId;
+          case "discord":
+          case "slack":
+          case "webhook":
+            return notification.webhookUrl && notification.webhookUrl.startsWith('http');
+          default:
+            return false;
+        }
+      });
+      
+      return baseValid && allValid;
     }
     
     // If notifications are disabled, just check base requirements
@@ -99,7 +155,7 @@ const NewMonitor = () => {
     if (!isFormValid()) {
       toast({
         title: "Invalid Form",
-        description: "Please fill out all required fields",
+        description: "Please fill out all required fields for enabled notification methods",
         variant: "destructive",
       });
       return;
@@ -117,19 +173,37 @@ const NewMonitor = () => {
     setIsSubmitting(true);
     
     try {
-      // Get notification target - use user's email automatically when method is email
-      const finalNotificationTarget = 
-        notificationsEnabled && notificationMethod === "email" && user?.email 
-          ? user.email 
-          : notificationTarget;
+      // Process enabled notifications for storage
+      const processedNotifications = notifications
+        .filter(n => n.enabled)
+        .map(notification => {
+          const result: Record<string, any> = { method: notification.method };
+          
+          switch (notification.method) {
+            case "email":
+              result.email = user?.email || notification.email;
+              break;
+            case "telegram":
+              result.botApiKey = notification.telegramBotApiKey;
+              result.chatId = notification.telegramChatId;
+              break;
+            case "discord":
+            case "slack":
+            case "webhook":
+              result.webhookUrl = notification.webhookUrl;
+              break;
+          }
+          
+          return result;
+        });
           
       // Create settings object with all configuration
       const settings = {
         alias: alias || null,
         network,
         active: true,
-        notificationMethod: notificationsEnabled ? notificationMethod : null,
-        notificationTarget: notificationsEnabled ? finalNotificationTarget : null
+        alertType,
+        notifications: processedNotifications
       };
 
       // Insert into Supabase
@@ -160,6 +234,92 @@ const NewMonitor = () => {
       });
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const renderNotificationFields = (notification: NotificationConfig) => {
+    switch (notification.method) {
+      case "email":
+        return (
+          <div className="pl-6 pt-2 space-y-2">
+            {user?.email ? (
+              <div className="flex items-center gap-2">
+                <Input
+                  value={user.email}
+                  readOnly
+                  className="bg-muted"
+                />
+                <p className="text-sm text-muted-foreground">Your account email</p>
+              </div>
+            ) : (
+              <Input
+                value={notification.email || ""}
+                onChange={(e) => updateNotificationField(notification.method, "email", e.target.value)}
+                placeholder="your@email.com"
+              />
+            )}
+          </div>
+        );
+
+      case "telegram":
+        return (
+          <div className="pl-6 pt-2 space-y-2">
+            <div className="space-y-2">
+              <Label htmlFor="telegram-bot-api">Bot API Key</Label>
+              <Input
+                id="telegram-bot-api"
+                value={notification.telegramBotApiKey || ""}
+                onChange={(e) => updateNotificationField(notification.method, "telegramBotApiKey", e.target.value)}
+                placeholder="123456789:ABCDefGhIJklmNoPQRstUvwxYZ"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="telegram-chat-id">Chat ID</Label>
+              <Input
+                id="telegram-chat-id"
+                value={notification.telegramChatId || ""}
+                onChange={(e) => updateNotificationField(notification.method, "telegramChatId", e.target.value)}
+                placeholder="123456789"
+              />
+            </div>
+          </div>
+        );
+
+      case "discord":
+        return (
+          <div className="pl-6 pt-2 space-y-2">
+            <Input
+              value={notification.webhookUrl || ""}
+              onChange={(e) => updateNotificationField(notification.method, "webhookUrl", e.target.value)}
+              placeholder="https://discord.com/api/webhooks/..."
+            />
+          </div>
+        );
+
+      case "slack":
+        return (
+          <div className="pl-6 pt-2 space-y-2">
+            <Input
+              value={notification.webhookUrl || ""}
+              onChange={(e) => updateNotificationField(notification.method, "webhookUrl", e.target.value)}
+              placeholder="https://hooks.slack.com/services/..."
+            />
+          </div>
+        );
+
+      case "webhook":
+        return (
+          <div className="pl-6 pt-2 space-y-2">
+            <Input
+              value={notification.webhookUrl || ""}
+              onChange={(e) => updateNotificationField(notification.method, "webhookUrl", e.target.value)}
+              placeholder="https://your-webhook-url.com"
+            />
+          </div>
+        );
+
+      default:
+        return null;
     }
   };
 
@@ -238,9 +398,6 @@ const NewMonitor = () => {
                     onChange={(e) => setAlias(e.target.value)}
                     placeholder="My Treasury Safe"
                   />
-                  <p className="text-sm text-muted-foreground">
-                    A friendly name to identify this Safe
-                  </p>
                 </div>
                 
                 <div className="space-y-2">
@@ -269,7 +426,7 @@ const NewMonitor = () => {
                         Notifications
                       </Label>
                       <p className="text-sm text-muted-foreground">
-                        Receive alerts when suspicious activity is detected
+                        Receive alerts when activity is detected
                       </p>
                     </div>
                     <Switch
@@ -280,55 +437,55 @@ const NewMonitor = () => {
                   </div>
                   
                   {notificationsEnabled && (
+                    <div className="space-y-4 pt-3 border-t mt-3">
+                      <Label className="text-base">Alert Type</Label>
+                      <RadioGroup 
+                        value={alertType} 
+                        onValueChange={setAlertType}
+                        className="space-y-2"
+                      >
+                        {ALERT_TYPES.map((type) => (
+                          <div key={type.id} className="flex items-center space-x-2">
+                            <RadioGroupItem value={type.id} id={`alert-type-${type.id}`} />
+                            <Label htmlFor={`alert-type-${type.id}`}>{type.name}</Label>
+                          </div>
+                        ))}
+                      </RadioGroup>
+                    </div>
+                  )}
+                  
+                  {notificationsEnabled && (
                     <div className="space-y-4 pt-2">
                       <div className="space-y-2">
-                        <Label htmlFor="notification-method">Notification Method</Label>
-                        <Select
-                          value={notificationMethod}
-                          onValueChange={setNotificationMethod}
-                        >
-                          <SelectTrigger id="notification-method">
-                            <SelectValue placeholder="How should we notify you?" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {NOTIFICATION_METHODS.map((method) => (
-                              <SelectItem key={method.id} value={method.id}>
-                                {method.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <Label className="text-base">Notification Methods</Label>
+                        <p className="text-sm text-muted-foreground">
+                          Select one or more notification methods to receive alerts
+                        </p>
+                        
+                        <div className="space-y-4 pt-2">
+                          {notifications.map((notification) => (
+                            <div key={notification.method} className="space-y-2">
+                              <div className="flex items-center space-x-2">
+                                <Checkbox
+                                  id={`notification-${notification.method}`}
+                                  checked={notification.enabled}
+                                  onCheckedChange={(checked) => 
+                                    toggleNotificationMethod(notification.method, checked as boolean)
+                                  }
+                                />
+                                <Label 
+                                  htmlFor={`notification-${notification.method}`}
+                                  className="font-medium"
+                                >
+                                  {NOTIFICATION_METHODS.find(m => m.id === notification.method)?.name}
+                                </Label>
+                              </div>
+                              
+                              {notification.enabled && renderNotificationFields(notification)}
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                      
-                  {notificationMethod && (
-                    <div className="space-y-2">
-                      <Label htmlFor="notification-target">
-                        {notificationMethod === "email" ? "Email Address" :
-                         notificationMethod === "telegram" ? "Telegram Username" :
-                         notificationMethod === "discord" ? "Discord Webhook" :
-                         notificationMethod === "slack" ? "Slack Webhook" :
-                         "Webhook URL"}
-                      </Label>
-                      {notificationMethod === "email" && user?.email ? (
-                        <div className="flex items-center gap-2">
-                          <Input
-                            id="notification-target" 
-                            value={user.email}
-                            readOnly
-                            className="bg-muted"
-                          />
-                          <p className="text-sm text-muted-foreground">Your account email</p>
-                        </div>
-                      ) : (
-                        <Input
-                          id="notification-target"
-                          value={notificationTarget}
-                          onChange={(e) => setNotificationTarget(e.target.value)}
-                          placeholder={getTargetPlaceholder()}
-                        />
-                      )}
-                        </div>
-                      )}
                     </div>
                   )}
                 </div>

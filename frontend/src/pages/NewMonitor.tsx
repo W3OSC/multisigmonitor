@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { HeaderWithLoginDialog } from "@/components/Header";
@@ -8,6 +7,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { AddressInput } from "@/components/AddressInput";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { ChevronLeft, Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 // This would be fetched from your API in a real app
 const SUPPORTED_NETWORKS = [
@@ -43,7 +44,8 @@ const NewMonitor = () => {
   
   const [address, setAddress] = useState("");
   const [alias, setAlias] = useState("");
-  const [network, setNetwork] = useState("");
+  const [network, setNetwork] = useState("ethereum");
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [notificationMethod, setNotificationMethod] = useState("");
   const [notificationTarget, setNotificationTarget] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -79,15 +81,19 @@ const NewMonitor = () => {
   };
 
   const isFormValid = () => {
-    return (
-      address.match(/^0x[a-fA-F0-9]{40}$/) &&
-      network &&
-      notificationMethod &&
-      notificationTarget
-    );
+    // Address and network are always required
+    const baseValid = address.match(/^0x[a-fA-F0-9]{40}$/) && network;
+    
+    // If notifications are enabled, then method and target are required
+    if (notificationsEnabled) {
+      return baseValid && notificationMethod && notificationTarget;
+    }
+    
+    // If notifications are disabled, just check base requirements
+    return baseValid;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!isFormValid()) {
@@ -98,19 +104,57 @@ const NewMonitor = () => {
       });
       return;
     }
+
+    if (!user) {
+      toast({
+        title: "Authentication Required",
+        description: "Please sign in to create a monitor",
+        variant: "destructive",
+      });
+      return;
+    }
     
     setIsSubmitting(true);
     
-    // In a real app, this would create the monitor in your database
-    setTimeout(() => {
+    try {
+      // Create settings object with all configuration
+      const settings = {
+        alias: alias || null,
+        network,
+        active: true,
+        notificationMethod: notificationsEnabled ? notificationMethod : null,
+        notificationTarget: notificationsEnabled ? notificationTarget : null
+      };
+
+      // Insert into Supabase
+      const { data, error } = await supabase
+        .from('monitors')
+        .insert({
+          user_id: user.id,
+          safe_address: address,
+          notify: notificationsEnabled,
+          settings
+        })
+        .select();
+
+      if (error) throw error;
+
       toast({
         title: "Monitor Created",
         description: "Your Safe is now being monitored for suspicious activity",
       });
       
-      setIsSubmitting(false);
       navigate("/monitor");
-    }, 1500);
+    } catch (error: any) {
+      console.error('Error creating monitor:', error);
+      toast({
+        title: "Error Creating Monitor",
+        description: error.message || "There was a problem creating your monitor",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (!user) {
@@ -138,28 +182,9 @@ const NewMonitor = () => {
                   onClick={handleLogin}
                   className="w-full"
                 >
-                  Sign In with Google
+                  Sign In to Continue
                 </Button>
               </div>
-              
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t"></span>
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-background px-2 text-muted-foreground">
-                    Or continue with
-                  </span>
-                </div>
-              </div>
-              
-              <Button
-                variant="outline"
-                onClick={handleLogin}
-                className="w-full"
-              >
-                Sign In with GitHub
-              </Button>
             </CardContent>
           </Card>
         </main>
@@ -231,42 +256,64 @@ const NewMonitor = () => {
                   </Select>
                 </div>
                 
-                <div className="space-y-2">
-                  <Label htmlFor="notification-method">Notification Method</Label>
-                  <Select
-                    value={notificationMethod}
-                    onValueChange={setNotificationMethod}
-                  >
-                    <SelectTrigger id="notification-method">
-                      <SelectValue placeholder="How should we notify you?" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {NOTIFICATION_METHODS.map((method) => (
-                        <SelectItem key={method.id} value={method.id}>
-                          {method.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                {notificationMethod && (
-                  <div className="space-y-2">
-                    <Label htmlFor="notification-target">
-                      {notificationMethod === "email" ? "Email Address" :
-                       notificationMethod === "telegram" ? "Telegram Username" :
-                       notificationMethod === "discord" ? "Discord Webhook" :
-                       notificationMethod === "slack" ? "Slack Webhook" :
-                       "Webhook URL"}
-                    </Label>
-                    <Input
-                      id="notification-target"
-                      value={notificationTarget}
-                      onChange={(e) => setNotificationTarget(e.target.value)}
-                      placeholder={getTargetPlaceholder()}
+                <div className="space-y-4 pt-4 border-t">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label htmlFor="notifications" className="text-base">
+                        Notifications
+                      </Label>
+                      <p className="text-sm text-muted-foreground">
+                        Receive alerts when suspicious activity is detected
+                      </p>
+                    </div>
+                    <Switch
+                      id="notifications"
+                      checked={notificationsEnabled}
+                      onCheckedChange={setNotificationsEnabled}
                     />
                   </div>
-                )}
+                  
+                  {notificationsEnabled && (
+                    <div className="space-y-4 pt-2">
+                      <div className="space-y-2">
+                        <Label htmlFor="notification-method">Notification Method</Label>
+                        <Select
+                          value={notificationMethod}
+                          onValueChange={setNotificationMethod}
+                        >
+                          <SelectTrigger id="notification-method">
+                            <SelectValue placeholder="How should we notify you?" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {NOTIFICATION_METHODS.map((method) => (
+                              <SelectItem key={method.id} value={method.id}>
+                                {method.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      {notificationMethod && (
+                        <div className="space-y-2">
+                          <Label htmlFor="notification-target">
+                            {notificationMethod === "email" ? "Email Address" :
+                             notificationMethod === "telegram" ? "Telegram Username" :
+                             notificationMethod === "discord" ? "Discord Webhook" :
+                             notificationMethod === "slack" ? "Slack Webhook" :
+                             "Webhook URL"}
+                          </Label>
+                          <Input
+                            id="notification-target"
+                            value={notificationTarget}
+                            onChange={(e) => setNotificationTarget(e.target.value)}
+                            placeholder={getTargetPlaceholder()}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </CardContent>
               
               <CardFooter className="flex justify-between">

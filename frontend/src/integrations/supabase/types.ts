@@ -9,7 +9,52 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      monitors: {
+        Row: {
+          id: string
+          user_id: string
+          safe_address: string
+          notify: boolean
+          settings: Json
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          safe_address: string
+          notify?: boolean
+          settings?: Json
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          safe_address?: string
+          notify?: boolean
+          settings?: Json
+          created_at?: string
+        }
+      }
+      results: {
+        Row: {
+          id: string
+          monitor_id: string
+          result: Json
+          scanned_at: string
+        }
+        Insert: {
+          id?: string
+          monitor_id: string
+          result: Json
+          scanned_at?: string
+        }
+        Update: {
+          id?: string
+          monitor_id?: string
+          result?: Json
+          scanned_at?: string
+        }
+      }
     }
     Views: {
       [_ in never]: never

@@ -1,7 +1,7 @@
-
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { HeaderWithLoginDialog } from "@/components/Header";
+import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertCircle, Eye, PlusCircle, Settings, ToggleLeft, ToggleRight, Trash2 } from "lucide-react";
@@ -20,80 +20,159 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Monitor {
   id: string;
-  address: string;
-  alias: string | null;
-  network: string;
+  safe_address: string;
+  alias?: string;
+  network?: string;
   active: boolean;
-  notificationMethod: string;
-  notificationTarget: string;
-  lastChecked: string;
-  alertCount: number;
+  notify: boolean;
+  notificationMethod?: string;
+  notificationTarget?: string;
+  lastChecked?: string;
+  alertCount?: number;
+  settings: any;
+  created_at: string;
 }
 
 const Monitor = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { toast } = useToast();
   const [monitors, setMonitors] = useState<Monitor[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // In a real app, you would fetch from your API
-    setTimeout(() => {
-      setMonitors([
-        {
-          id: "m1",
-          address: "0x1234567890123456789012345678901234567890",
-          alias: "Main Treasury",
-          network: "Ethereum",
-          active: true,
-          notificationMethod: "Email",
-          notificationTarget: "admin@example.com",
-          lastChecked: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
-          alertCount: 0
-        },
-        {
-          id: "m2",
-          address: "0x0987654321098765432109876543210987654321",
-          alias: null,
-          network: "Polygon",
-          active: true,
-          notificationMethod: "Discord",
-          notificationTarget: "webhooks/...",
-          lastChecked: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-          alertCount: 2
-        }
-      ]);
-      setIsLoading(false);
-    }, 1000);
-  }, []);
+    async function fetchMonitors() {
+      if (!user) {
+        setMonitors([]);
+        setIsLoading(false);
+        return;
+      }
 
-  const toggleMonitor = (id: string) => {
-    setMonitors(monitors.map(m => 
-      m.id === id ? { ...m, active: !m.active } : m
-    ));
-    
+      try {
+        const { data, error } = await supabase
+          .from('monitors')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          console.error('Error fetching monitors:', error);
+          toast({
+            title: "Error Fetching Monitors",
+            description: error.message,
+            variant: "destructive",
+          });
+          return;
+        }
+
+        const formattedMonitors = data.map(monitor => ({
+          id: monitor.id,
+          safe_address: monitor.safe_address,
+          active: monitor.settings?.active !== false, // Default to true if not specified
+          notify: monitor.notify,
+          settings: monitor.settings || {},
+          created_at: monitor.created_at,
+          alias: monitor.settings?.alias,
+          network: monitor.settings?.network || 'Ethereum',
+          notificationMethod: monitor.settings?.notificationMethod,
+          notificationTarget: monitor.settings?.notificationTarget,
+          lastChecked: new Date().toISOString(), // Placeholder for now
+          alertCount: 0 // Placeholder for now
+        }));
+
+        setMonitors(formattedMonitors);
+      } catch (error) {
+        console.error('Unexpected error:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    fetchMonitors();
+  }, [user, toast]);
+
+  const toggleMonitor = async (id: string) => {
     const monitor = monitors.find(m => m.id === id);
+    if (!monitor) return;
     
-    toast({
-      title: monitor?.active ? "Monitor Paused" : "Monitor Activated",
-      description: monitor?.active 
-        ? `Paused monitoring for ${monitor.alias || monitor.address}` 
-        : `Activated monitoring for ${monitor.alias || monitor.address}`,
-    });
+    const newActiveState = !monitor.active;
+    
+    try {
+      // Update locally first for immediate UI feedback
+      setMonitors(monitors.map(m => 
+        m.id === id ? { ...m, active: newActiveState } : m
+      ));
+
+      // Then update in the database
+      const { error } = await supabase
+        .from('monitors')
+        .update({ 
+          settings: {
+            ...monitor.settings,
+            active: newActiveState
+          }
+        })
+        .eq('id', id);
+
+      if (error) throw error;
+      
+      toast({
+        title: newActiveState ? "Monitor Activated" : "Monitor Paused",
+        description: newActiveState
+          ? `Activated monitoring for ${monitor.alias || monitor.safe_address}` 
+          : `Paused monitoring for ${monitor.alias || monitor.safe_address}`,
+      });
+    } catch (error: any) {
+      console.error('Error toggling monitor:', error);
+      
+      // Revert the local state change on error
+      setMonitors(monitors.map(m => 
+        m.id === id ? { ...m, active: !newActiveState } : m
+      ));
+      
+      toast({
+        title: "Error Updating Monitor",
+        description: error.message || "Failed to update monitor status",
+        variant: "destructive",
+      });
+    }
   };
 
-  const deleteMonitor = (id: string) => {
+  const deleteMonitor = async (id: string) => {
     const monitor = monitors.find(m => m.id === id);
+    if (!monitor) return;
     
-    setMonitors(monitors.filter(m => m.id !== id));
-    
-    toast({
-      title: "Monitor Deleted",
-      description: `Successfully removed monitoring for ${monitor?.alias || monitor?.address}`,
-    });
+    try {
+      // Update UI first for responsiveness
+      setMonitors(monitors.filter(m => m.id !== id));
+      
+      // Then delete from database
+      const { error } = await supabase
+        .from('monitors')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      
+      toast({
+        title: "Monitor Deleted",
+        description: `Successfully removed monitoring for ${monitor.alias || monitor.safe_address}`,
+      });
+    } catch (error: any) {
+      console.error('Error deleting monitor:', error);
+      
+      // Restore the monitor in the UI on error
+      setMonitors(prev => [...prev, monitor]);
+      
+      toast({
+        title: "Error Deleting Monitor",
+        description: error.message || "Failed to delete monitor",
+        variant: "destructive",
+      });
+    }
   };
 
   const formatTimeAgo = (dateString: string) => {
@@ -115,6 +194,31 @@ const Monitor = () => {
   const truncateAddress = (address: string) => {
     return `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
   };
+
+  if (!user) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <HeaderWithLoginDialog />
+        
+        <main className="flex-1 container py-12 flex flex-col items-center justify-center">
+          <Card className="w-full max-w-md mx-auto">
+            <CardHeader>
+              <CardTitle>Sign In Required</CardTitle>
+              <CardDescription>
+                You need to sign in to view your monitors
+              </CardDescription>
+            </CardHeader>
+            
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Please sign in to access your Safe monitoring dashboard.
+              </p>
+            </CardContent>
+          </Card>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -155,7 +259,7 @@ const Monitor = () => {
                 <Card key={monitor.id} className={monitor.active ? "" : "opacity-70"}>
                   <CardHeader className="pb-2">
                     <div className="flex justify-between items-start">
-                      <CardTitle className="truncate">{monitor.alias || truncateAddress(monitor.address)}</CardTitle>
+                      <CardTitle className="truncate">{monitor.alias || truncateAddress(monitor.safe_address)}</CardTitle>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="icon">
@@ -199,23 +303,23 @@ const Monitor = () => {
                     <div className="text-sm space-y-1">
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Address:</span>
-                        <span className="font-mono">{truncateAddress(monitor.address)}</span>
+                        <span className="font-mono">{truncateAddress(monitor.safe_address)}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Notifications:</span>
-                        <span>{monitor.notificationMethod}</span>
+                        <span>{monitor.notify ? (monitor.notificationMethod || 'Enabled') : 'Disabled'}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Last checked:</span>
-                        <span>{formatTimeAgo(monitor.lastChecked)}</span>
+                        <span>{monitor.lastChecked ? formatTimeAgo(monitor.lastChecked) : 'Never'}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Alerts:</span>
                         <span className="flex items-center">
-                          {monitor.alertCount > 0 && (
+                          {(monitor.alertCount || 0) > 0 && (
                             <AlertCircle className="mr-1 h-3.5 w-3.5 text-destructive" />
                           )}
-                          {monitor.alertCount}
+                          {monitor.alertCount || 0}
                         </span>
                       </div>
                     </div>
@@ -243,7 +347,7 @@ const Monitor = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {monitors.some(m => m.alertCount > 0) ? (
+                    {monitors.some(m => (m.alertCount || 0) > 0) ? (
                       <>
                         <TableRow>
                           <TableCell className="font-medium">

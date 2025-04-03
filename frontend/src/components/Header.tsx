@@ -50,13 +50,15 @@ export function Header() {
               )}
             >
               <nav className="flex flex-col gap-4">
-                <Link 
-                  to="/monitor" 
-                  className="flex items-center px-4 py-2 text-lg font-medium hover:text-primary"
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  Dashboard
-                </Link>
+                {user && (
+                  <Link 
+                    to="/monitor" 
+                    className="flex items-center px-4 py-2 text-lg font-medium hover:text-primary"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    Dashboard
+                  </Link>
+                )}
                 {user ? (
                   <div className="px-4 py-2">
                     <UserDropdownMenu />
@@ -79,12 +81,11 @@ export function Header() {
         ) : (
           <div className="flex items-center justify-end flex-shrink-0">
             <div className="flex items-center gap-6">
-              <Link to="/monitor" className="hover:text-primary text-sm font-medium">
-                Dashboard
-              </Link>
-              <Link to="/about" className="hover:text-primary">
-                About
-              </Link>
+              {user && (
+                <Link to="/monitor" className="hover:text-primary text-sm font-medium">
+                  Dashboard
+                </Link>
+              )}
               <div className="flex items-center gap-4">
                 {user ? (
                   <UserDropdownMenu />

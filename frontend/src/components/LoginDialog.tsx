@@ -20,10 +20,14 @@ export function LoginDialog({ isOpen, onClose }: LoginDialogProps) {
   const handleLogin = async (provider: 'github' | 'google') => {
     try {
       setIsLoading(true);
+      // Preserve the current URL including any parameters
+      const currentPath = window.location.pathname + window.location.search;
+      const redirectTo = window.location.origin + currentPath;
+      
       await supabase.auth.signInWithOAuth({
         provider,
         options: {
-          redirectTo: window.location.origin,
+          redirectTo: redirectTo,
         },
       });
       // Note: We don't close the dialog here because the OAuth flow will redirect the page

@@ -1,7 +1,7 @@
 
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Header } from "@/components/Header";
+import { HeaderWithLoginDialog } from "@/components/Header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertCircle, Eye, PlusCircle, Settings, ToggleLeft, ToggleRight, Trash2 } from "lucide-react";
@@ -118,7 +118,7 @@ const Monitor = () => {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <Header />
+      <HeaderWithLoginDialog />
       
       <main className="flex-1 container py-12">
         <div className="flex justify-between items-center mb-8">

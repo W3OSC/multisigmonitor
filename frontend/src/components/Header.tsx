@@ -1,15 +1,18 @@
-
 import { Link } from "react-router-dom";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
-import { Shield, Menu, X } from "lucide-react";
+import { Shield, Menu, X, LogIn } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/context/AuthContext";
+import { LoginDialog } from "@/components/LoginDialog";
+import { UserDropdownMenu } from "@/components/UserDropdownMenu";
 
 export function Header() {
   const isMobile = useIsMobile();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const { user, isLoginDialogOpen, setIsLoginDialogOpen, signOut } = useAuth();
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/80 backdrop-blur-sm">
@@ -59,6 +62,21 @@ export function Header() {
                 >
                   About
                 </Link>
+                {user ? (
+                  <div className="px-4 py-2">
+                    <UserDropdownMenu />
+                  </div>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsLoginDialogOpen(true)}
+                    className="flex items-center gap-1 mx-4"
+                  >
+                    <LogIn className="h-4 w-4" />
+                    <span>Login</span>
+                  </Button>
+                )}
                 <ThemeToggle />
               </nav>
             </div>
@@ -73,10 +91,40 @@ export function Header() {
                 About
               </Link>
             </nav>
-            <ThemeToggle />
+            <div className="flex items-center gap-4">
+              {user ? (
+                <UserDropdownMenu />
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsLoginDialogOpen(true)}
+                  className="flex items-center gap-1"
+                >
+                  <LogIn className="h-4 w-4" />
+                  <span>Login</span>
+                </Button>
+              )}
+              <ThemeToggle />
+            </div>
           </div>
         )}
       </div>
     </header>
+  );
+}
+
+// Rendering the login dialog outside the main component to avoid nesting issues
+export function HeaderWithLoginDialog() {
+  const { isLoginDialogOpen, setIsLoginDialogOpen } = useAuth();
+  
+  return (
+    <>
+      <Header />
+      <LoginDialog 
+        isOpen={isLoginDialogOpen} 
+        onClose={() => setIsLoginDialogOpen(false)} 
+      />
+    </>
   );
 }

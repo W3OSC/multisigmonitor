@@ -1,7 +1,8 @@
 
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Header } from "@/components/Header";
+import { HeaderWithLoginDialog } from "@/components/Header";
+import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { AddressInput } from "@/components/AddressInput";
@@ -46,13 +47,9 @@ const NewMonitor = () => {
   const [notificationMethod, setNotificationMethod] = useState("");
   const [notificationTarget, setNotificationTarget] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const { user, setIsLoginDialogOpen } = useAuth();
 
   useEffect(() => {
-    // In a real app, you would check if the user is logged in
-    // This is just a mock for demonstration
-    setIsLoggedIn(false);
-    
     const searchParams = new URLSearchParams(location.search);
     const addressParam = searchParams.get("address");
     if (addressParam) {
@@ -61,12 +58,7 @@ const NewMonitor = () => {
   }, [location.search]);
 
   const handleLogin = () => {
-    // Mock login - in real app this would use Supabase auth
-    setIsLoggedIn(true);
-    toast({
-      title: "Successfully signed in",
-      description: "You can now set up monitoring for your Safe",
-    });
+    setIsLoginDialogOpen(true);
   };
 
   const getTargetPlaceholder = () => {
@@ -121,10 +113,10 @@ const NewMonitor = () => {
     }, 1500);
   };
 
-  if (!isLoggedIn) {
+  if (!user) {
     return (
       <div className="min-h-screen flex flex-col">
-        <Header />
+        <HeaderWithLoginDialog />
         
         <main className="flex-1 container py-12 flex flex-col items-center justify-center">
           <Card className="w-full max-w-md mx-auto">
@@ -177,7 +169,7 @@ const NewMonitor = () => {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <Header />
+      <HeaderWithLoginDialog />
       
       <main className="flex-1 container py-12">
         <div className="max-w-2xl mx-auto">

@@ -1,7 +1,7 @@
 
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Header } from "@/components/Header";
+import { HeaderWithLoginDialog } from "@/components/Header";
 import { Button } from "@/components/ui/button";
 import { AddressInput } from "@/components/AddressInput";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -54,7 +54,7 @@ const Review = () => {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <Header />
+      <HeaderWithLoginDialog />
       
       <main className="flex-1 container py-12">
         <div className="max-w-3xl mx-auto">

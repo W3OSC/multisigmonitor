@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Header } from "@/components/Header";
+import { HeaderWithLoginDialog } from "@/components/Header";
 import { AddressInput } from "@/components/AddressInput";
 import { AlertCircle, Shield, Eye } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -58,7 +58,7 @@ const Index = () => {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <Header />
+      <HeaderWithLoginDialog />
       
       <main className="flex-1 container max-w-6xl">
         <div className="py-12 md:py-20">

@@ -1,12 +1,12 @@
 
-import { Header } from "@/components/Header";
+import { HeaderWithLoginDialog } from "@/components/Header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Shield, AlertTriangle, Eye, Bell, Code, Server } from "lucide-react";
 
 const About = () => {
   return (
     <div className="min-h-screen flex flex-col">
-      <Header />
+      <HeaderWithLoginDialog />
       
       <main className="flex-1 container py-12">
         <div className="max-w-4xl mx-auto space-y-12">

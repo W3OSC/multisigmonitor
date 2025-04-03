@@ -1,7 +1,7 @@
 
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Header } from "@/components/Header";
+import { HeaderWithLoginDialog } from "@/components/Header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { AddressInput } from "@/components/AddressInput";
@@ -137,7 +137,7 @@ const MonitorConfig = () => {
   if (isLoading) {
     return (
       <div className="min-h-screen flex flex-col">
-        <Header />
+        <HeaderWithLoginDialog />
         
         <main className="flex-1 container py-12 flex flex-col items-center justify-center">
           <div className="animate-spin">
@@ -151,7 +151,7 @@ const MonitorConfig = () => {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <Header />
+      <HeaderWithLoginDialog />
       
       <main className="flex-1 container py-12">
         <div className="max-w-2xl mx-auto">

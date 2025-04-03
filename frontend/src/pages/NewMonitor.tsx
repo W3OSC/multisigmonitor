@@ -78,7 +78,11 @@ const NewMonitor = () => {
     setNotifications(
       NOTIFICATION_METHODS.map(method => ({
         method: method.id,
-        enabled: false
+        enabled: false,
+        email: '',
+        telegramBotApiKey: '',
+        telegramChatId: '',
+        webhookUrl: ''
       }))
     );
   }, []);

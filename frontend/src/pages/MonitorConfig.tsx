@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { ChevronLeft, Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 // Use the same constants as NewMonitor.tsx
 const SUPPORTED_NETWORKS = [
@@ -72,56 +73,117 @@ const MonitorConfig = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Initialize notification methods
   useEffect(() => {
+    // Initialize notification methods once
     setNotifications(
       NOTIFICATION_METHODS.map(method => ({
         method: method.id,
         enabled: false
       }))
     );
-  }, []);
-
-  useEffect(() => {
+    
+    // Fetch monitor data if ID is available
     if (!id) {
       navigate("/monitor");
       return;
     }
     
-    // In a real app, you would fetch the monitor details from your API
-    setTimeout(() => {
-      // Mock data for demonstration
-      if (id === "m1") {
-        setAddress("0x1234567890123456789012345678901234567890");
-        setAlias("Main Treasury");
-        setNetwork("ethereum");
-        setAlertType("suspicious");
+    async function fetchMonitor() {
+      if (!user) {
+        setIsLoading(false);
+        return;
+      }
+      
+      try {
+        // Fetch the monitor data from Supabase
+        const { data, error } = await supabase
+          .from('monitors')
+          .select('*')
+          .eq('id', id)
+          .single();
         
-        // Set notification methods
-        const updatedNotifications = [...notifications];
-        const emailNotif = updatedNotifications.find(n => n.method === "email");
-        if (emailNotif) {
-          emailNotif.enabled = true;
-          emailNotif.email = "admin@example.com";
+        if (error) {
+          throw error;
         }
-        setNotifications(updatedNotifications);
         
-      } else if (id === "m2") {
-        setAddress("0x0987654321098765432109876543210987654321");
-        setAlias("");
-        setNetwork("polygon");
-        setAlertType("all");
-        
-        // Set notification methods
-        const updatedNotifications = [...notifications];
-        const discordNotif = updatedNotifications.find(n => n.method === "discord");
-        if (discordNotif) {
-          discordNotif.enabled = true;
-          discordNotif.webhookUrl = "https://discord.com/api/webhooks/...";
+        if (!data) {
+          throw new Error("Monitor not found");
         }
-        setNotifications(updatedNotifications);
         
-      } else {
+        // Set the basic monitor data
+        setAddress(data.safe_address);
+        setAlias(data.settings?.alias || "");
+        setNetwork(data.settings?.network || "ethereum");
+        setNotificationsEnabled(data.notify);
+        setAlertType(data.settings?.alertType || "suspicious");
+        
+        // Create fresh notification configurations
+        const updatedNotifications = NOTIFICATION_METHODS.map(method => ({
+          method: method.id,
+          enabled: false,
+          email: '',
+          telegramBotApiKey: '',
+          telegramChatId: '',
+          webhookUrl: ''
+        }));
+        
+        // Handle different notification formats
+        if (data.settings?.notifications && Array.isArray(data.settings.notifications)) {
+          // Handle new multi-notification format
+          data.settings.notifications.forEach(notification => {
+            const notifConfig = updatedNotifications.find(n => n.method === notification.method);
+            if (notifConfig) {
+              notifConfig.enabled = true;
+              
+              // Set specific fields based on notification type
+              switch (notification.method) {
+                case "email":
+                  notifConfig.email = notification.email;
+                  break;
+                case "telegram":
+                  notifConfig.telegramBotApiKey = notification.botApiKey;
+                  notifConfig.telegramChatId = notification.chatId;
+                  break;
+                case "discord":
+                case "slack":
+                case "webhook":
+                  notifConfig.webhookUrl = notification.webhookUrl;
+                  break;
+              }
+            }
+          });
+        } else if (data.settings?.notificationMethod) {
+          // Handle legacy single notification format for backward compatibility
+          const method = data.settings.notificationMethod;
+          const target = data.settings.notificationTarget;
+          
+          const notifConfig = updatedNotifications.find(n => n.method === method);
+          if (notifConfig) {
+            notifConfig.enabled = true;
+            
+            switch (method) {
+              case "email":
+                notifConfig.email = target;
+                break;
+              case "telegram":
+                // Can't reliably split legacy telegram target, use empty values
+                notifConfig.telegramBotApiKey = "";
+                notifConfig.telegramChatId = "";
+                break;
+              case "discord":
+              case "slack":
+              case "webhook":
+                notifConfig.webhookUrl = target;
+                break;
+            }
+          }
+        }
+        
+        // Set notifications and finish loading
+        setNotifications(updatedNotifications);
+        setIsLoading(false);
+      } catch (error) {
+        console.error('Error fetching monitor:', error);
         toast({
           title: "Monitor Not Found",
           description: "The requested monitor could not be found",
@@ -129,10 +191,10 @@ const MonitorConfig = () => {
         });
         navigate("/monitor");
       }
-      
-      setIsLoading(false);
-    }, 1000);
-  }, [id, navigate, toast, notifications]);
+    }
+    
+    fetchMonitor();
+  }, [id, navigate, toast, user]);
   
   const toggleNotificationMethod = (methodId: string, enabled: boolean) => {
     setNotifications(prevState => 
@@ -188,7 +250,7 @@ const MonitorConfig = () => {
     return baseValid;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!isFormValid()) {
@@ -200,42 +262,79 @@ const MonitorConfig = () => {
       return;
     }
     
+    if (!id || !user) {
+      toast({
+        title: "Error",
+        description: "Missing required information to update monitor",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     setIsSubmitting(true);
     
-    // Process enabled notifications for storage
-    const processedNotifications = notifications
-      .filter(n => n.enabled)
-      .map(notification => {
-        const result: Record<string, any> = { method: notification.method };
-        
-        switch (notification.method) {
-          case "email":
-            result.email = user?.email || notification.email;
-            break;
-          case "telegram":
-            result.botApiKey = notification.telegramBotApiKey;
-            result.chatId = notification.telegramChatId;
-            break;
-          case "discord":
-          case "slack":
-          case "webhook":
-            result.webhookUrl = notification.webhookUrl;
-            break;
-        }
-        
-        return result;
-      });
-    
-    // In a real app, this would update the monitor in your database
-    setTimeout(() => {
+    try {
+      // Process enabled notifications for storage
+      const processedNotifications = notifications
+        .filter(n => n.enabled)
+        .map(notification => {
+          const result: Record<string, any> = { method: notification.method };
+          
+          switch (notification.method) {
+            case "email":
+              result.email = user?.email || notification.email;
+              break;
+            case "telegram":
+              result.botApiKey = notification.telegramBotApiKey;
+              result.chatId = notification.telegramChatId;
+              break;
+            case "discord":
+            case "slack":
+            case "webhook":
+              result.webhookUrl = notification.webhookUrl;
+              break;
+          }
+          
+          return result;
+        });
+      
+      // Create settings object with all configuration
+      const settings = {
+        alias: alias || null,
+        network,
+        active: true,
+        alertType,
+        notifications: processedNotifications
+      };
+      
+      // Update the monitor in Supabase
+      const { error } = await supabase
+        .from('monitors')
+        .update({
+          safe_address: address,
+          notify: notificationsEnabled,
+          settings: settings
+        })
+        .eq('id', id);
+      
+      if (error) throw error;
+      
       toast({
         title: "Monitor Updated",
         description: "Your monitor settings have been updated successfully",
       });
       
-      setIsSubmitting(false);
       navigate("/monitor");
-    }, 1500);
+    } catch (error: any) {
+      console.error('Error updating monitor:', error);
+      toast({
+        title: "Error Updating Monitor",
+        description: error.message || "There was a problem updating your monitor",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
   
   const renderNotificationFields = (notification: NotificationConfig) => {

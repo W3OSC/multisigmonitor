@@ -41,7 +41,7 @@ export function LoginDialog({ isOpen, onClose }: LoginDialogProps) {
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Sign in to SafeWatch</DialogTitle>
+          <DialogTitle>Sign in to safemonitor</DialogTitle>
         </DialogHeader>
         <div className="flex flex-col gap-4 py-4">
           <Button

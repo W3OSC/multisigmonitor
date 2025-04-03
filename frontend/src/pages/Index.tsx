@@ -69,7 +69,7 @@ const Index = () => {
             </div>
             
             <h1 className="text-4xl md:text-6xl font-bold mb-6">
-              <span className="jsr-text-gradient">Safe</span>Watch
+              <span className="jsr-text-gradient">safe</span>monitor
             </h1>
             
             <p className="max-w-[42rem] text-lg text-muted-foreground mb-8">
@@ -140,17 +140,10 @@ const Index = () => {
       <footer className="border-t py-6 md:py-0">
         <div className="container flex flex-col md:flex-row items-center justify-between gap-4 md:h-16">
           <p className="text-sm text-muted-foreground">
-            &copy; {new Date().getFullYear()} SafeWatch. All rights reserved.
           </p>
           <div className="flex items-center gap-4">
-            <a href="#" className="text-sm text-muted-foreground hover:text-foreground">
-              Privacy
-            </a>
-            <a href="#" className="text-sm text-muted-foreground hover:text-foreground">
-              Terms
-            </a>
-            <a href="#" className="text-sm text-muted-foreground hover:text-foreground">
-              Contact
+            <a href="https://github.com/fredriksvantes/safemonitor/" className="text-sm text-muted-foreground hover:text-foreground">
+              Contribute
             </a>
           </div>
         </div>

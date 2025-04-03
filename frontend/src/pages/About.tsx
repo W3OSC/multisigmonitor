@@ -11,7 +11,7 @@ const About = () => {
       <main className="flex-1 container py-12">
         <div className="max-w-4xl mx-auto space-y-12">
           <div className="text-center">
-            <h1 className="text-4xl font-bold mb-4">About SafeWatch</h1>
+            <h1 className="text-4xl font-bold mb-4">About safemonitor</h1>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
               Protecting your multisignature vaults with advanced monitoring and security analysis
             </p>
@@ -27,7 +27,7 @@ const About = () => {
               </CardHeader>
               <CardContent>
                 <p>
-                  SafeWatch was created to provide enhanced security for Safe.global multisignature 
+                  safemonitor was created to provide enhanced security for Safe.global multisignature 
                   wallets. Our mission is to detect and alert users to suspicious activity before it 
                   becomes a problem, protecting digital assets and providing peace of mind.
                 </p>
@@ -120,7 +120,7 @@ const About = () => {
             </CardHeader>
             <CardContent>
               <p className="mb-4">
-                SafeWatch is built on modern, reliable technology:
+                safemonitor is built on modern, reliable technology:
               </p>
               <ul className="list-disc list-inside space-y-2 text-muted-foreground">
                 <li>React.js and Tailwind CSS for a responsive, intuitive frontend experience</li>
@@ -137,19 +137,8 @@ const About = () => {
       <footer className="border-t py-6 md:py-0">
         <div className="container flex flex-col md:flex-row items-center justify-between gap-4 md:h-16">
           <p className="text-sm text-muted-foreground">
-            &copy; {new Date().getFullYear()} SafeWatch. All rights reserved.
+            &copy; {new Date().getFullYear()} safemonitor. All rights reserved.
           </p>
-          <div className="flex items-center gap-4">
-            <a href="#" className="text-sm text-muted-foreground hover:text-foreground">
-              Privacy
-            </a>
-            <a href="#" className="text-sm text-muted-foreground hover:text-foreground">
-              Terms
-            </a>
-            <a href="#" className="text-sm text-muted-foreground hover:text-foreground">
-              Contact
-            </a>
-          </div>
         </div>
       </footer>
     </div>

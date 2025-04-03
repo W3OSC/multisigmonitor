@@ -106,6 +106,7 @@ const Monitor = () => {
       }
 
       try {
+        // First fetch the monitors
         const { data, error } = await supabase
           .from('monitors')
           .select('*')
@@ -120,6 +121,28 @@ const Monitor = () => {
           });
           return;
         }
+        
+        // Get monitor IDs to fetch latest results
+        const monitorIds = data.map(monitor => monitor.id);
+        
+        // Fetch the latest result for each monitor
+        const { data: resultsData, error: resultsError } = await supabase
+          .from('results')
+          .select('monitor_id, scanned_at')
+          .in('monitor_id', monitorIds)
+          .order('scanned_at', { ascending: false });
+          
+        if (resultsError) {
+          console.error('Error fetching results:', resultsError);
+        }
+        
+        // Create a map of the latest scan time for each monitor
+        const latestScans = {};
+        resultsData?.forEach(result => {
+          if (!latestScans[result.monitor_id] || new Date(result.scanned_at) > new Date(latestScans[result.monitor_id])) {
+            latestScans[result.monitor_id] = result.scanned_at;
+          }
+        });
 
         const formattedMonitors = data.map(monitor => ({
           id: monitor.id,
@@ -132,7 +155,7 @@ const Monitor = () => {
           network: monitor.settings?.network || 'Ethereum',
           notificationMethod: monitor.settings?.notificationMethod,
           notificationTarget: monitor.settings?.notificationTarget,
-          lastChecked: new Date().toISOString(), // Placeholder for now
+          lastChecked: latestScans[monitor.id] || null, // Use actual last checked time or null
           alertCount: 0 // Placeholder for now
         }));
 
@@ -334,7 +357,9 @@ const Monitor = () => {
     }
   };
 
-  const formatTimeAgo = (dateString: string) => {
+  const formatTimeAgo = (dateString: string | null) => {
+    if (!dateString) return 'Waiting for first check';
+    
     const date = new Date(dateString);
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
@@ -512,7 +537,7 @@ const Monitor = () => {
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Last checked:</span>
-                        <span>{monitor.lastChecked ? formatTimeAgo(monitor.lastChecked) : 'Never'}</span>
+                        <span>{formatTimeAgo(monitor.lastChecked)}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Alerts:</span>

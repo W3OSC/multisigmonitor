@@ -12,8 +12,8 @@ This README contains all the SQL statements required to set up tables and Row-Le
 CREATE TABLE monitors (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES auth.users ON DELETE CASCADE,
-  transaction_string TEXT NOT NULL,
-  notify BOOLEAN DEFAULT TRUE,
+  safe_address TEXT NOT NULL,
+  notify BOOLEAN DEFAULT FALSE,
   settings JSONB DEFAULT '{}',
   created_at TIMESTAMP DEFAULT now()
 );
@@ -30,25 +30,14 @@ CREATE TABLE results (
 );
 ```
 
-3. `profiles` Table
-
-```sql
-CREATE TABLE profiles (
-  id UUID PRIMARY KEY REFERENCES auth.users ON DELETE CASCADE,
-  email TEXT UNIQUE NOT NULL,
-  created_at TIMESTAMP DEFAULT now()
-);
-```
-
-### ✅ Enable Row-Level Security (RLS)
+### Enable Row-Level Security (RLS)
 
 ```sql
 ALTER TABLE monitors ENABLE ROW LEVEL SECURITY;
 ALTER TABLE results ENABLE ROW LEVEL SECURITY;
-ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 ```
 
-### ✅ RLS Policies
+### RLS Policies
 
 #### Policies for `monitors`
 
@@ -74,7 +63,7 @@ USING (auth.uid() = user_id);
 #### Policies for `results`
 
 ```sql
-CREATE POLICY "Users can view results from their monitors"
+CREATE POLICY "Users can view results from their own monitors"
 ON results FOR SELECT
 USING (
   EXISTS (
@@ -83,21 +72,4 @@ USING (
       AND monitors.user_id = auth.uid()
   )
 );
-```
-
-### Policies for `profiles`
-
-```sql
-CREATE POLICY "Users can read their own profile"
-ON profiles FOR SELECT
-USING (auth.uid() = id);
-
-CREATE POLICY "Users can insert their own profile"
-ON profiles FOR INSERT
-WITH CHECK (auth.uid() = id);
-
-CREATE POLICY "Users can update their own profile"
-ON profiles FOR UPDATE
-USING (auth.uid() = id)
-WITH CHECK (auth.uid() = id);
 ```

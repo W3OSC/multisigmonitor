@@ -204,9 +204,9 @@ const NewMonitor = () => {
       // Create settings object with all configuration
       const settings = {
         alias: alias || null,
-        network,
         active: true,
         alertType,
+        notify: notificationsEnabled,
         notifications: processedNotifications
       };
 
@@ -216,7 +216,7 @@ const NewMonitor = () => {
         .insert({
           user_id: user.id,
           safe_address: address,
-          notify: notificationsEnabled,
+          network: network.toLowerCase(),
           settings
         })
         .select();

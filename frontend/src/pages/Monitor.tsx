@@ -46,8 +46,8 @@ import { supabase } from "@/integrations/supabase/client";
 interface Monitor {
   id: string;
   safe_address: string;
+  network: string;
   alias?: string;
-  network?: string;
   active: boolean;
   notify: boolean;
   notificationMethod?: string;
@@ -61,13 +61,13 @@ interface Monitor {
 // Interface for Alert data
 interface Alert {
   id: string;
-  address: string;
-  alias?: string;
+  safe_address: string;
   network: string;
-  txHash: string;
+  transaction_hash: string;
   description: string;
-  timestamp: string;
+  scanned_at: string;
   type: 'normal' | 'suspicious';
+  result: any;
 }
 
 interface AlertFilter {
@@ -110,6 +110,7 @@ const Monitor = () => {
         const { data, error } = await supabase
           .from('monitors')
           .select('*')
+          .eq('user_id', user.id)
           .order('created_at', { ascending: false });
 
         if (error) {
@@ -122,42 +123,77 @@ const Monitor = () => {
           return;
         }
         
-        // Get monitor IDs to fetch latest results
-        const monitorIds = data.map(monitor => monitor.id);
+        // Fetch the latest result for each safe_address + network combination
+        const resultsPromises = data.map(monitor => 
+          supabase
+            .from('results')
+            .select('safe_address, network, scanned_at, result')
+            .eq('safe_address', monitor.safe_address)
+            .eq('network', monitor.network)
+            .order('scanned_at', { ascending: false })
+            .limit(1)
+        );
         
-        // Fetch the latest result for each monitor
-        const { data: resultsData, error: resultsError } = await supabase
-          .from('results')
-          .select('monitor_id, scanned_at')
-          .in('monitor_id', monitorIds)
-          .order('scanned_at', { ascending: false });
-          
-        if (resultsError) {
-          console.error('Error fetching results:', resultsError);
-        }
+        const resultsResponses = await Promise.all(resultsPromises);
         
-        // Create a map of the latest scan time for each monitor
+        // Create a map of the latest scan time for each monitor's safe_address+network
         const latestScans = {};
-        resultsData?.forEach(result => {
-          if (!latestScans[result.monitor_id] || new Date(result.scanned_at) > new Date(latestScans[result.monitor_id])) {
-            latestScans[result.monitor_id] = result.scanned_at;
+        resultsResponses.forEach((response, index) => {
+          if (response.error) {
+            console.error('Error fetching results:', response.error);
+            return;
+          }
+          
+          if (response.data && response.data.length > 0) {
+            const monitor = data[index];
+            const key = `${monitor.safe_address.toLowerCase()}-${monitor.network.toLowerCase()}`;
+            latestScans[key] = response.data[0].scanned_at;
           }
         });
 
-        const formattedMonitors = data.map(monitor => ({
-          id: monitor.id,
-          safe_address: monitor.safe_address,
-          active: monitor.settings?.active !== false, // Default to true if not specified
-          notify: monitor.notify,
-          settings: monitor.settings || {},
-          created_at: monitor.created_at,
-          alias: monitor.settings?.alias,
-          network: monitor.settings?.network || 'Ethereum',
-          notificationMethod: monitor.settings?.notificationMethod,
-          notificationTarget: monitor.settings?.notificationTarget,
-          lastChecked: latestScans[monitor.id] || null, // Use actual last checked time or null
-          alertCount: 0 // Placeholder for now
-        }));
+        // Get suspicious transaction counts for each address+network pair
+        const alertPromises = data.map(monitor =>
+          supabase
+            .from('results')
+            .select('id', { count: 'exact' })
+            .eq('safe_address', monitor.safe_address)
+            .eq('network', monitor.network)
+            .eq('result->type', 'suspicious')
+            .not('result->transaction_hash', 'is', null)
+        );
+        
+        const alertResponses = await Promise.all(alertPromises);
+        
+        // Create a map of alert counts for each address+network pair
+        const alertCountMap = {};
+        alertResponses.forEach((response, index) => {
+          if (response.error) {
+            console.error('Error fetching alert counts:', response.error);
+            return;
+          }
+          
+          const monitor = data[index];
+          const key = `${monitor.safe_address.toLowerCase()}-${monitor.network.toLowerCase()}`;
+          alertCountMap[key] = response.count || 0;
+        });
+
+        const formattedMonitors = data.map(monitor => {
+          const key = `${monitor.safe_address.toLowerCase()}-${monitor.network.toLowerCase()}`;
+          return {
+            id: monitor.id,
+            safe_address: monitor.safe_address,
+            network: monitor.network,
+            active: monitor.settings?.active !== false, // Default to true if not specified
+            notify: monitor.settings?.notify || false,
+            settings: monitor.settings || {},
+            created_at: monitor.created_at,
+            alias: monitor.settings?.alias,
+            notificationMethod: monitor.settings?.notificationMethod,
+            notificationTarget: monitor.settings?.notificationTarget,
+            lastChecked: latestScans[key] || null, // Use actual last checked time or null
+            alertCount: alertCountMap[key] || 0 // Real alert count from database
+          };
+        });
 
         setMonitors(formattedMonitors);
       } catch (error) {
@@ -174,93 +210,89 @@ const Monitor = () => {
   useEffect(() => {
     if (!user) return;
     
+    // Skip alert fetching if no monitors are set up
+    if (monitors.length === 0) {
+      setAlerts([]);
+      setTotalAlerts(0);
+      setIsLoadingAlerts(false);
+      return;
+    }
+    
     async function fetchAlerts() {
       setIsLoadingAlerts(true);
       
       try {
-        // In a real app, this would be an API call with filtering and pagination
-        // For this demo, we'll simulate some data
+        // Get safe addresses and networks from user's monitors
+        const addressNetworkPairs = monitors.map(m => ({
+          safe_address: m.safe_address,
+          network: m.network
+        }));
         
-        // Wait a moment to simulate loading
-        await new Promise(resolve => setTimeout(resolve, 800));
+        // Build the query from results table for transaction alerts
+        let query = supabase
+          .from('results')
+          .select('id, safe_address, network, scanned_at, result');
         
-        // Generate mock alerts - in a real app this would come from your API
-        const mockAlerts: Alert[] = [
-          {
-            id: '1',
-            address: '0x1234567890123456789012345678901234567890',
-            alias: 'Main Treasury',
-            network: 'Ethereum',
-            txHash: '0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890',
-            description: 'Suspicious multi-sig execution with unknown contract',
-            timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(), // 2 hours ago
-            type: 'suspicious'
-          },
-          {
-            id: '2',
-            address: '0x0987654321098765432109876543210987654321',
-            alias: 'Grants Safe',
-            network: 'Polygon',
-            txHash: '0x0987654321098765432109876543210987654321098765432109876543210987',
-            description: 'Normal token transfer of 5,000 USDC',
-            timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(), // 1 day ago
-            type: 'normal'
-          },
-          {
-            id: '3',
-            address: '0x0987654321098765432109876543210987654321',
-            alias: 'Grants Safe',
-            network: 'Polygon',
-            txHash: '0x1111222233334444555566667777888899990000111122223333444455556666',
-            description: 'Suspicious contract interaction with blacklisted address',
-            timestamp: new Date(Date.now() - 1000 * 60 * 60 * 48).toISOString(), // 2 days ago
-            type: 'suspicious'
-          },
-          {
-            id: '4',
-            address: '0x1234567890123456789012345678901234567890',
-            alias: 'Main Treasury',
-            network: 'Ethereum',
-            txHash: '0x2222333344445555666677778888999900001111222233334444555566667777',
-            description: 'Normal interaction with Uniswap router',
-            timestamp: new Date(Date.now() - 1000 * 60 * 60 * 72).toISOString(), // 3 days ago
-            type: 'normal'
-          },
-          {
-            id: '5',
-            address: '0x5678901234567890123456789012345678901234',
-            network: 'Arbitrum',
-            txHash: '0x3333444455556666777788889999000011112222333344445555666677778888',
-            description: 'Normal token approval to verified contract',
-            timestamp: new Date(Date.now() - 1000 * 60 * 60 * 96).toISOString(), // 4 days ago
-            type: 'normal'
-          }
-        ];
-        
-        // Apply filters
-        let filteredAlerts = [...mockAlerts];
-        
+        // Apply safe address filter if selected
         if (alertsFilter.safe) {
-          filteredAlerts = filteredAlerts.filter(alert => 
-            alert.address === alertsFilter.safe ||
-            monitors.find(m => m.id === alertsFilter.safe)?.safe_address === alert.address
-          );
+          const selectedMonitor = monitors.find(m => m.id === alertsFilter.safe);
+          if (selectedMonitor) {
+            query = query
+              .eq('safe_address', selectedMonitor.safe_address)
+              .eq('network', selectedMonitor.network);
+          }
+        } else {
+          // Otherwise filter to only include the user's monitored addresses
+          const orConditions = addressNetworkPairs.map(pair => 
+            `safe_address.eq.${pair.safe_address},network.eq.${pair.network}`
+          ).join(',');
+          
+          if (orConditions) {
+            query = query.or(orConditions);
+          }
         }
         
-        if (alertsFilter.type) {
-          filteredAlerts = filteredAlerts.filter(alert => 
-            alert.type === alertsFilter.type
-          );
+        query = query.order('scanned_at', { ascending: false });
+        
+        // Get count results - simplified approach using client-side filtering
+        const { data: allResults, error: countError } = await query;
+        
+        if (countError) {
+          console.error('Error fetching results:', countError);
+          throw countError;
         }
         
-        // Calculate pagination
-        const total = filteredAlerts.length;
-        const startIndex = (alertsPage - 1) * alertsPerPage;
-        const endIndex = startIndex + alertsPerPage;
-        const pagedAlerts = filteredAlerts.slice(startIndex, endIndex);
+        // Filter for transaction alerts only (exclude status updates)
+        const transactionAlerts = allResults.filter(result => 
+          result.result && 
+          result.result.transaction_hash && 
+          (!alertsFilter.type || result.result.type === alertsFilter.type)
+        );
         
-        setAlerts(pagedAlerts);
-        setTotalAlerts(total);
+        setTotalAlerts(transactionAlerts.length);
+        
+        // Apply pagination client-side
+        const paginatedAlerts = transactionAlerts.slice(
+          (alertsPage - 1) * alertsPerPage, 
+          alertsPage * alertsPerPage
+        );
+        
+        // Format alerts from the result JSON
+        const formattedAlerts: Alert[] = paginatedAlerts.map(alert => {
+          const result = alert.result || {};
+          return {
+            id: alert.id,
+            safe_address: alert.safe_address,
+            network: alert.network,
+            transaction_hash: result.transaction_hash || '',
+            description: result.description || 'Unknown transaction',
+            scanned_at: alert.scanned_at,
+            type: result.type || 'normal',
+            result: result
+          };
+        });
+        
+        setAlerts(formattedAlerts);
       } catch (error) {
         console.error('Error fetching alerts:', error);
         toast({
@@ -382,13 +414,18 @@ const Monitor = () => {
     
     // Convert alerts to CSV rows
     const rows = alerts.map(alert => {
-      const safeName = alert.alias || truncateAddress(alert.address);
+      // Find the monitor that matches this safe address
+      const monitor = monitors.find(m => 
+        m.safe_address === alert.safe_address && 
+        m.network === alert.network
+      );
+      const safeName = monitor?.alias || truncateAddress(alert.safe_address);
       const txDescription = alert.description.replace(/,/g, ';'); // Replace commas to avoid CSV issues
       return [
         safeName,
         alert.network,
         txDescription,
-        new Date(alert.timestamp).toLocaleString(),
+        new Date(alert.scanned_at).toLocaleString(),
         alert.type
       ].join(',');
     });
@@ -665,13 +702,19 @@ const Monitor = () => {
                         alerts.map((alert, i) => (
                           <TableRow key={i}>
                             <TableCell className="font-medium">
-                              {alert.alias || truncateAddress(alert.address)}
+                              {monitors.find(m => 
+                                m.safe_address === alert.safe_address && 
+                                m.network === alert.network
+                              )?.alias || 
+                               truncateAddress(alert.safe_address)}
                             </TableCell>
-                            <TableCell>{alert.network}</TableCell>
+                            <TableCell>
+                              {alert.network}
+                            </TableCell>
                             <TableCell>
                               <div className="max-w-xs truncate">
                                 <Link 
-                                  to={`https://etherscan.io/tx/${alert.txHash}`} 
+                                  to={`https://etherscan.io/tx/${alert.transaction_hash}`} 
                                   target="_blank" 
                                   rel="noopener noreferrer"
                                   className="text-blue-500 dark:text-blue-400 hover:underline flex items-center gap-1"
@@ -681,7 +724,7 @@ const Monitor = () => {
                                 </Link>
                               </div>
                             </TableCell>
-                            <TableCell>{formatTimeAgo(alert.timestamp)}</TableCell>
+                            <TableCell>{formatTimeAgo(alert.scanned_at)}</TableCell>
                             <TableCell>
                               {alert.type === 'suspicious' ? (
                                 <Badge variant="destructive">Suspicious</Badge>

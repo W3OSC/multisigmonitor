@@ -1,6 +1,7 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { HeaderWithLoginDialog } from "@/components/Header";
 import { AddressInput } from "@/components/AddressInput";
@@ -11,6 +12,13 @@ const Index = () => {
   const [address, setAddress] = useState("");
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user } = useAuth();
+  
+  useEffect(() => {
+    if (user) {
+      navigate("/monitor");
+    }
+  }, [user, navigate]);
 
   const handleReview = () => {
     if (!address) {

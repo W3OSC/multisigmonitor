@@ -13,7 +13,7 @@ CREATE TABLE monitors (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES auth.users ON DELETE CASCADE,
   safe_address TEXT NOT NULL,
-  notify BOOLEAN DEFAULT FALSE,
+  network TEXT NOT NULL,
   settings JSONB DEFAULT '{}',
   created_at TIMESTAMP DEFAULT now()
 );
@@ -24,7 +24,8 @@ CREATE TABLE monitors (
 ```sql
 CREATE TABLE results (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  monitor_id UUID REFERENCES monitors(id) ON DELETE CASCADE,
+  safe_address TEXT NOT NULL,
+  network TEXT NOT NULL,
   result JSONB,
   scanned_at TIMESTAMP DEFAULT now()
 );
@@ -63,12 +64,13 @@ USING (auth.uid() = user_id);
 #### Policies for `results`
 
 ```sql
-CREATE POLICY "Users can view results from their own monitors"
+CREATE POLICY "Users can view results for monitors they subscribe to"
 ON results FOR SELECT
+TO authenticated
 USING (
   EXISTS (
     SELECT 1 FROM monitors
-    WHERE monitors.id = results.monitor_id
+    WHERE monitors.safe_address = results.safe_address
       AND monitors.user_id = auth.uid()
   )
 );

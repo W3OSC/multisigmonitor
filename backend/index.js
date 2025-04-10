@@ -1,66 +1,397 @@
 // index.js
 const cron = require('node-cron');
 const axios = require('axios');
-const { exec } = require('child_process');
+const SafeApiKit = require('@safe-global/api-kit');
 const supabase = require('./supabase');
 require('dotenv').config();
 
+// API endpoints for different networks
+const NETWORK_CONFIGS = {
+  'ethereum': {
+    txServiceUrl: 'https://safe-transaction-mainnet.safe.global',
+    chainId: 1,
+    name: 'Ethereum Mainnet'
+  },
+  'polygon': {
+    txServiceUrl: 'https://safe-transaction-polygon.safe.global',
+    chainId: 137,
+    name: 'Polygon'
+  },
+  'arbitrum': {
+    txServiceUrl: 'https://safe-transaction-arbitrum.safe.global',
+    chainId: 42161,
+    name: 'Arbitrum'
+  },
+  'optimism': {
+    txServiceUrl: 'https://safe-transaction-optimism.safe.global',
+    chainId: 10,
+    name: 'Optimism'
+  },
+  'goerli': {
+    txServiceUrl: 'https://safe-transaction-goerli.safe.global',
+    chainId: 5,
+    name: 'Goerli Testnet'
+  },
+  'sepolia': {
+    txServiceUrl: 'https://safe-transaction-sepolia.safe.global',
+    chainId: 11155111,
+    name: 'Sepolia Testnet'
+  }
+};
+
+// Create Safe API clients for each network
+const safeApiClients = {};
+for (const [network, config] of Object.entries(NETWORK_CONFIGS)) {
+  safeApiClients[network] = new SafeApiKit.default({
+    txServiceUrl: config.txServiceUrl
+  });
+}
+
+// Function to detect suspicious transactions based on simple criteria
+function detectSuspiciousActivity(transaction, safeAddress) {
+  // This is a simple placeholder implementation
+  // In a real system, you'd have more sophisticated detection logic
+  
+  // Examples of suspicious activities to check for:
+  // 1. Transfers to known blacklisted addresses
+  // 2. Large value transfers
+  // 3. Unusual contract interactions
+  // 4. Transactions during unusual times
+  // 5. Rapid succession of multiple transactions
+  
+  // For this example, we'll just check for large value transfers
+  if (transaction.value && parseInt(transaction.value) > 1000000000000000000) { // > 1 ETH
+    return true;
+  }
+  
+  // Check for multiple signers being removed at once
+  if (transaction.dataDecoded && 
+      transaction.dataDecoded.method === 'removeOwner' &&
+      transaction.dataDecoded.parameters) {
+    return true;
+  }
+  
+  // Random suspicious flag for demo purposes (10% of transactions)
+  return Math.random() < 0.1;
+}
+
+// Main function to check transactions
 async function checkTransactions() {
   console.log('Checking transactions...');
 
-//   const { data: monitors, error } = await supabase.from('monitors').select('id, user_id, transaction_string, notify');
-
-//   if (error) {
-//     console.error('Error fetching monitors:', error);
-//     return;
-//   }
-
-//   for (const monitor of monitors) {
-//     try {
-//       const response = await axios.get(`${process.env.EXTERNAL_API_URL}?query=${encodeURIComponent(monitor.transaction_string)}`);
-
-//       if (response.data.hasNewTransaction) {
-//         console.log(`New transaction found for monitor ID ${monitor.id}`);
-
-//         // Execute Docker container (example command)
-//         const dockerCmd = `docker run --rm your-image-name process-transaction "${monitor.transaction_string}"`;
-//         exec(dockerCmd, async (error, stdout, stderr) => {
-//           if (error) {
-//             console.error('Docker error:', error);
-//             return;
-//           }
-
-//           const resultData = stdout; // Replace with actual output handling
-
-//           // Save result back to Supabase
-//           const { error: dbError } = await supabase.from('transactions').insert({
-//             monitor_id: monitor.id,
-//             user_id: monitor.user_id,
-//             result: resultData,
-//             checked_at: new Date(),
-//           });
-
-//           if (dbError) {
-//             console.error('DB error:', dbError);
-//             return;
-//           }
-
-//           // Send notification
-//           if (monitor.notify) {
-//             await axios.post(process.env.NOTIFICATION_WEBHOOK_URL, {
-//               userId: monitor.user_id,
-//               message: `New transaction detected: ${monitor.transaction_string}`,
-//             });
-//           }
-//         });
-//       } else {
-//         console.log(`No new transactions for monitor ID ${monitor.id}`);
-//       }
-//     } catch (apiError) {
-//       console.error('External API error:', apiError.message);
-//     }
-//   }
+  try {
+    // Get unique address + network combinations from all active monitors
+    console.log('Fetching unique Safe addresses to monitor...');
+    const { data: monitors, error } = await supabase
+      .from('monitors')
+      .select('id, safe_address, network, settings')
+      .filter('settings->active', 'neq', false); // Get all active monitors
+    
+    if (error) {
+      console.error('Error fetching monitors:', error.message);
+      return;
+    }
+    
+    console.log(`Found ${monitors?.length || 0} active monitors`);
+    
+    if (!monitors || monitors.length === 0) {
+      console.log('No active monitors found. Exiting check.');
+      return;
+    }
+    
+    // Group monitors by safe_address+network combination
+    // This way we only scan each unique address+network pair once
+    const addressNetworkMap = {};
+    monitors.forEach(monitor => {
+      const key = `${monitor.safe_address.toLowerCase()}-${monitor.network.toLowerCase()}`;
+      if (!addressNetworkMap[key]) {
+        addressNetworkMap[key] = {
+          safe_address: monitor.safe_address,
+          network: monitor.network.toLowerCase(),
+          monitors: []
+        };
+      }
+      addressNetworkMap[key].monitors.push(monitor);
+    });
+    
+    // Now process each unique address+network combination
+    const uniqueAddressNetworkPairs = Object.values(addressNetworkMap);
+    console.log(`Processing ${uniqueAddressNetworkPairs.length} unique Safe address + network combinations`);
+    
+    for (const pair of uniqueAddressNetworkPairs) {
+      const { safe_address, network, monitors: relatedMonitors } = pair;
+      
+      console.log(`\nProcessing Safe ${safe_address} on ${network}...`);
+      
+      // Skip if the network is not supported
+      if (!safeApiClients[network]) {
+        console.error(`Unsupported network: ${network} for Safe ${safe_address}`);
+        continue;
+      }
+      
+      const safeApiClient = safeApiClients[network];
+      
+      try {
+        // Get all transactions for the Safe
+        console.log(`Fetching transactions from Safe API for ${safe_address}...`);
+        let allTransactions;
+        
+        // Variable to track if the Safe exists
+        let safeInfo = null;
+        
+        try {
+          console.log(`Calling Safe API with URL: ${NETWORK_CONFIGS[network].txServiceUrl}`);
+          console.log(`Full Safe address being checked: ${safe_address}`);
+          
+          try {
+            // Add debugging request to get Safe info to verify it exists
+            const safeInfoResponse = await axios.get(`${NETWORK_CONFIGS[network].txServiceUrl}/api/v1/safes/${safe_address}`);
+            safeInfo = safeInfoResponse.data;
+            console.log(`Safe info found:`, JSON.stringify(safeInfo).substring(0, 200) + '...');
+          } catch (infoError) {
+            console.error(`Error getting Safe info: ${infoError.message}`);
+            console.error(`Safe API may not recognize this Safe address on ${network}`);
+          }
+          
+          allTransactions = await safeApiClient.getMultisigTransactions(safe_address);
+          console.log(`Received ${allTransactions.results?.length || 0} transactions from Safe API`);
+        } catch (safeApiError) {
+          console.error(`Safe API error for ${safe_address} on ${network}:`, safeApiError.message);
+          console.error(`Error details:`, safeApiError.response?.data || 'No additional error details');
+          
+          // Different handling when the Safe exists but has no transactions
+          let errorStatus = 'api_error';
+          let errorMessage = safeApiError.message;
+          
+          // If we successfully got Safe info but no transactions, report it as "no transactions" rather than "not found"
+          if (safeInfo && safeApiError.message === 'Not Found') {
+            errorStatus = 'no_transactions'; 
+            errorMessage = 'Safe exists but no transactions were found';
+            console.log(`Safe ${safe_address} exists but has no transactions recorded in the transaction service`);
+          } else if (safeApiError.message === 'Not Found') {
+            errorStatus = 'safe_not_found';
+          }
+          
+          const lastCheckTimestamp = new Date().toISOString();
+          
+          // Record the check in the results table
+          const { error: resultError } = await supabase.from('results').insert({
+            safe_address: safe_address,
+            network: network,
+            scanned_at: lastCheckTimestamp,
+            result: { 
+              status: errorStatus, 
+              error: safeApiError.message
+            }
+          });
+          
+          if (resultError) {
+            console.error('Error recording scan result:', resultError.message);
+          } else {
+            console.log(`Recorded ${errorStatus} for ${safe_address} on ${network}`);
+          }
+          
+          continue; // Skip to the next address + network pair
+        }
+        
+        const timestamp = new Date().toISOString();
+        
+        // Process each transaction
+        for (const transaction of allTransactions.results) {
+          console.log(`Processing transaction ${transaction.safeTxHash}`);
+          
+          // Check if this transaction has already been processed for this safe_address + network
+          const { data: existingTx, error: txError } = await supabase
+            .from('results')
+            .select('id')
+            .eq('safe_address', safe_address)
+            .eq('network', network)
+            .eq('result->transaction_hash', transaction.safeTxHash)
+            .maybeSingle();
+          
+          if (txError) {
+            console.error('Error checking existing transaction:', txError.message);
+            continue;
+          }
+          
+          // Skip if transaction has already been processed
+          if (existingTx) {
+            console.log(`Transaction ${transaction.safeTxHash} already processed, skipping`);
+            continue;
+          }
+          
+          console.log(`New transaction found for Safe ${safe_address}: ${transaction.safeTxHash}`);
+          
+          // Determine if the transaction is suspicious
+          const isSuspicious = detectSuspiciousActivity(transaction, safe_address);
+          const txType = isSuspicious ? 'suspicious' : 'normal';
+          console.log(`Transaction ${transaction.safeTxHash} classified as ${txType}`);
+          
+          // Create a simplified description of the transaction
+          let description = 'Unknown transaction';
+          
+          if (transaction.dataDecoded) {
+            description = `${transaction.dataDecoded.method} operation`;
+          } else if (transaction.value && parseInt(transaction.value) > 0) {
+            description = `Transfer of ${parseFloat(transaction.value) / 1e18} ETH`;
+          }
+          
+          // Save result to Supabase
+          console.log(`Saving transaction ${transaction.safeTxHash} to database...`);
+          const { error: dbError } = await supabase.from('results').insert({
+            safe_address: safe_address,
+            network: network,
+            result: {
+              transaction_hash: transaction.safeTxHash,
+              transaction_data: transaction,
+              description: description,
+              type: txType
+            },
+            scanned_at: timestamp
+          });
+          
+          if (dbError) {
+            console.error('DB error saving transaction:', dbError.message);
+            continue;
+          }
+          
+          console.log(`Transaction ${transaction.safeTxHash} saved successfully`);
+          
+          // Send notifications for each monitor if suspicious
+          if (isSuspicious) {
+            for (const monitor of relatedMonitors) {
+              if (monitor.settings.notify && monitor.settings.notifications?.length > 0) {
+                try {
+                  console.log(`Sending notification for monitor ${monitor.id} for suspicious transaction ${transaction.safeTxHash}`);
+                  
+                  // Process each notification method
+                  for (const notification of monitor.settings.notifications) {
+                    const method = notification.method;
+                    console.log(`Using notification method: ${method}`);
+                    
+                    // Implement notification logic based on method
+                    switch (method) {
+                      case 'email':
+                        // Email notification logic
+                        console.log(`Would send email to ${notification.email}`);
+                        break;
+                      case 'webhook':
+                      case 'discord':
+                      case 'slack':
+                        // Webhook notification logic
+                        if (notification.webhookUrl) {
+                          console.log(`Would send webhook to ${notification.webhookUrl}`);
+                          // Uncomment to actually send webhook notifications
+                          /*
+                          try {
+                            await axios.post(notification.webhookUrl, {
+                              safeAddress: safe_address,
+                              txHash: transaction.safeTxHash,
+                              network: network,
+                              description: description,
+                              type: txType
+                            });
+                          } catch (webhookError) {
+                            console.error(`Webhook notification error:`, webhookError.message);
+                          }
+                          */
+                        }
+                        break;
+                      case 'telegram':
+                        // Telegram notification logic
+                        console.log(`Would send Telegram notification to chat ${notification.chatId}`);
+                        break;
+                    }
+                  }
+                } catch (notificationError) {
+                  console.error('Notification error:', notificationError.message);
+                }
+              }
+            }
+          }
+        }
+        
+        // Check if we already have a status record for today
+        const today = new Date().toISOString().split('T')[0]; // Get just the date part
+        
+        const { data: existingStatusCheck, error: statusCheckError } = await supabase
+          .from('results')
+          .select('id, scanned_at, result')
+          .eq('safe_address', safe_address)
+          .eq('network', network)
+          .eq('result->status', 'checked')
+          .order('scanned_at', { ascending: false })
+          .limit(1);
+          
+        if (statusCheckError) {
+          console.error('Error checking for existing status records:', statusCheckError.message);
+        }
+        
+        const shouldAddStatusRecord = !existingStatusCheck || 
+                                    existingStatusCheck.length === 0 || 
+                                    !existingStatusCheck[0].scanned_at.startsWith(today) ||
+                                    existingStatusCheck[0].result.count !== allTransactions.results.length;
+                                    
+        if (shouldAddStatusRecord) {
+          // Update the last checked timestamp for this safe address + network
+          console.log(`Recording last check for ${safe_address} on ${network}`);
+          
+          const { error: lastCheckError } = await supabase.from('results').insert({
+            safe_address: safe_address,
+            network: network,
+            scanned_at: timestamp,
+            result: { 
+              status: 'checked', 
+              count: allTransactions.results.length
+            }
+          });
+        } else {
+          console.log(`Skipping status record - already checked today with same transaction count`);
+        }
+        
+        if (lastCheckError) {
+          console.error('Error updating last checked timestamp:', lastCheckError.message);
+        } else {
+          console.log(`Last checked timestamp updated successfully for ${safe_address} on ${network}`);
+        }
+        
+      } catch (error) {
+        console.error(`Error processing ${safe_address} on ${network}:`, error.message);
+        
+        // Record the error
+        try {
+          const { error: errorRecordError } = await supabase.from('results').insert({
+            safe_address: safe_address,
+            network: network,
+            scanned_at: new Date().toISOString(),
+            result: { 
+              status: 'error',
+              error: error.message
+            }
+          });
+          
+          if (errorRecordError) {
+            console.error('Failed to record error state:', errorRecordError.message);
+          } else {
+            console.log(`Recorded error state for ${safe_address} on ${network}`);
+          }
+        } catch (recordError) {
+          console.error('Failed to record error state:', recordError.message);
+        }
+      }
+    }
+    
+    console.log('Transaction check completed');
+    
+  } catch (error) {
+    console.error('Unexpected error in checkTransactions:', error);
+  }
 }
 
+// Run immediately on startup
+console.log('Starting Safe monitoring service...');
+checkTransactions();
+
 // Schedule the task to run every minute
+console.log('Setting up cron schedule for every minute');
 cron.schedule('* * * * *', checkTransactions);

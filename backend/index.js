@@ -1,9 +1,11 @@
 // index.js
 const cron = require('node-cron');
 const axios = require('axios');
-const SafeApiKit = require('@safe-global/api-kit');
 const supabase = require('./supabase');
 require('dotenv').config();
+
+// Define Safe API version
+const SAFE_API_VERSION = 'v2';
 
 // API endpoints for different networks
 const NETWORK_CONFIGS = {
@@ -39,13 +41,6 @@ const NETWORK_CONFIGS = {
   }
 };
 
-// Create Safe API clients for each network
-const safeApiClients = {};
-for (const [network, config] of Object.entries(NETWORK_CONFIGS)) {
-  safeApiClients[network] = new SafeApiKit.default({
-    txServiceUrl: config.txServiceUrl
-  });
-}
 
 // Function to detect suspicious transactions based on simple criteria
 function detectSuspiciousActivity(transaction, safeAddress) {
@@ -124,12 +119,12 @@ async function checkTransactions() {
       console.log(`\nProcessing Safe ${safe_address} on ${network}...`);
       
       // Skip if the network is not supported
-      if (!safeApiClients[network]) {
+      if (!NETWORK_CONFIGS[network]) {
         console.error(`Unsupported network: ${network} for Safe ${safe_address}`);
         continue;
       }
       
-      const safeApiClient = safeApiClients[network];
+      const txServiceUrl = NETWORK_CONFIGS[network].txServiceUrl;
       
       try {
         // Get all transactions for the Safe
@@ -145,7 +140,11 @@ async function checkTransactions() {
           
           try {
             // Add debugging request to get Safe info to verify it exists
-            const safeInfoResponse = await axios.get(`${NETWORK_CONFIGS[network].txServiceUrl}/api/v1/safes/${safe_address}`);
+            const safeInfoResponse = await axios.get(`${NETWORK_CONFIGS[network].txServiceUrl}/api/v1/safes/${safe_address}`, {
+              headers: {
+                'accept': 'application/json'
+              }
+            });
             safeInfo = safeInfoResponse.data;
             console.log(`Safe info found:`, JSON.stringify(safeInfo).substring(0, 200) + '...');
           } catch (infoError) {
@@ -153,7 +152,13 @@ async function checkTransactions() {
             console.error(`Safe API may not recognize this Safe address on ${network}`);
           }
           
-          allTransactions = await safeApiClient.getMultisigTransactions(safe_address);
+          // Use direct API call with the official Safe Transaction Service API
+          const response = await axios.get(`${txServiceUrl}/api/${SAFE_API_VERSION}/safes/${safe_address}/multisig-transactions/`, {
+            headers: {
+              'accept': 'application/json'
+            }
+          });
+          allTransactions = response.data;
           console.log(`Received ${allTransactions.results?.length || 0} transactions from Safe API`);
         } catch (safeApiError) {
           console.error(`Safe API error for ${safe_address} on ${network}:`, safeApiError.message);
@@ -198,21 +203,28 @@ async function checkTransactions() {
         
         // Process each transaction
         for (const transaction of allTransactions.results) {
-          console.log(`Processing transaction ${transaction.safeTxHash}`);
+          // Extract the safeTxHash - ensure consistent handling between SafeApiKit and direct API
+          const safeTxHash = transaction.safeTxHash;
+          console.log(`Processing transaction ${safeTxHash}`);
           
           // Check if this transaction has already been processed for this safe_address + network
-          const { data: existingTx, error: txError } = await supabase
+          // Using a text-based comparison instead of JSON path
+          const { data: existingTxs, error: txError } = await supabase
             .from('results')
-            .select('id')
+            .select('id, result')
             .eq('safe_address', safe_address)
-            .eq('network', network)
-            .eq('result->transaction_hash', transaction.safeTxHash)
-            .maybeSingle();
+            .eq('network', network);
           
           if (txError) {
             console.error('Error checking existing transaction:', txError.message);
             continue;
           }
+          
+          // Check if any of the results has this transaction hash
+          const existingTx = existingTxs?.find(item => 
+            item.result && 
+            item.result.transaction_hash === safeTxHash
+          );
           
           // Skip if transaction has already been processed
           if (existingTx) {
@@ -220,12 +232,12 @@ async function checkTransactions() {
             continue;
           }
           
-          console.log(`New transaction found for Safe ${safe_address}: ${transaction.safeTxHash}`);
+          console.log(`New transaction found for Safe ${safe_address}: ${safeTxHash}`);
           
           // Determine if the transaction is suspicious
           const isSuspicious = detectSuspiciousActivity(transaction, safe_address);
           const txType = isSuspicious ? 'suspicious' : 'normal';
-          console.log(`Transaction ${transaction.safeTxHash} classified as ${txType}`);
+          console.log(`Transaction ${safeTxHash} classified as ${txType}`);
           
           // Create a simplified description of the transaction
           let description = 'Unknown transaction';
@@ -237,12 +249,12 @@ async function checkTransactions() {
           }
           
           // Save result to Supabase
-          console.log(`Saving transaction ${transaction.safeTxHash} to database...`);
+          console.log(`Saving transaction ${safeTxHash} to database...`);
           const { error: dbError } = await supabase.from('results').insert({
             safe_address: safe_address,
             network: network,
             result: {
-              transaction_hash: transaction.safeTxHash,
+              transaction_hash: safeTxHash,
               transaction_data: transaction,
               description: description,
               type: txType
@@ -255,14 +267,14 @@ async function checkTransactions() {
             continue;
           }
           
-          console.log(`Transaction ${transaction.safeTxHash} saved successfully`);
+          console.log(`Transaction ${safeTxHash} saved successfully`);
           
           // Send notifications for each monitor if suspicious
           if (isSuspicious) {
             for (const monitor of relatedMonitors) {
               if (monitor.settings.notify && monitor.settings.notifications?.length > 0) {
                 try {
-                  console.log(`Sending notification for monitor ${monitor.id} for suspicious transaction ${transaction.safeTxHash}`);
+                  console.log(`Sending notification for monitor ${monitor.id} for suspicious transaction ${safeTxHash}`);
                   
                   // Process each notification method
                   for (const notification of monitor.settings.notifications) {
@@ -286,7 +298,7 @@ async function checkTransactions() {
                           try {
                             await axios.post(notification.webhookUrl, {
                               safeAddress: safe_address,
-                              txHash: transaction.safeTxHash,
+                              txHash: safeTxHash,
                               network: network,
                               description: description,
                               type: txType
@@ -314,29 +326,35 @@ async function checkTransactions() {
         // Check if we already have a status record for today
         const today = new Date().toISOString().split('T')[0]; // Get just the date part
         
-        const { data: existingStatusCheck, error: statusCheckError } = await supabase
+        // Get status records using a standard approach without JSON path operators
+        const { data: allStatusRecords, error: statusCheckError } = await supabase
           .from('results')
           .select('id, scanned_at, result')
           .eq('safe_address', safe_address)
           .eq('network', network)
-          .eq('result->status', 'checked')
-          .order('scanned_at', { ascending: false })
-          .limit(1);
+          .order('scanned_at', { ascending: false });
           
         if (statusCheckError) {
           console.error('Error checking for existing status records:', statusCheckError.message);
         }
+        
+        // Filter status records client-side to find those with status "checked"
+        const existingStatusCheck = allStatusRecords?.filter(record => 
+          record.result && record.result.status === 'checked'
+        ).slice(0, 1);
         
         const shouldAddStatusRecord = !existingStatusCheck || 
                                     existingStatusCheck.length === 0 || 
                                     !existingStatusCheck[0].scanned_at.startsWith(today) ||
                                     existingStatusCheck[0].result.count !== allTransactions.results.length;
                                     
+        let lastCheckError = null;
+        
         if (shouldAddStatusRecord) {
           // Update the last checked timestamp for this safe address + network
           console.log(`Recording last check for ${safe_address} on ${network}`);
           
-          const { error: lastCheckError } = await supabase.from('results').insert({
+          const insertResult = await supabase.from('results').insert({
             safe_address: safe_address,
             network: network,
             scanned_at: timestamp,
@@ -345,14 +363,16 @@ async function checkTransactions() {
               count: allTransactions.results.length
             }
           });
+          
+          lastCheckError = insertResult.error;
+          
+          if (lastCheckError) {
+            console.error('Error updating last checked timestamp:', lastCheckError.message);
+          } else {
+            console.log(`Last checked timestamp updated successfully for ${safe_address} on ${network}`);
+          }
         } else {
           console.log(`Skipping status record - already checked today with same transaction count`);
-        }
-        
-        if (lastCheckError) {
-          console.error('Error updating last checked timestamp:', lastCheckError.message);
-        } else {
-          console.log(`Last checked timestamp updated successfully for ${safe_address} on ${network}`);
         }
         
       } catch (error) {

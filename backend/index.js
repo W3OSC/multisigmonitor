@@ -72,11 +72,11 @@ function detectSuspiciousActivity(transaction, safeAddress) {
 
 // Main function to check transactions
 async function checkTransactions() {
-  console.log('Checking transactions...');
+  // console.log('Checking transactions...');
 
   try {
     // Get unique address + network combinations from all active monitors
-    console.log('Fetching unique Safe addresses to monitor...');
+    // console.log('Fetching unique Safe addresses to monitor...');
     const { data: monitors, error } = await supabase
       .from('monitors')
       .select('id, safe_address, network, settings')
@@ -87,7 +87,7 @@ async function checkTransactions() {
       return;
     }
     
-    console.log(`Found ${monitors?.length || 0} active monitors`);
+    // console.log(`Found ${monitors?.length || 0} active monitors`);
     
     if (!monitors || monitors.length === 0) {
       console.log('No active monitors found. Exiting check.');
@@ -111,7 +111,7 @@ async function checkTransactions() {
     
     // Now process each unique address+network combination
     const uniqueAddressNetworkPairs = Object.values(addressNetworkMap);
-    console.log(`Processing ${uniqueAddressNetworkPairs.length} unique Safe address + network combinations`);
+    // console.log(`Processing ${uniqueAddressNetworkPairs.length} unique Safe address + network combinations`);
     
     for (const pair of uniqueAddressNetworkPairs) {
       const { safe_address, network, monitors: relatedMonitors } = pair;
@@ -128,15 +128,15 @@ async function checkTransactions() {
       
       try {
         // Get all transactions for the Safe
-        console.log(`Fetching transactions from Safe API for ${safe_address}...`);
+        // console.log(`Fetching transactions from Safe API for ${safe_address}...`);
         let allTransactions;
         
         // Variable to track if the Safe exists
         let safeInfo = null;
         
         try {
-          console.log(`Calling Safe API with URL: ${NETWORK_CONFIGS[network].txServiceUrl}`);
-          console.log(`Full Safe address being checked: ${safe_address}`);
+          // console.log(`Calling Safe API with URL: ${NETWORK_CONFIGS[network].txServiceUrl}`);
+          // console.log(`Full Safe address being checked: ${safe_address}`);
           
           try {
             // Add debugging request to get Safe info to verify it exists
@@ -179,33 +179,47 @@ async function checkTransactions() {
           
           const lastCheckTimestamp = new Date().toISOString();
           
-          // Record the check in the results table
-          const { error: resultError } = await supabase.from('results').insert({
-            safe_address: safe_address,
-            network: network,
-            scanned_at: lastCheckTimestamp,
-            result: { 
-              status: errorStatus, 
-              error: safeApiError.message
-            }
-          });
-          
-          if (resultError) {
-            console.error('Error recording scan result:', resultError.message);
-          } else {
-            console.log(`Recorded ${errorStatus} for ${safe_address} on ${network}`);
-          }
+          // Just log the error, no need to store it in the database
+          console.log(`Status: ${errorStatus} for ${safe_address} on ${network}`);
           
           continue; // Skip to the next address + network pair
         }
         
         const timestamp = new Date().toISOString();
         
+        // First, check how many transactions we already have in the database for this safe+network
+        const { data: existingTxs, error: countError } = await supabase
+          .from('results')
+          .select('id, result')
+          .eq('safe_address', safe_address)
+          .eq('network', network);
+          
+        if (countError) {
+          console.error('Error checking existing transactions:', countError.message);
+        } else {
+          // Count transactions (excluding status records and other non-transaction records)
+          const existingTransactionCount = existingTxs?.filter(item => 
+            item.result && item.result.transaction_hash
+          ).length || 0;
+          
+          // If transaction counts match, we can skip processing
+          if (existingTransactionCount === allTransactions.results.length) {
+            console.log(`All ${existingTransactionCount} transactions for Safe ${safe_address} on ${network} already processed. Skipping transaction processing.`);
+            
+            // No need to store status in the database
+            // console.log(`All transactions already processed for ${safe_address} on ${network}`);
+            
+            continue; // Skip to the next address + network pair
+          }
+          
+          console.log(`Processing ${allTransactions.results.length} transactions (${existingTransactionCount} already in database)`);
+        }
+        
         // Process each transaction
         for (const transaction of allTransactions.results) {
           // Extract the safeTxHash - ensure consistent handling between SafeApiKit and direct API
           const safeTxHash = transaction.safeTxHash;
-          console.log(`Processing transaction ${safeTxHash}`);
+          // console.log(`Processing transaction ${safeTxHash}`);
           
           // Check if this transaction has already been processed for this safe_address + network
           // Using a text-based comparison instead of JSON path
@@ -228,16 +242,16 @@ async function checkTransactions() {
           
           // Skip if transaction has already been processed
           if (existingTx) {
-            console.log(`Transaction ${transaction.safeTxHash} already processed, skipping`);
+            // console.log(`Transaction ${transaction.safeTxHash} already processed, skipping`);
             continue;
           }
           
-          console.log(`New transaction found for Safe ${safe_address}: ${safeTxHash}`);
+          // console.log(`New transaction found for Safe ${safe_address}: ${safeTxHash}`);
           
           // Determine if the transaction is suspicious
           const isSuspicious = detectSuspiciousActivity(transaction, safe_address);
           const txType = isSuspicious ? 'suspicious' : 'normal';
-          console.log(`Transaction ${safeTxHash} classified as ${txType}`);
+          // console.log(`Transaction ${safeTxHash} classified as ${txType}`);
           
           // Create a simplified description of the transaction
           let description = 'Unknown transaction';
@@ -249,7 +263,7 @@ async function checkTransactions() {
           }
           
           // Save result to Supabase
-          console.log(`Saving transaction ${safeTxHash} to database...`);
+          // console.log(`Saving transaction ${safeTxHash} to database...`);
           const { error: dbError } = await supabase.from('results').insert({
             safe_address: safe_address,
             network: network,
@@ -323,85 +337,23 @@ async function checkTransactions() {
           }
         }
         
-        // Check if we already have a status record for today
-        const today = new Date().toISOString().split('T')[0]; // Get just the date part
-        
-        // Get status records using a standard approach without JSON path operators
-        const { data: allStatusRecords, error: statusCheckError } = await supabase
-          .from('results')
-          .select('id, scanned_at, result')
-          .eq('safe_address', safe_address)
-          .eq('network', network)
-          .order('scanned_at', { ascending: false });
-          
-        if (statusCheckError) {
-          console.error('Error checking for existing status records:', statusCheckError.message);
-        }
-        
-        // Filter status records client-side to find those with status "checked"
-        const existingStatusCheck = allStatusRecords?.filter(record => 
-          record.result && record.result.status === 'checked'
-        ).slice(0, 1);
-        
-        const shouldAddStatusRecord = !existingStatusCheck || 
-                                    existingStatusCheck.length === 0 || 
-                                    !existingStatusCheck[0].scanned_at.startsWith(today) ||
-                                    existingStatusCheck[0].result.count !== allTransactions.results.length;
-                                    
-        let lastCheckError = null;
-        
-        if (shouldAddStatusRecord) {
-          // Update the last checked timestamp for this safe address + network
-          console.log(`Recording last check for ${safe_address} on ${network}`);
-          
-          const insertResult = await supabase.from('results').insert({
-            safe_address: safe_address,
-            network: network,
-            scanned_at: timestamp,
-            result: { 
-              status: 'checked', 
-              count: allTransactions.results.length
-            }
-          });
-          
-          lastCheckError = insertResult.error;
-          
-          if (lastCheckError) {
-            console.error('Error updating last checked timestamp:', lastCheckError.message);
-          } else {
-            console.log(`Last checked timestamp updated successfully for ${safe_address} on ${network}`);
-          }
-        } else {
-          console.log(`Skipping status record - already checked today with same transaction count`);
-        }
+        // No status tracking needed - we're done processing transactions
+        console.log(`Completed processing for ${safe_address} on ${network}`);
         
       } catch (error) {
         console.error(`Error processing ${safe_address} on ${network}:`, error.message);
         
         // Record the error
         try {
-          const { error: errorRecordError } = await supabase.from('results').insert({
-            safe_address: safe_address,
-            network: network,
-            scanned_at: new Date().toISOString(),
-            result: { 
-              status: 'error',
-              error: error.message
-            }
-          });
-          
-          if (errorRecordError) {
-            console.error('Failed to record error state:', errorRecordError.message);
-          } else {
-            console.log(`Recorded error state for ${safe_address} on ${network}`);
-          }
+          // Just log the error, no need to store it
+          console.log(`Error state for ${safe_address} on ${network}: ${error.message}`);
         } catch (recordError) {
           console.error('Failed to record error state:', recordError.message);
         }
       }
     }
     
-    console.log('Transaction check completed');
+    // console.log('Transaction check completed');
     
   } catch (error) {
     console.error('Unexpected error in checkTransactions:', error);
@@ -413,5 +365,5 @@ console.log('Starting Safe monitoring service...');
 checkTransactions();
 
 // Schedule the task to run every minute
-console.log('Setting up cron schedule for every minute');
+// console.log('Setting up cron schedule for every minute');
 cron.schedule('* * * * *', checkTransactions);

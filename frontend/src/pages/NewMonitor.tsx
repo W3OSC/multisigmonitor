@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import axios from "axios";
 import { HeaderWithLoginDialog } from "@/components/Header";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -10,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Select,
   SelectContent,
@@ -65,6 +67,8 @@ const NewMonitor = () => {
   const { toast } = useToast();
   
   const [address, setAddress] = useState("");
+  const [isValidSafe, setIsValidSafe] = useState<boolean | null>(null);
+  const [isCheckingSafe, setIsCheckingSafe] = useState(false);
   const [alias, setAlias] = useState("");
   const [network, setNetwork] = useState("ethereum");
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
@@ -122,8 +126,8 @@ const NewMonitor = () => {
   };
 
   const isFormValid = () => {
-    // Address and network are always required
-    const baseValid = address.match(/^0x[a-fA-F0-9]{40}$/) && network;
+    // Address must be a valid ETH address and confirmed as a Safe
+    const baseValid = address.match(/^0x[a-fA-F0-9]{40}$/) && network && isValidSafe === true;
     
     // If notifications are enabled, check that at least one method is enabled and its required fields are filled
     if (notificationsEnabled) {
@@ -155,6 +159,65 @@ const NewMonitor = () => {
     return baseValid;
   };
 
+  // Check if an address is a valid Safe on the specified network
+  const checkIsSafe = async (address: string, network: string) => {
+    if (!address || !address.match(/^0x[a-fA-F0-9]{40}$/)) {
+      setIsValidSafe(null);
+      return;
+    }
+    
+    setIsCheckingSafe(true);
+    setIsValidSafe(null);
+    
+    try {
+      // Network-specific API URLs for Safe Transaction Service
+      const txServiceUrl = (() => {
+        switch(network.toLowerCase()) {
+          case 'ethereum': return 'https://safe-transaction-mainnet.safe.global';
+          case 'polygon': return 'https://safe-transaction-polygon.safe.global';
+          case 'arbitrum': return 'https://safe-transaction-arbitrum.safe.global';
+          case 'optimism': return 'https://safe-transaction-optimism.safe.global';
+          case 'base': return 'https://safe-transaction-base.safe.global';
+          case 'gnosis': return 'https://safe-transaction-gnosis-chain.safe.global';
+          case 'goerli': return 'https://safe-transaction-goerli.safe.global';
+          case 'sepolia': return 'https://safe-transaction-sepolia.safe.global';
+          default: return 'https://safe-transaction-mainnet.safe.global';
+        }
+      })();
+      
+      // Call the Safe Info API to check if this is a valid Safe
+      const response = await axios.get(`${txServiceUrl}/api/v1/safes/${address}`);
+      
+      // If we get a successful response, it's a valid Safe
+      setIsValidSafe(true);
+    } catch (error) {
+      // If we get a 404, the address isn't a Safe
+      if (axios.isAxiosError(error) && error.response?.status === 404) {
+        setIsValidSafe(false);
+      } else {
+        // For other errors, we can't determine validity
+        console.error('Error checking Safe:', error);
+        setIsValidSafe(null);
+      }
+    } finally {
+      setIsCheckingSafe(false);
+    }
+  };
+  
+  // Validate the Safe when address or network changes, with debounce
+  useEffect(() => {
+    if (!address || !address.match(/^0x[a-fA-F0-9]{40}$/)) {
+      setIsValidSafe(null);
+      return;
+    }
+    
+    const timer = setTimeout(() => {
+      checkIsSafe(address, network);
+    }, 500); // 500ms debounce
+    
+    return () => clearTimeout(timer);
+  }, [address, network]);
+  
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -390,12 +453,37 @@ const NewMonitor = () => {
             
             <form onSubmit={handleSubmit}>
               <CardContent className="space-y-6">
-                <AddressInput
-                  value={address}
-                  onChange={setAddress}
-                  label="Safe Address"
-                  placeholder="0x..."
-                />
+                <div className="space-y-2">
+                  <AddressInput
+                    value={address}
+                    onChange={setAddress}
+                    label="Safe Address"
+                    placeholder="0x..."
+                  />
+                  
+                  {address && address.match(/^0x[a-fA-F0-9]{40}$/) && (
+                    <div className="mt-2">
+                      {isCheckingSafe ? (
+                        <div className="flex items-center text-muted-foreground text-sm">
+                          <Loader2 className="animate-spin h-3 w-3 mr-1" />
+                          Checking if this is a valid Safe...
+                        </div>
+                      ) : isValidSafe === true ? (
+                        <Alert className="py-2 bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-900">
+                          <AlertDescription className="text-green-600 dark:text-green-400 text-sm flex items-center">
+                            ✓ Valid Safe address confirmed on {SUPPORTED_NETWORKS.find(n => n.id === network)?.name}
+                          </AlertDescription>
+                        </Alert>
+                      ) : isValidSafe === false ? (
+                        <Alert className="py-2 bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-900">
+                          <AlertDescription className="text-red-600 dark:text-red-400 text-sm flex items-center">
+                            ✗ This address is not a Safe on {SUPPORTED_NETWORKS.find(n => n.id === network)?.name}
+                          </AlertDescription>
+                        </Alert>
+                      ) : null}
+                    </div>
+                  )}
+                </div>
                 
                 <div className="space-y-2">
                   <Label htmlFor="alias">Alias (Optional)</Label>

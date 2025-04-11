@@ -13,6 +13,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ExternalLink,
+  FileDown,
   Filter,
   Home,
   Loader2,
@@ -57,6 +58,7 @@ interface Transaction {
   nonce?: number;
   isExecuted?: boolean;
   executionTxHash?: string;
+  submissionDate?: string;
   result: any;
 }
 
@@ -229,6 +231,7 @@ const TransactionMonitor = () => {
             nonce: txData.nonce !== undefined ? parseInt(txData.nonce) : undefined,
             isExecuted: txData.isExecuted,
             executionTxHash: txData.transactionHash,
+            submissionDate: txData.submissionDate,
             result: item.result
           };
         });
@@ -268,8 +271,9 @@ const TransactionMonitor = () => {
               break;
             case 'scanned_at':
             default:
-              valueA = new Date(a.scanned_at).getTime();
-              valueB = new Date(b.scanned_at).getTime();
+              // Use submissionDate if available, fall back to scanned_at
+              valueA = a.submissionDate ? new Date(a.submissionDate).getTime() : new Date(a.scanned_at).getTime();
+              valueB = b.submissionDate ? new Date(b.submissionDate).getTime() : new Date(b.scanned_at).getTime();
               break;
           }
           
@@ -412,6 +416,57 @@ const TransactionMonitor = () => {
     return `${baseUrl}/tx/${transaction.executionTxHash || transaction.transaction_hash}`;
   };
 
+  // Function to generate and download CSV data
+  const downloadCsv = () => {
+    // Create CSV header
+    const header = ['Safe', 'Network', 'Nonce', 'Transaction', 'State', 'Time', 'Type'].join(',');
+    
+    // Convert transactions to CSV rows
+    const rows = transactions.map(tx => {
+      // Find the monitor that matches this safe address
+      const monitor = monitors.find(m => 
+        m.safe_address === tx.safe_address && 
+        m.network === tx.network
+      );
+      const safeName = monitor?.alias || truncateAddress(tx.safe_address);
+      const txDescription = tx.description.replace(/,/g, ';'); // Replace commas to avoid CSV issues
+      const executionState = tx.isExecuted ? 'Executed' : 'Proposed';
+      const time = tx.submissionDate ? new Date(tx.submissionDate).toLocaleString() : new Date(tx.scanned_at).toLocaleString();
+      return [
+        safeName,
+        tx.network,
+        tx.nonce !== undefined ? tx.nonce : '',
+        txDescription,
+        executionState,
+        time,
+        tx.type
+      ].join(',');
+    });
+    
+    // Combine header and rows
+    const csvContent = [header, ...rows].join('\n');
+    
+    // Create a Blob with the CSV content
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    
+    // Create a download link and trigger it
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `safe-transactions-${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    
+    // Clean up
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    
+    toast({
+      title: "CSV Export Complete",
+      description: `${transactions.length} transactions exported successfully`
+    });
+  };
+
   // Reset all filters
   const resetFilters = () => {
     setFilters({
@@ -500,9 +555,24 @@ const TransactionMonitor = () => {
           <Card className="mb-8">
             <CardHeader className="pb-3">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <CardTitle>Transaction History</CardTitle>
+                <div>
+                  <CardTitle>Transaction History</CardTitle>
+                  <CardDescription>
+                    View and manage transactions from your monitored Safe vaults
+                  </CardDescription>
+                </div>
                 
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-2 items-center">
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    className="text-xs flex items-center gap-1 h-8 px-2"
+                    onClick={downloadCsv}
+                  >
+                    <FileDown className="h-3 w-3" />
+                    CSV Export
+                  </Button>
+                  
                   <Button
                     variant="outline"
                     size="sm"
@@ -631,6 +701,7 @@ const TransactionMonitor = () => {
                           </div>
                         </TableHead>
                         <TableHead>Transaction</TableHead>
+                        <TableHead>State</TableHead>
                         <TableHead 
                           className="cursor-pointer"
                           onClick={() => handleSortChange('scanned_at')}
@@ -683,7 +754,12 @@ const TransactionMonitor = () => {
                                 {tx.description}
                               </div>
                             </TableCell>
-                            <TableCell>{formatTimeAgo(tx.scanned_at)}</TableCell>
+                            <TableCell>
+                              <Badge variant={tx.isExecuted ? "default" : "secondary"} className={tx.isExecuted ? "bg-green-600" : ""}>
+                                {tx.isExecuted ? 'Executed' : 'Proposed'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>{formatTimeAgo(tx.submissionDate || tx.scanned_at)}</TableCell>
                             <TableCell>
                               {tx.type === 'suspicious' ? (
                                 <Badge variant="destructive">Suspicious</Badge>

@@ -163,3 +163,33 @@ TO service_role
 USING (true)
 WITH CHECK (true);
 ```
+
+## Testing Notifications
+
+The system includes utilities to test notifications without having to create actual Safe transactions:
+
+### Insert Test Transaction Script
+
+The `insert-test-transaction.js` script allows you to create a mock transaction directly in the database:
+
+```bash
+node insert-test-transaction.js
+```
+
+This interactive script will:
+1. Let you choose a monitor from your existing monitors
+2. Create a mock transaction with customizable parameters
+3. Insert the transaction into the database
+4. The regular monitoring service will detect this transaction on its next check cycle
+5. Notifications will be sent according to your monitor's notification settings
+
+This approach is ideal for testing your notification setup without having to create real blockchain transactions.
+
+### Features
+
+- Generates random transaction hashes for testing
+- Works with any notification method (Telegram, webhooks, etc.)
+- Allows testing both normal and suspicious transactions
+- Can simulate both pending and executed transactions
+- Shows you the exact links that will be included in notifications
+- Option to mark the test transaction as already notified

@@ -244,14 +244,186 @@ async function checkTransactions() {
             item.result && item.result.transaction_hash
           ).length || 0;
           
-          // If transaction counts match, we can skip processing
-          if (existingTransactionCount === allTransactions.results.length) {
-            console.log(`All ${existingTransactionCount} transactions for Safe ${safe_address} on ${network} already processed. Skipping transaction processing.`);
+          // Only skip if we have at least as many transactions from API as we do in our database
+          // This accommodates test transactions that aren't in the Safe API results
+          if (existingTransactionCount <= allTransactions.results.length) {
+            console.log(`Processing ${allTransactions.results.length} transactions from Safe API plus any additional test transactions`);
+          } else {
+            console.log(`Found ${existingTransactionCount} transactions in database (including test transactions)`);
+            console.log(`Safe API returned ${allTransactions.results.length} transactions`);
             
-            // No need to store status in the database
-            // console.log(`All transactions already processed for ${safe_address} on ${network}`);
+            // Build hash map of known transaction hashes from Safe API
+            const apiTxHashes = new Set(allTransactions.results.map(tx => tx.safeTxHash));
             
-            continue; // Skip to the next address + network pair
+            // Find test transactions (those in database but not in API results)
+            const testTransactions = existingTxs.filter(item => 
+              item.result && 
+              item.result.transaction_hash && 
+              !apiTxHashes.has(item.result.transaction_hash)
+            );
+            
+            console.log(`Found ${testTransactions.length} test transactions not in Safe API results`);
+            
+            // Check for unprocessed test transactions
+            const { data: notifiedTxs, error: notifyError } = await supabase
+              .from('notification_status')
+              .select('transaction_hash')
+              .in('safe_address', [safe_address])
+              .in('network', [network]);
+            
+            if (notifyError) {
+              console.error('Error checking notification status:', notifyError.message);
+            } else {
+              const notifiedHashes = new Set(notifiedTxs.map(item => item.transaction_hash));
+              const unnotifiedTests = testTransactions.filter(item => 
+                !notifiedHashes.has(item.result.transaction_hash)
+              );
+              
+              if (unnotifiedTests.length > 0) {
+                console.log(`Found ${unnotifiedTests.length} unnotified test transactions`);
+                
+                // Process these test transactions specially
+                for (const testTx of unnotifiedTests) {
+                  console.log(`Processing test transaction ${testTx.result.transaction_hash}`);
+                  
+                  const txType = testTx.result.type || 'normal';
+                  const isSuspicious = txType === 'suspicious';
+                  const description = testTx.result.description || 'Test transaction';
+                  
+                  // Send notifications for this test transaction
+                  for (const monitor of relatedMonitors) {
+                    // Check if notification is appropriate
+                    const notifyEnabled = monitor.settings?.notify || monitor.notify;
+                    if (!notifyEnabled) continue;
+                    
+                    if (!monitor.settings?.notifications?.length) continue;
+                    
+                    const alertType = monitor.settings?.alertType || 'suspicious';
+                    const shouldNotify = alertType === 'all' || (alertType === 'suspicious' && isSuspicious);
+                    
+                    if (shouldNotify) {
+                      console.log(`TEST: Sending notification for ${testTx.result.transaction_hash}`);
+                      
+                      // Process each notification method
+                      for (const notification of monitor.settings.notifications) {
+                        const method = notification.method;
+                        console.log(`TEST: Using notification method: ${method}`);
+                        
+                        // Get transaction data from the test transaction
+                        const transaction = testTx.result.transaction_data || {};
+                        const safeTxHash = testTx.result.transaction_hash;
+                        
+                        // Implement notification logic based on method
+                        switch (method) {
+                          case 'email':
+                            // Email notification logic
+                            console.log(`TEST: Would send email to ${notification.email}`);
+                            break;
+                          case 'webhook':
+                          case 'discord':
+                          case 'slack':
+                            // Webhook notification logic
+                            if (notification.webhookUrl) {
+                              console.log(`TEST: Would send webhook to ${notification.webhookUrl}`);
+                              // Uncomment to actually send webhook notifications
+                              /*
+                              try {
+                                await axios.post(notification.webhookUrl, {
+                                  safeAddress: safe_address,
+                                  txHash: safeTxHash,
+                                  network: network,
+                                  description: description,
+                                  type: txType
+                                });
+                              } catch (webhookError) {
+                                console.error(`Webhook notification error:`, webhookError.message);
+                              }
+                              */
+                            }
+                            break;
+                          case 'telegram':
+                            // Telegram notification logic
+                            try {
+                              if (notification.botApiKey && notification.chatId) {
+                                console.log(`TEST: Sending Telegram notification to chat ${notification.chatId}`);
+                                
+                                // Format transaction info
+                                const txInfo = {
+                                  safeAddress: safe_address,
+                                  network: network,
+                                  type: txType,
+                                  description: description,
+                                  hash: safeTxHash,
+                                  nonce: transaction.nonce,
+                                  isExecuted: transaction.isExecuted || false
+                                };
+                                
+                                // Create message with markdown formatting
+                                const safeAppLink = `https://app.safe.global/transactions/tx?safe=${network}:${safe_address}&id=multisig_${safe_address}_${safeTxHash}`;
+                                const safeMonitorLink = `https://safemonitor.io/monitor/transactions/${safeTxHash}`;
+                                const etherscanLink = transaction.isExecuted 
+                                  ? `https://${network === 'ethereum' ? '' : network + '.'}etherscan.io/tx/${transaction.transactionHash || safeTxHash}`
+                                  : null;
+                                
+                                let message = `🔔 *${txType === 'suspicious' ? '⚠️ SUSPICIOUS TRANSACTION' : 'New Transaction'}*\n\n`;
+                                message += `*Network:* ${network}\n`;
+                                message += `*Safe:* \`${safe_address}\`\n`;
+                                message += `*Description:* ${description}\n`;
+                                
+                                if (txInfo.nonce !== undefined) {
+                                  message += `*Nonce:* ${txInfo.nonce}\n`;
+                                }
+                                
+                                message += `*Status:* ${txInfo.isExecuted ? '✅ Executed' : '⏳ Awaiting execution'}\n\n`;
+                                message += `*View transaction:*\n`;
+                                message += `- [Safe App](${safeAppLink})\n`;
+                                message += `- [Safe Monitor](${safeMonitorLink})\n`;
+                                
+                                if (etherscanLink) {
+                                  message += `- [Etherscan](${etherscanLink})\n`;
+                                }
+                                
+                                message += `\n*Note:* This is a TEST transaction`;
+                                
+                                // Send the message
+                                const telegramApiUrl = `https://api.telegram.org/bot${notification.botApiKey}/sendMessage`;
+                                await axios.post(telegramApiUrl, {
+                                  chat_id: notification.chatId,
+                                  text: message,
+                                  parse_mode: 'Markdown',
+                                  disable_web_page_preview: true
+                                });
+                                
+                                console.log(`TEST: Telegram notification sent successfully`);
+                              } else {
+                                console.log(`TEST: Missing Telegram credentials: botApiKey or chatId`);
+                              }
+                            } catch (telegramError) {
+                              console.error(`TEST: Error sending Telegram notification:`, telegramError.message);
+                            }
+                            break;
+                        }
+                      }
+                      
+                      // Record notification
+                      try {
+                        await supabase.from('notification_status').insert({
+                          transaction_hash: testTx.result.transaction_hash,
+                          safe_address,
+                          network,
+                          notified_at: new Date().toISOString(),
+                          transaction_type: txType,
+                          monitor_id: monitor.id
+                        });
+                        console.log(`TEST: Recorded notification for monitor ${monitor.id}, transaction ${testTx.result.transaction_hash}`);
+                      } catch (recordError) {
+                        console.error('TEST: Failed to record notification status:', recordError.message);
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
           
           console.log(`Processing ${allTransactions.results.length} transactions (${existingTransactionCount} already in database)`);

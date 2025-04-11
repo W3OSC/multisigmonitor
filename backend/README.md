@@ -38,7 +38,8 @@ CREATE TABLE last_checks (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   safe_address TEXT NOT NULL,
   network TEXT NOT NULL,
-  checked_at TIMESTAMP DEFAULT now()
+  checked_at TIMESTAMP DEFAULT now(),
+  unix_timestamp BIGINT
 );
 ```
 

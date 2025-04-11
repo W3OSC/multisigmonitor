@@ -118,8 +118,9 @@ async function checkTransactions() {
           
           console.log(`\nProcessing Safe ${safe_address} on ${network}...`);
           
-          // Record last check time regardless of outcome
-          const lastCheckTimestamp = new Date().toISOString();
+          // Record last check time with current Unix timestamp (milliseconds since epoch)
+          // This approach avoids timezone issues as Unix timestamps are timezone-agnostic
+          const lastCheckTimestamp = Date.now();
           
           // Update the last_checks table with the current timestamp
           try {
@@ -135,7 +136,10 @@ async function checkTransactions() {
               // Update existing record
               await supabase
                 .from('last_checks')
-                .update({ checked_at: lastCheckTimestamp })
+                .update({ 
+                  checked_at: new Date().toISOString(),  // Keep ISO format for compatibility
+                  unix_timestamp: lastCheckTimestamp     // Add Unix timestamp in milliseconds
+                })
                 .eq('id', existingCheck.id);
                 
               console.log(`Updated last check timestamp for ${safe_address} on ${network}`);
@@ -146,7 +150,8 @@ async function checkTransactions() {
                 .insert({
                   safe_address: safe_address,
                   network: network,
-                  checked_at: lastCheckTimestamp
+                  checked_at: new Date().toISOString(),  // Keep ISO format for compatibility
+                  unix_timestamp: lastCheckTimestamp     // Add Unix timestamp in milliseconds
                 });
                 
               console.log(`Created new last check timestamp for ${safe_address} on ${network}`);

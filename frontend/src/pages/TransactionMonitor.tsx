@@ -362,12 +362,19 @@ const TransactionMonitor = () => {
     return `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
   };
 
-  const formatTimeAgo = (dateString: string | null) => {
-    if (!dateString) return 'Unknown';
+  const formatTimeAgo = (timestampOrDateString: number | string | null) => {
+    if (!timestampOrDateString) return 'Unknown';
     
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
+    // Handle both timestamp (number) and date string formats
+    const timestamp = typeof timestampOrDateString === 'number' 
+      ? timestampOrDateString 
+      : Date.parse(timestampOrDateString);
+    
+    // Use timestamp directly (in milliseconds since unix epoch)
+    const now = Date.now();
+    
+    // Calculate time difference in milliseconds
+    const diffMs = now - timestamp;
     const diffMins = Math.floor(diffMs / 60000);
     
     if (diffMins < 1) return 'Just now';

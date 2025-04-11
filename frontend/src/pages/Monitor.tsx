@@ -52,7 +52,7 @@ interface Monitor {
   notify: boolean;
   notificationMethod?: string;
   notificationTarget?: string;
-  lastChecked?: string;
+  lastChecked?: number;
   alertCount?: number;
   settings: any;
   created_at: string;
@@ -127,7 +127,7 @@ const Monitor = () => {
         const lastChecksPromises = data.map(monitor => 
           supabase
             .from('last_checks')
-            .select('checked_at')
+            .select('checked_at, unix_timestamp')
             .eq('safe_address', monitor.safe_address)
             .eq('network', monitor.network)
             .single()
@@ -146,7 +146,8 @@ const Monitor = () => {
           if (response.data) {
             const monitor = data[index];
             const key = `${monitor.safe_address.toLowerCase()}-${monitor.network.toLowerCase()}`;
-            latestScans[key] = response.data.checked_at;
+            // Store the unix timestamp for more accurate time difference calculation
+            latestScans[key] = response.data.unix_timestamp || Date.parse(response.data.checked_at);
           }
         });
 
@@ -388,12 +389,14 @@ const Monitor = () => {
     }
   };
 
-  const formatTimeAgo = (dateString: string | null) => {
-    if (!dateString) return 'Waiting for first check';
+  const formatTimeAgo = (timestamp: number | null) => {
+    if (!timestamp) return 'Waiting for first check';
     
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
+    // Use timestamp directly (already in milliseconds since unix epoch)
+    const now = Date.now();
+    
+    // Calculate time difference in milliseconds
+    const diffMs = now - timestamp;
     const diffMins = Math.floor(diffMs / 60000);
     
     if (diffMins < 1) return 'Just now';
@@ -734,7 +737,7 @@ const Monitor = () => {
                                 </Link>
                               </div>
                             </TableCell>
-                            <TableCell>{formatTimeAgo(alert.scanned_at)}</TableCell>
+                            <TableCell>{formatTimeAgo(Date.parse(alert.scanned_at))}</TableCell>
                             <TableCell>
                               {alert.type === 'suspicious' ? (
                                 <Badge variant="destructive">Suspicious</Badge>

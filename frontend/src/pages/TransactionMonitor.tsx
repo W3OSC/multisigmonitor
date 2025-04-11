@@ -958,7 +958,7 @@ const TransactionMonitor = () => {
       </main>
       
       {/* Transaction Details Modal */}
-      <Dialog open={detailModalOpen} onOpenChange={setDetailModalOpen}>
+      <Dialog open={detailModalOpen} onOpenChange={handleModalClose}>
         <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Transaction Details</DialogTitle>

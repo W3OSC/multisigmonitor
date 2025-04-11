@@ -267,7 +267,9 @@ const TransactionMonitor = () => {
         
         // Apply transaction type filter if selected
         if (filters.type) {
-          query = query.eq('result->type', filters.type);
+          // When filtering by transaction type, we need to use a raw contains query
+          // since we're dealing with a JSON field structure
+          query = query.filter('result', 'cs', `{"type":"${filters.type}"}`);
         }
         
         // Get all results before we do further client-side filtering/sorting

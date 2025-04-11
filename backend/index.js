@@ -125,10 +125,6 @@ function detectSuspiciousActivity(transaction, safeAddress) {
   // 4. Transactions during unusual times
   // 5. Rapid succession of multiple transactions
   
-  // For this example, we'll just check for large value transfers
-  if (transaction.value && parseInt(transaction.value) > 1000000000000000000) { // > 1 ETH
-    return true;
-  }
   
   // Check for multiple signers being removed at once
   if (transaction.dataDecoded && 
@@ -136,9 +132,6 @@ function detectSuspiciousActivity(transaction, safeAddress) {
       transaction.dataDecoded.parameters) {
     return true;
   }
-  
-  // Random suspicious flag for demo purposes (10% of transactions)
-  return Math.random() < 0.1;
 }
 
 // Main function to check transactions

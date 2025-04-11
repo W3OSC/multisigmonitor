@@ -123,31 +123,30 @@ const Monitor = () => {
           return;
         }
         
-        // Fetch the latest result for each safe_address + network combination
-        const resultsPromises = data.map(monitor => 
+        // Fetch the latest check time from the last_checks table
+        const lastChecksPromises = data.map(monitor => 
           supabase
-            .from('results')
-            .select('safe_address, network, scanned_at, result')
+            .from('last_checks')
+            .select('checked_at')
             .eq('safe_address', monitor.safe_address)
             .eq('network', monitor.network)
-            .order('scanned_at', { ascending: false })
-            .limit(1)
+            .single()
         );
         
-        const resultsResponses = await Promise.all(resultsPromises);
+        const lastChecksResponses = await Promise.all(lastChecksPromises);
         
-        // Create a map of the latest scan time for each monitor's safe_address+network
+        // Create a map of the latest check time for each monitor's safe_address+network
         const latestScans = {};
-        resultsResponses.forEach((response, index) => {
-          if (response.error) {
-            console.error('Error fetching results:', response.error);
+        lastChecksResponses.forEach((response, index) => {
+          if (response.error && response.error.code !== 'PGRST116') { // PGRST116 is "no rows returned" error
+            console.error('Error fetching last checks:', response.error);
             return;
           }
           
-          if (response.data && response.data.length > 0) {
+          if (response.data) {
             const monitor = data[index];
             const key = `${monitor.safe_address.toLowerCase()}-${monitor.network.toLowerCase()}`;
-            latestScans[key] = response.data[0].scanned_at;
+            latestScans[key] = response.data.checked_at;
           }
         });
 

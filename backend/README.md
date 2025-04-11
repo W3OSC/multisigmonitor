@@ -31,11 +31,23 @@ CREATE TABLE results (
 );
 ```
 
+### 3. `last_checks` Table
+
+```sql
+CREATE TABLE last_checks (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  safe_address TEXT NOT NULL,
+  network TEXT NOT NULL,
+  checked_at TIMESTAMP DEFAULT now()
+);
+```
+
 ### Enable Row-Level Security (RLS)
 
 ```sql
 ALTER TABLE monitors ENABLE ROW LEVEL SECURITY;
 ALTER TABLE results ENABLE ROW LEVEL SECURITY;
+ALTER TABLE last_checks ENABLE ROW LEVEL SECURITY;
 ```
 
 ### RLS Policies
@@ -74,4 +86,27 @@ USING (
       AND monitors.user_id = auth.uid()
   )
 );
+```
+
+#### Policies for `last_checks`
+
+```sql
+CREATE POLICY "Users can view last_checks for monitors they subscribe to"
+ON last_checks FOR SELECT
+TO authenticated
+USING (
+  EXISTS (
+    SELECT 1 FROM monitors
+    WHERE monitors.safe_address = last_checks.safe_address
+      AND monitors.network = last_checks.network
+      AND monitors.user_id = auth.uid()
+  )
+);
+
+-- Allow service role to insert/update last_checks
+CREATE POLICY "Service account can manage last_checks"
+ON last_checks FOR ALL
+TO service_role
+USING (true)
+WITH CHECK (true);
 ```

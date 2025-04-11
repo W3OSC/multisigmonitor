@@ -109,16 +109,53 @@ async function checkTransactions() {
       addressNetworkMap[key].monitors.push(monitor);
     });
     
-    // Now process each unique address+network combination
-    const uniqueAddressNetworkPairs = Object.values(addressNetworkMap);
-    // console.log(`Processing ${uniqueAddressNetworkPairs.length} unique Safe address + network combinations`);
-    
-    for (const pair of uniqueAddressNetworkPairs) {
-      const { safe_address, network, monitors: relatedMonitors } = pair;
+        // Now process each unique address+network combination
+        const uniqueAddressNetworkPairs = Object.values(addressNetworkMap);
+        // console.log(`Processing ${uniqueAddressNetworkPairs.length} unique Safe address + network combinations`);
+        
+        for (const pair of uniqueAddressNetworkPairs) {
+          const { safe_address, network, monitors: relatedMonitors } = pair;
+          
+          console.log(`\nProcessing Safe ${safe_address} on ${network}...`);
+          
+          // Record last check time regardless of outcome
+          const lastCheckTimestamp = new Date().toISOString();
+          
+          // Update the last_checks table with the current timestamp
+          try {
+            // First check if a record already exists
+            const { data: existingCheck } = await supabase
+              .from('last_checks')
+              .select('id')
+              .eq('safe_address', safe_address)
+              .eq('network', network)
+              .single();
+              
+            if (existingCheck) {
+              // Update existing record
+              await supabase
+                .from('last_checks')
+                .update({ checked_at: lastCheckTimestamp })
+                .eq('id', existingCheck.id);
+                
+              console.log(`Updated last check timestamp for ${safe_address} on ${network}`);
+            } else {
+              // Create new record
+              await supabase
+                .from('last_checks')
+                .insert({
+                  safe_address: safe_address,
+                  network: network,
+                  checked_at: lastCheckTimestamp
+                });
+                
+              console.log(`Created new last check timestamp for ${safe_address} on ${network}`);
+            }
+          } catch (timestampError) {
+            console.error(`Error updating last check timestamp: ${timestampError.message}`);
+          }
       
-      console.log(`\nProcessing Safe ${safe_address} on ${network}...`);
-      
-      // Skip if the network is not supported
+          // Skip if the network is not supported
       if (!NETWORK_CONFIGS[network]) {
         console.error(`Unsupported network: ${network} for Safe ${safe_address}`);
         continue;

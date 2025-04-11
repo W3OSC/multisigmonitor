@@ -114,7 +114,7 @@ const MonitorConfig = () => {
         setAddress(data.safe_address);
         setAlias(data.settings?.alias || "");
         setNetwork(data.settings?.network || "ethereum");
-        setNotificationsEnabled(data.notify);
+        setNotificationsEnabled(data.settings?.notify || false);
         setAlertType(data.settings?.alertType || "suspicious");
         
         // Create fresh notification configurations
@@ -298,13 +298,13 @@ const MonitorConfig = () => {
           return result;
         });
       
-      // Create settings object with all configuration
+        // Create settings object with all configuration
       const settings = {
         alias: alias || null,
         network,
         active: true,
         alertType,
-        notify: notificationsEnabled,  // Move notify into settings object
+        notify: notificationsEnabled,
         notifications: processedNotifications
       };
         

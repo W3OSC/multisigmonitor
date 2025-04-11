@@ -2,7 +2,29 @@
 const cron = require('node-cron');
 const axios = require('axios');
 const supabase = require('./supabase');
+const { Resend } = require('resend');
+const { 
+  generateTransactionEmailHtml, 
+  generateTransactionEmailText 
+} = require('./email-templates');
 require('dotenv').config();
+
+// Configure Resend for email sending
+let resend = null;
+try {
+  if (process.env.RESEND_API_KEY) {
+    resend = new Resend(process.env.RESEND_API_KEY);
+    console.log('✅ Resend library initialized with API key');
+  } else {
+    console.log('⚠️ Resend API key not found. Email notifications will be logged but not sent.');
+  }
+} catch (err) {
+  console.error('❌ Error initializing Resend client:', err.message);
+}
+
+const defaultFromEmail = process.env.DEFAULT_FROM_EMAIL || 'notifications@safemonitor.io';
+console.log(`📧 Default from email configured as: ${defaultFromEmail}`);
+console.log(`🔑 Resend API key length: ${process.env.RESEND_API_KEY ? process.env.RESEND_API_KEY.length : 0} characters`);
 
 // Define Safe API version
 const SAFE_API_VERSION = 'v2';
@@ -317,7 +339,66 @@ async function checkTransactions() {
                         switch (method) {
                           case 'email':
                             // Email notification logic
-                            console.log(`TEST: Would send email to ${notification.email}`);
+                            try {
+                              if (notification.email) {
+                                console.log(`TEST: Sending email to ${notification.email}`);
+                                
+                                // Generate links
+                                const safeAppLink = `https://app.safe.global/transactions/tx?safe=${network}:${safe_address}&id=multisig_${safe_address}_${safeTxHash}`;
+                                const safeMonitorLink = `https://safemonitor.io/monitor/transactions/${safeTxHash}`;
+                                const etherscanLink = transaction.isExecuted 
+                                  ? `https://${network === 'ethereum' ? '' : network + '.'}etherscan.io/tx/${transaction.transactionHash || safeTxHash}`
+                                  : null;
+                                  
+                                // Create email transaction info object
+                                const txInfo = {
+                                  safeAddress: safe_address,
+                                  network: network,
+                                  type: txType,
+                                  description: description,
+                                  hash: safeTxHash,
+                                  nonce: transaction.nonce,
+                                  isExecuted: transaction.isExecuted || false,
+                                  safeAppLink,
+                                  safeMonitorLink,
+                                  etherscanLink,
+                                  isTest: true // Mark as test email
+                                };
+                                
+                                // Generate email content
+                                const htmlContent = generateTransactionEmailHtml(txInfo);
+                                const textContent = generateTransactionEmailText(txInfo);
+                                
+                                // Set subject based on transaction type
+                                const subject = `[TEST] ${txType === 'suspicious' 
+                                  ? '⚠️ SUSPICIOUS Safe Transaction Detected'
+                                  : 'Safe Transaction Alert'}`;
+                                
+                                // Check if Resend is configured
+                                if (process.env.RESEND_API_KEY) {
+                                  try {
+                                    const response = await resend.emails.send({
+                                      from: defaultFromEmail,
+                                      to: notification.email,
+                                      subject: subject,
+                                      html: htmlContent,
+                                      text: textContent
+                                    });
+                                    
+                                    console.log(`TEST: Email sent successfully to ${notification.email}, ID: ${response.id}`);
+                                  } catch (emailSendError) {
+                                    console.error(`TEST: Error sending email: ${emailSendError.message}`);
+                                  }
+                                } else {
+                                  console.log(`TEST: Email sending is not configured. Would send email to ${notification.email}`);
+                                  console.log(`TEST: Make sure RESEND_API_KEY is set in your .env file`);
+                                }
+                              } else {
+                                console.log(`TEST: No email address configured for this notification`);
+                              }
+                            } catch (emailError) {
+                              console.error(`TEST: Error sending email notification:`, emailError.message);
+                            }
                             break;
                           case 'webhook':
                           case 'discord':
@@ -604,7 +685,60 @@ async function checkTransactions() {
                     switch (method) {
                       case 'email':
                         // Email notification logic
-                        console.log(`Would send email to ${notification.email}`);
+                        try {
+                          if (notification.email) {
+                            console.log(`Sending email to ${notification.email}`);
+                            
+                            // Generate links
+                            const safeAppLink = `https://app.safe.global/transactions/tx?safe=${network}:${safe_address}&id=multisig_${safe_address}_${safeTxHash}`;
+                            const safeMonitorLink = `https://safemonitor.io/monitor/transactions/${safeTxHash}`;
+                            const etherscanLink = transaction.isExecuted 
+                              ? `https://${network === 'ethereum' ? '' : network + '.'}etherscan.io/tx/${transaction.transactionHash || safeTxHash}`
+                              : null;
+                              
+                            // Create email transaction info object
+                            const txInfo = {
+                              safeAddress: safe_address,
+                              network: network,
+                              type: txType,
+                              description: description,
+                              hash: safeTxHash,
+                              nonce: transaction.nonce,
+                              isExecuted: transaction.isExecuted || false,
+                              safeAppLink,
+                              safeMonitorLink,
+                              etherscanLink,
+                              isTest: false
+                            };
+                            
+                            if (resend) {
+                              // Generate email content
+                              const htmlContent = generateTransactionEmailHtml(txInfo);
+                              const textContent = generateTransactionEmailText(txInfo);
+                              
+                              // Set subject based on transaction type
+                              const subject = txType === 'suspicious' 
+                                ? `⚠️ SUSPICIOUS Safe Transaction Detected`
+                                : `Safe Transaction Alert`;
+                              
+                              const response = await resend.emails.send({
+                                from: defaultFromEmail,
+                                to: notification.email,
+                                subject: subject,
+                                html: htmlContent,
+                                text: textContent
+                              });
+                              
+                              console.log(`Email sent successfully to ${notification.email}, ID: ${response.id}`);
+                            } else {
+                              console.log(`Email sending is not configured. Would send email to ${notification.email}`);
+                            }
+                          } else {
+                            console.log(`No email address configured for this notification`);
+                          }
+                        } catch (emailError) {
+                          console.error(`Error sending email notification:`, emailError.message);
+                        }
                         break;
                       case 'webhook':
                       case 'discord':

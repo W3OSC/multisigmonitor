@@ -347,10 +347,37 @@ async function checkTransactions() {
                 return false;
               }
               
-              // Otherwise, this transaction needs notifications
+              // Check transaction timestamp against monitor creation time
+              // Only notify for transactions that occur after the monitor was created
               return true;
             } catch (err) {
               console.error('Error checking notification status:', err.message);
+              return false;
+            }
+          };
+          
+          // Helper function to determine if a transaction is newer than a monitor
+          const isTransactionNewerThanMonitor = (transaction, monitor) => {
+            try {
+              // Get transaction submission timestamp
+              const txTimestamp = transaction.submissionDate || transaction.executionDate || null;
+              if (!txTimestamp) {
+                // If no timestamp can be found, assume it's an old transaction
+                return false;
+              }
+              
+              // Get monitor creation time
+              const monitorCreatedAt = monitor.created_at;
+              if (!monitorCreatedAt) {
+                // If we can't determine when the monitor was created, be cautious and don't notify
+                return false;
+              }
+              
+              // Compare timestamps (both in ISO format)
+              return new Date(txTimestamp) > new Date(monitorCreatedAt);
+            } catch (err) {
+              console.error('Error comparing timestamps:', err.message);
+              // If we encounter an error, don't notify
               return false;
             }
           };
@@ -389,7 +416,10 @@ async function checkTransactions() {
           
           if (needsNotification) {
             for (const monitor of relatedMonitors) {
-              if (shouldSendNotification(monitor)) {
+              // Only send notifications if the transaction is newer than the monitor
+              // This prevents notifications for historical transactions when a new monitor is added
+              if (shouldSendNotification(monitor) && isTransactionNewerThanMonitor(transaction, monitor)) {
+                console.log(`Transaction date: ${transaction.submissionDate || transaction.executionDate}, Monitor created: ${monitor.created_at}`);
                 try {
                   console.log(`Sending notification for monitor ${monitor.id} for transaction ${safeTxHash}`);
                   
@@ -428,7 +458,62 @@ async function checkTransactions() {
                         break;
                       case 'telegram':
                         // Telegram notification logic
-                        console.log(`Would send Telegram notification to chat ${notification.chatId}`);
+                        try {
+                          if (notification.botApiKey && notification.chatId) {
+                            console.log(`Sending Telegram notification to chat ${notification.chatId}`);
+                            
+                            // Format transaction info
+                            const txInfo = {
+                              safeAddress: safe_address,
+                              network: network,
+                              type: txType,
+                              description: description,
+                              hash: safeTxHash,
+                              nonce: transaction.nonce,
+                              isExecuted: transaction.isExecuted || false
+                            };
+                            
+                            // Create message with markdown formatting
+                            const safeAppLink = `https://app.safe.global/transactions/tx?safe=${network}:${safe_address}&id=multisig_${safe_address}_${safeTxHash}`;
+                            const safeMonitorLink = `https://safemonitor.io/monitor/transactions/${safeTxHash}`;
+                            const etherscanLink = transaction.isExecuted 
+                              ? `https://${network === 'ethereum' ? '' : network + '.'}etherscan.io/tx/${transaction.transactionHash || safeTxHash}`
+                              : null;
+                            
+                            let message = `🔔 *${txType === 'suspicious' ? '⚠️ SUSPICIOUS TRANSACTION' : 'New Transaction'}*\n\n`;
+                            message += `*Network:* ${network}\n`;
+                            message += `*Safe:* \`${safe_address}\`\n`;
+                            message += `*Description:* ${description}\n`;
+                            
+                            if (txInfo.nonce !== undefined) {
+                              message += `*Nonce:* ${txInfo.nonce}\n`;
+                            }
+                            
+                            message += `*Status:* ${txInfo.isExecuted ? '✅ Executed' : '⏳ Awaiting execution'}\n\n`;
+                            message += `*View transaction:*\n`;
+                            message += `- [Safe App](${safeAppLink})\n`;
+                            message += `- [Safe Monitor](${safeMonitorLink})\n`;
+                            
+                            if (etherscanLink) {
+                              message += `- [Etherscan](${etherscanLink})\n`;
+                            }
+                            
+                            // Send the message
+                            const telegramApiUrl = `https://api.telegram.org/bot${notification.botApiKey}/sendMessage`;
+                            await axios.post(telegramApiUrl, {
+                              chat_id: notification.chatId,
+                              text: message,
+                              parse_mode: 'Markdown',
+                              disable_web_page_preview: true
+                            });
+                            
+                            console.log(`Telegram notification sent successfully`);
+                          } else {
+                            console.log(`Missing Telegram credentials: botApiKey or chatId`);
+                          }
+                        } catch (telegramError) {
+                          console.error(`Error sending Telegram notification:`, telegramError.message);
+                        }
                         break;
                     }
                   }

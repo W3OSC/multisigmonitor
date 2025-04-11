@@ -69,6 +69,50 @@ const NETWORK_CONFIGS = {
 };
 
 
+/**
+ * Function to detect if a transaction is related to Safe management/configuration
+ * These include owner management, threshold changes, module management, guard settings, etc.
+ * 
+ * @param {Object} transaction The transaction object from the Safe API
+ * @returns {boolean} True if the transaction is a management transaction
+ */
+function isManagementTransaction(transaction) {
+  // Skip if no decoded data (most likely a simple transfer)
+  if (!transaction.dataDecoded) {
+    return false;
+  }
+  
+  // Define management-related methods
+  const managementMethods = [
+    // Owner management
+    'addOwnerWithThreshold',
+    'removeOwner',
+    'swapOwner',
+    'changeThreshold',
+    
+    // Module management
+    'enableModule',
+    'disableModule',
+    
+    // Guard management
+    'setGuard',
+    
+    // Fallback management
+    'setFallbackHandler',
+    
+    // Other Safe management functions
+    'changeMasterCopy',
+    'setup',
+    'execTransactionFromModule',
+    'execTransactionFromModuleReturnData',
+    'approveHash',
+    'setStorageAt'
+  ];
+  
+  // Check if the transaction method is in our list of management methods
+  return managementMethods.includes(transaction.dataDecoded.method);
+}
+
 // Function to detect suspicious transactions based on simple criteria
 function detectSuspiciousActivity(transaction, safeAddress) {
   // This is a simple placeholder implementation
@@ -325,8 +369,32 @@ async function checkTransactions() {
                     
                     if (!monitor.settings?.notifications?.length) continue;
                     
+                    // Get transaction data from the test transaction
+                    const transaction = testTx.result.transaction_data || {};
+                    const isManagement = transaction.dataDecoded ? 
+                      isManagementTransaction(transaction) : false;
+                    
+                    // Check the alert type preference
                     const alertType = monitor.settings?.alertType || 'suspicious';
-                    const shouldNotify = alertType === 'all' || (alertType === 'suspicious' && isSuspicious);
+                    let shouldNotify = false;
+                    
+                    switch (alertType) {
+                      case 'all':
+                        // Notify for all transactions
+                        shouldNotify = true;
+                        break;
+                      case 'suspicious':
+                        // Notify for suspicious transactions and management transactions
+                        shouldNotify = isSuspicious || isManagement;
+                        break;
+                      case 'management':
+                        // Notify only for management transactions
+                        shouldNotify = isManagement;
+                        break;
+                      default:
+                        // Default to suspicious transactions only (legacy behavior)
+                        shouldNotify = isSuspicious;
+                    }
                     
                     if (shouldNotify) {
                       console.log(`TEST: Sending notification for ${testTx.result.transaction_hash}`);
@@ -697,13 +765,38 @@ async function checkTransactions() {
               return false;
             }
             
-            // Check the alert type preference
-            // If set to "all", notify for all transactions
-            // If set to "suspicious" (default), only notify for suspicious transactions
-            const alertType = monitor.settings.alertType || 'suspicious';
+            // Check if this is a management-only monitor and the transaction is not a management transaction
+            const managementOnly = monitor.settings.managementOnly === true;
+            const isManagement = isManagementTransaction(transaction);
             
-            const shouldNotify = alertType === 'all' || (alertType === 'suspicious' && isSuspicious);
-            console.log(`- Alert type: ${alertType}, Transaction is suspicious: ${isSuspicious}`);
+            if (managementOnly && !isManagement) {
+              console.log(`- Management-only monitor, but transaction is not a management transaction`);
+              return false;
+            }
+            
+            // Check the alert type preference and decide if we should notify
+            const alertType = monitor.settings.alertType || 'suspicious';
+            let shouldNotify = false;
+            
+            switch (alertType) {
+              case 'all':
+                // Notify for all transactions
+                shouldNotify = true;
+                break;
+              case 'suspicious':
+                // Notify for suspicious transactions and management transactions
+                shouldNotify = isSuspicious || isManagement;
+                break;
+              case 'management':
+                // Notify only for management transactions
+                shouldNotify = isManagement;
+                break;
+              default:
+                // Default to suspicious transactions only (legacy behavior)
+                shouldNotify = isSuspicious;
+            }
+            
+            console.log(`- Alert type: ${alertType}, Transaction is suspicious: ${isSuspicious}, Transaction is management: ${isManagement}`);
             console.log(`- Should send notification: ${shouldNotify}`);
             
             return shouldNotify;

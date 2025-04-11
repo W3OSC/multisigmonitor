@@ -41,8 +41,9 @@ const NOTIFICATION_METHODS = [
 
 // Alert type options
 const ALERT_TYPES = [
-  { id: "suspicious", name: "Suspicious transactions only" },
-  { id: "all", name: "All transactions" }
+  { id: "all", name: "All transactions" },
+  { id: "management", name: "Management and Suspicious transactions only" },
+  { id: "suspicious", name: "Suspicious transactions only" }
 ];
 
 // Type for notification config
@@ -69,7 +70,8 @@ const MonitorConfig = () => {
   const [network, setNetwork] = useState("");
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [notifications, setNotifications] = useState<NotificationConfig[]>([]);
-  const [alertType, setAlertType] = useState<string>("suspicious");
+  const [alertType, setAlertType] = useState<string>("all");
+  const [managementOnly, setManagementOnly] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -116,6 +118,7 @@ const MonitorConfig = () => {
         setNetwork(data.settings?.network || "ethereum");
         setNotificationsEnabled(data.settings?.notify || false);
         setAlertType(data.settings?.alertType || "suspicious");
+        setManagementOnly(data.settings?.managementOnly || false);
         
         // Create fresh notification configurations
         const updatedNotifications = NOTIFICATION_METHODS.map(method => ({
@@ -305,6 +308,7 @@ const MonitorConfig = () => {
         active: true,
         alertType,
         notify: notificationsEnabled,
+        managementOnly,
         notifications: processedNotifications
       };
         
@@ -531,6 +535,7 @@ const MonitorConfig = () => {
                           </div>
                         ))}
                       </RadioGroup>
+                      
                     </div>
                   )}
                   

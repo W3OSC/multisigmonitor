@@ -6,6 +6,7 @@ This README contains all the SQL statements required to set up tables and Row-Le
 > - Telegram Notifications - See [README-telegram.md](./README-telegram.md) for setup instructions
 > - Email Notifications - See [README-email.md](./README-email.md) for setup instructions
 > - Discord, Slack & Webhook Notifications - See [README-webhook.md](./README-webhook.md) for setup instructions
+> - Management-Only Transaction Filter - See [README-management.md](./README-management.md) for details
 
 ---
 

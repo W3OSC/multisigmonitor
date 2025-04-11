@@ -41,8 +41,9 @@ const NOTIFICATION_METHODS = [
 
 // Alert type options
 const ALERT_TYPES = [
-  { id: "suspicious", name: "Suspicious transactions only" },
-  { id: "all", name: "All transactions" }
+  { id: "all", name: "All transactions" },
+  { id: "management", name: "Management and Suspicious transactions only" },
+  { id: "suspicious", name: "Suspicious transactions only" }
 ];
 
 // Type for notification config
@@ -68,7 +69,8 @@ const NewMonitor = () => {
   const [network, setNetwork] = useState("ethereum");
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [notifications, setNotifications] = useState<NotificationConfig[]>([]);
-  const [alertType, setAlertType] = useState<string>("suspicious");
+  const [alertType, setAlertType] = useState<string>("all");
+  const [managementOnly, setManagementOnly] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   const { user, setIsLoginDialogOpen } = useAuth();
@@ -207,6 +209,7 @@ const NewMonitor = () => {
         active: true,
         alertType,
         notify: notificationsEnabled,
+        managementOnly,
         notifications: processedNotifications
       };
 

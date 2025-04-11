@@ -7,6 +7,11 @@ const {
   generateTransactionEmailHtml, 
   generateTransactionEmailText 
 } = require('./email-templates');
+const {
+  generateDiscordWebhook,
+  generateSlackWebhook,
+  generateGenericWebhook
+} = require('./webhook-templates');
 require('dotenv').config();
 
 // Configure Resend for email sending
@@ -404,22 +409,59 @@ async function checkTransactions() {
                           case 'discord':
                           case 'slack':
                             // Webhook notification logic
-                            if (notification.webhookUrl) {
-                              console.log(`TEST: Would send webhook to ${notification.webhookUrl}`);
-                              // Uncomment to actually send webhook notifications
-                              /*
-                              try {
-                                await axios.post(notification.webhookUrl, {
+                            try {
+                              if (notification.webhookUrl) {
+                                console.log(`TEST: Sending ${method} webhook to ${notification.webhookUrl}`);
+                                
+                                // Generate links
+                                const safeAppLink = `https://app.safe.global/transactions/tx?safe=${network}:${safe_address}&id=multisig_${safe_address}_${safeTxHash}`;
+                                const safeMonitorLink = `https://safemonitor.io/monitor/transactions/${safeTxHash}`;
+                                const etherscanLink = transaction.isExecuted 
+                                  ? `https://${network === 'ethereum' ? '' : network + '.'}etherscan.io/tx/${transaction.transactionHash || safeTxHash}`
+                                  : null;
+                                  
+                                // Create transaction info object
+                                const txInfo = {
                                   safeAddress: safe_address,
-                                  txHash: safeTxHash,
                                   network: network,
+                                  type: txType,
                                   description: description,
-                                  type: txType
+                                  hash: safeTxHash,
+                                  nonce: transaction.nonce,
+                                  isExecuted: transaction.isExecuted || false,
+                                  safeAppLink,
+                                  safeMonitorLink,
+                                  etherscanLink,
+                                  isTest: true // Mark as test webhook
+                                };
+                                
+                                // Generate appropriate webhook payload based on method
+                                let webhookPayload;
+                                const contentType = 'application/json';
+                                
+                                if (method === 'discord') {
+                                  webhookPayload = generateDiscordWebhook(txInfo);
+                                } else if (method === 'slack') {
+                                  webhookPayload = generateSlackWebhook(txInfo);
+                                } else {
+                                  // Generic webhook
+                                  webhookPayload = generateGenericWebhook(txInfo, safe_address, network);
+                                }
+                                
+                                // Send the webhook
+                                const response = await axios.post(notification.webhookUrl, webhookPayload, {
+                                  headers: {
+                                    'Content-Type': contentType
+                                  }
                                 });
-                              } catch (webhookError) {
-                                console.error(`Webhook notification error:`, webhookError.message);
+                                
+                                console.log(`TEST: ${method} webhook sent successfully to ${notification.webhookUrl}, status: ${response.status}`);
+                              } else {
+                                console.log(`TEST: No webhook URL configured for this notification`);
                               }
-                              */
+                            } catch (webhookError) {
+                              console.error(`TEST: Error sending ${method} webhook notification:`, webhookError.message);
+                              console.error(`TEST: Error details:`, webhookError.response?.data || 'No additional error details');
                             }
                             break;
                           case 'telegram':
@@ -744,22 +786,62 @@ async function checkTransactions() {
                       case 'discord':
                       case 'slack':
                         // Webhook notification logic
-                        if (notification.webhookUrl) {
-                          console.log(`Would send webhook to ${notification.webhookUrl}`);
-                          // Uncomment to actually send webhook notifications
-                          /*
-                          try {
-                            await axios.post(notification.webhookUrl, {
+                        try {
+                          if (notification.webhookUrl) {
+                            console.log(`Sending ${method} webhook to ${notification.webhookUrl}`);
+                            
+                            // Generate links
+                            const safeAppLink = `https://app.safe.global/transactions/tx?safe=${network}:${safe_address}&id=multisig_${safe_address}_${safeTxHash}`;
+                            const safeMonitorLink = `https://safemonitor.io/monitor/transactions/${safeTxHash}`;
+                            const etherscanLink = transaction.isExecuted 
+                              ? `https://${network === 'ethereum' ? '' : network + '.'}etherscan.io/tx/${transaction.transactionHash || safeTxHash}`
+                              : null;
+                              
+                            // Create transaction info object
+                            const txInfo = {
                               safeAddress: safe_address,
-                              txHash: safeTxHash,
                               network: network,
+                              type: txType,
                               description: description,
-                              type: txType
+                              hash: safeTxHash,
+                              nonce: transaction.nonce,
+                              isExecuted: transaction.isExecuted || false,
+                              safeAppLink,
+                              safeMonitorLink,
+                              etherscanLink,
+                              isTest: false // Regular transaction, not a test
+                            };
+                            
+                            // Generate appropriate webhook payload based on method
+                            let webhookPayload;
+                            const contentType = 'application/json';
+                            
+                            if (method === 'discord') {
+                              webhookPayload = generateDiscordWebhook(txInfo);
+                            } else if (method === 'slack') {
+                              webhookPayload = generateSlackWebhook(txInfo);
+                            } else {
+                              // Generic webhook
+                              webhookPayload = generateGenericWebhook(txInfo, safe_address, network);
+                            }
+                            
+                            // Send the webhook
+                            const response = await axios.post(notification.webhookUrl, webhookPayload, {
+                              headers: {
+                                'Content-Type': contentType
+                              }
                             });
-                          } catch (webhookError) {
-                            console.error(`Webhook notification error:`, webhookError.message);
+                            
+                            console.log(`${method} webhook sent successfully to ${notification.webhookUrl}, status: ${response.status}`);
+                          } else {
+                            console.log(`No webhook URL configured for this notification`);
                           }
-                          */
+                        } catch (webhookError) {
+                          console.error(`Error sending ${method} webhook notification:`, webhookError.message);
+                          if (webhookError.response) {
+                            console.error(`Error status: ${webhookError.response.status}`);
+                            console.error(`Error details:`, webhookError.response.data || 'No additional error details');
+                          }
                         }
                         break;
                       case 'telegram':

@@ -2,9 +2,10 @@
 
 This README contains all the SQL statements required to set up tables and Row-Level Security (RLS) policies in your Supabase project. Simply copy and paste each section into the Supabase SQL editor.
 
-> **New Features**: 
+> **Notification Features**: 
 > - Telegram Notifications - See [README-telegram.md](./README-telegram.md) for setup instructions
 > - Email Notifications - See [README-email.md](./README-email.md) for setup instructions
+> - Discord, Slack & Webhook Notifications - See [README-webhook.md](./README-webhook.md) for setup instructions
 
 ---
 

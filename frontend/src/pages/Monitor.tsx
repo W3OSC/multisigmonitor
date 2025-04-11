@@ -491,13 +491,24 @@ const Monitor = () => {
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold">Your Monitors</h1>
           
-          <Button 
-            onClick={() => navigate("/monitor/new")}
-            className="jsr-button flex items-center gap-2"
-          >
-            <PlusCircle className="h-5 w-5" />
-            Add Monitor
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              onClick={() => navigate("/monitor/transactions")}
+              variant="outline"
+              className="flex items-center gap-2"
+            >
+              <Eye className="h-4 w-4" />
+              Transactions
+            </Button>
+            
+            <Button 
+              onClick={() => navigate("/monitor/new")}
+              className="jsr-button flex items-center gap-2"
+            >
+              <PlusCircle className="h-5 w-5" />
+              Add Monitor
+            </Button>
+          </div>
         </div>
         
         {isLoading ? (

@@ -12,6 +12,7 @@ import Review from "./pages/Review";
 import Monitor from "./pages/Monitor";
 import NewMonitor from "./pages/NewMonitor";
 import MonitorConfig from "./pages/MonitorConfig";
+import TransactionMonitor from "./pages/TransactionMonitor";
 import About from "./pages/About";
 import NotFound from "./pages/NotFound";
 
@@ -29,6 +30,7 @@ const App = () => (
               <Route path="/" element={<Index />} />
               <Route path="/review" element={<Review />} />
               <Route path="/monitor" element={<Monitor />} />
+              <Route path="/monitor/transactions" element={<TransactionMonitor />} />
               <Route path="/monitor/new" element={<NewMonitor />} />
               <Route path="/monitor/config/:id" element={<MonitorConfig />} />
               <Route path="/about" element={<About />} />

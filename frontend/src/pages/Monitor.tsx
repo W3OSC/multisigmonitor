@@ -727,13 +727,10 @@ const Monitor = () => {
                             <TableCell>
                               <div className="max-w-xs truncate">
                                 <Link 
-                                  to={`https://etherscan.io/tx/${alert.transaction_hash}`} 
-                                  target="_blank" 
-                                  rel="noopener noreferrer"
+                                  to={`/monitor/transactions/${alert.transaction_hash}`}
                                   className="text-blue-500 dark:text-blue-400 hover:underline flex items-center gap-1"
                                 >
                                   {alert.description}
-                                  <ExternalLink className="h-3 w-3" />
                                 </Link>
                               </div>
                             </TableCell>

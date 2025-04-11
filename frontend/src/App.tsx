@@ -31,6 +31,7 @@ const App = () => (
               <Route path="/review" element={<Review />} />
               <Route path="/monitor" element={<Monitor />} />
               <Route path="/monitor/transactions" element={<TransactionMonitor />} />
+              <Route path="/monitor/transactions/:txHash" element={<TransactionMonitor />} />
               <Route path="/monitor/new" element={<NewMonitor />} />
               <Route path="/monitor/config/:id" element={<MonitorConfig />} />
               <Route path="/about" element={<About />} />

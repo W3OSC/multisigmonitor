@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useParams } from "react-router-dom";
 import { HeaderWithLoginDialog } from "@/components/Header";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -76,6 +76,7 @@ const TransactionMonitor = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { toast } = useToast();
+  const { txHash } = useParams();
   
   // State for monitors
   const [monitors, setMonitors] = useState<Monitor[]>([]);
@@ -152,6 +153,69 @@ const TransactionMonitor = () => {
 
     fetchMonitors();
   }, [user, toast]);
+
+  // Look for a specific transaction hash if provided in URL
+  useEffect(() => {
+    if (txHash && !isLoading && transactions.length > 0) {
+      // Try to find the transaction in already loaded data
+      const matchingTx = transactions.find(tx => tx.transaction_hash === txHash);
+      if (matchingTx) {
+        showTransactionDetails(matchingTx);
+      } else {
+        // If not found in current page, we need to search for it in database
+        fetchTransactionByHash(txHash);
+      }
+    }
+  }, [txHash, transactions, isLoading]);
+
+  // Function to fetch a specific transaction by hash
+  const fetchTransactionByHash = async (hash: string) => {
+    if (!user) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('results')
+        .select('id, safe_address, network, scanned_at, result')
+        .contains('result', { transaction_hash: hash });
+      
+      if (error) {
+        console.error('Error fetching transaction by hash:', error);
+        return;
+      }
+      
+      if (data && data.length > 0) {
+        // Format the transaction
+        const item = data[0];
+        const txData = item.result.transaction_data || {};
+        const transaction = {
+          id: item.id,
+          safe_address: item.safe_address,
+          network: item.network,
+          scanned_at: item.scanned_at,
+          type: item.result.type || 'normal',
+          description: item.result.description || 'Unknown transaction',
+          transaction_hash: item.result.transaction_hash,
+          safeTxHash: txData.safeTxHash,
+          nonce: txData.nonce !== undefined ? parseInt(txData.nonce) : undefined,
+          isExecuted: txData.isExecuted,
+          executionTxHash: txData.transactionHash,
+          submissionDate: txData.submissionDate,
+          result: item.result
+        };
+        
+        // Show the transaction details
+        showTransactionDetails(transaction);
+      } else {
+        toast({
+          title: "Transaction Not Found",
+          description: `Could not find transaction with hash ${hash}`,
+          variant: "destructive",
+        });
+      }
+    } catch (err) {
+      console.error('Error searching for transaction:', err);
+    }
+  };
 
   // Fetch transactions when filters, sorting, or pagination changes
   useEffect(() => {
@@ -351,10 +415,21 @@ const TransactionMonitor = () => {
     setCurrentPage(1); // Reset to first page when filters change
   };
 
-  // Show transaction details
+  // Show transaction details and update URL
   const showTransactionDetails = (transaction: Transaction) => {
+    // Update the URL to include the transaction hash
+    navigate(`/monitor/transactions/${transaction.transaction_hash}`, { replace: false });
     setSelectedTransaction(transaction);
     setDetailModalOpen(true);
+  };
+
+  // Handle modal close to update URL
+  const handleModalClose = (open: boolean) => {
+    if (!open) {
+      // When closing the modal, revert URL to base transactions URL
+      navigate('/monitor/transactions', { replace: true });
+    }
+    setDetailModalOpen(open);
   };
 
   // Helpers

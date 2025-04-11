@@ -304,18 +304,18 @@ const MonitorConfig = () => {
         network,
         active: true,
         alertType,
+        notify: notificationsEnabled,  // Move notify into settings object
         notifications: processedNotifications
       };
-      
-      // Update the monitor in Supabase
-      const { error } = await supabase
-        .from('monitors')
-        .update({
-          safe_address: address,
-          notify: notificationsEnabled,
-          settings: settings
-        })
-        .eq('id', id);
+        
+        // Update the monitor in Supabase
+        const { error } = await supabase
+          .from('monitors')
+          .update({
+            safe_address: address,
+            settings: settings
+          })
+          .eq('id', id);
       
       if (error) throw error;
       

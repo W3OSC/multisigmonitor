@@ -324,13 +324,74 @@ async function checkTransactions() {
           }
           
           console.log(`Transaction ${safeTxHash} saved successfully`);
+          // Check if this transaction should trigger notifications
+          const shouldNotify = async () => {
+            try {
+              // Check if we've already sent notifications for this transaction
+              const { data: existingNotification, error } = await supabase
+                .from('notification_status')
+                .select('id')
+                .eq('transaction_hash', safeTxHash)
+                .eq('safe_address', safe_address)
+                .eq('network', network)
+                .single();
+              
+              if (error && error.code !== 'PGRST116') { // Not "no rows found" error
+                console.error('Error checking notification status:', error);
+                return false;
+              }
+              
+              // If notification already sent, don't send again
+              if (existingNotification) {
+                console.log(`Notification already sent for transaction ${safeTxHash}, skipping`);
+                return false;
+              }
+              
+              // Otherwise, this transaction needs notifications
+              return true;
+            } catch (err) {
+              console.error('Error checking notification status:', err.message);
+              return false;
+            }
+          };
           
-          // Send notifications for each monitor if suspicious
-          if (isSuspicious) {
+          // Send notifications based on transaction type and notification settings
+          const needsNotification = await shouldNotify();
+          
+          // Check if the transaction type matches notification preferences
+          const shouldSendNotification = (monitor) => {
+            console.log(`Checking notification settings for monitor ${monitor.id}:`, JSON.stringify(monitor.settings));
+            
+            // Must have notifications enabled (check both locations due to schema transition)
+            const notifyEnabled = monitor.settings.notify || monitor.notify;
+            if (!notifyEnabled) {
+              console.log(`- Notifications disabled for monitor ${monitor.id}`);
+              return false;
+            }
+            
+            // Must have at least one notification method configured
+            if (!monitor.settings.notifications?.length) {
+              console.log(`- No notification methods configured for monitor ${monitor.id}`);
+              return false;
+            }
+            
+            // Check the alert type preference
+            // If set to "all", notify for all transactions
+            // If set to "suspicious" (default), only notify for suspicious transactions
+            const alertType = monitor.settings.alertType || 'suspicious';
+            
+            const shouldNotify = alertType === 'all' || (alertType === 'suspicious' && isSuspicious);
+            console.log(`- Alert type: ${alertType}, Transaction is suspicious: ${isSuspicious}`);
+            console.log(`- Should send notification: ${shouldNotify}`);
+            
+            return shouldNotify;
+          };
+          
+          if (needsNotification) {
             for (const monitor of relatedMonitors) {
-              if (monitor.settings.notify && monitor.settings.notifications?.length > 0) {
+              if (shouldSendNotification(monitor)) {
                 try {
-                  console.log(`Sending notification for monitor ${monitor.id} for suspicious transaction ${safeTxHash}`);
+                  console.log(`Sending notification for monitor ${monitor.id} for transaction ${safeTxHash}`);
                   
                   // Process each notification method
                   for (const notification of monitor.settings.notifications) {
@@ -370,6 +431,23 @@ async function checkTransactions() {
                         console.log(`Would send Telegram notification to chat ${notification.chatId}`);
                         break;
                     }
+                  }
+                  
+                  // Record that a notification was sent for this transaction
+                  try {
+                    await supabase
+                      .from('notification_status')
+                      .insert({
+                        transaction_hash: safeTxHash,
+                        safe_address: safe_address,
+                        network: network,
+                        notified_at: new Date().toISOString(),
+                        transaction_type: txType,
+                        monitor_id: monitor.id
+                      });
+                    console.log(`Recorded notification for monitor ${monitor.id}, transaction ${safeTxHash}`);
+                  } catch (recordError) {
+                    console.error('Failed to record notification status:', recordError.message);
                   }
                 } catch (notificationError) {
                   console.error('Notification error:', notificationError.message);

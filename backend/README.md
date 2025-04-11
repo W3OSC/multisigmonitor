@@ -43,12 +43,33 @@ CREATE TABLE last_checks (
 );
 ```
 
+### 4. `notification_status` Table
+
+```sql
+CREATE TABLE notification_status (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  transaction_hash TEXT NOT NULL,
+  safe_address TEXT NOT NULL,
+  network TEXT NOT NULL,
+  notified_at TIMESTAMP WITH TIME ZONE NOT NULL,
+  transaction_type TEXT NOT NULL,
+  monitor_id UUID REFERENCES monitors(id) ON DELETE CASCADE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+);
+
+-- Add indexes for faster lookups
+CREATE INDEX idx_notification_status_txhash ON notification_status(transaction_hash);
+CREATE INDEX idx_notification_status_safe_network ON notification_status(safe_address, network);
+CREATE INDEX idx_notification_status_monitor ON notification_status(monitor_id);
+```
+
 ### Enable Row-Level Security (RLS)
 
 ```sql
 ALTER TABLE monitors ENABLE ROW LEVEL SECURITY;
 ALTER TABLE results ENABLE ROW LEVEL SECURITY;
 ALTER TABLE last_checks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE notification_status ENABLE ROW LEVEL SECURITY;
 ```
 
 ### RLS Policies
@@ -107,6 +128,35 @@ USING (
 -- Allow service role to insert/update last_checks
 CREATE POLICY "Service account can manage last_checks"
 ON last_checks FOR ALL
+TO service_role
+USING (true)
+WITH CHECK (true);
+```
+
+#### Policies for `notification_status`
+
+```sql
+-- Allow users to view notifications for their own monitors
+CREATE POLICY "Users can read notification_status for their monitors" 
+ON notification_status 
+FOR SELECT 
+USING (
+  monitor_id IN (
+    SELECT id FROM monitors WHERE user_id = auth.uid()
+  )
+);
+
+-- Allow only service role to create notifications (not anon or authenticated)
+CREATE POLICY "Service can create notification_status" 
+ON notification_status 
+FOR INSERT 
+TO service_role
+WITH CHECK (true);
+
+-- Allow service to manage notifications
+CREATE POLICY "Service can manage notification_status" 
+ON notification_status 
+FOR ALL
 TO service_role
 USING (true)
 WITH CHECK (true);

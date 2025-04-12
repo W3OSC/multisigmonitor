@@ -29,7 +29,6 @@ try {
 
 const defaultFromEmail = process.env.DEFAULT_FROM_EMAIL || 'notifications@safemonitor.io';
 console.log(`📧 Default from email configured as: ${defaultFromEmail}`);
-console.log(`🔑 Resend API key length: ${process.env.RESEND_API_KEY ? process.env.RESEND_API_KEY.length : 0} characters`);
 
 // Define Safe API version
 const SAFE_API_VERSION = 'v2';
@@ -240,6 +239,32 @@ async function checkTransactions() {
         // Variable to track if the Safe exists
         let safeInfo = null;
         
+        // Get the timestamp of the last check for this Safe address + network combination - do this first
+        // to ensure it's available in all scopes later
+        let lastCheckData = null;
+        let modifiedSinceParam = null;
+        try {
+          const { data } = await supabase
+            .from('last_checks')
+            .select('unix_timestamp')
+            .eq('safe_address', safe_address)
+            .eq('network', network)
+            .single();
+          
+          lastCheckData = data;
+          
+          // Convert the timestamp to ISO format for the API call
+          if (lastCheckData && lastCheckData.unix_timestamp) {
+            modifiedSinceParam = new Date(lastCheckData.unix_timestamp).toISOString();
+            console.log(`Fetching transactions modified since: ${modifiedSinceParam}`);
+          } else {
+            console.log(`No previous check found, fetching all transactions`);
+          }
+        } catch (lastCheckError) {
+          console.error(`Error getting last check data: ${lastCheckError.message}`);
+          console.log(`No previous check found, fetching all transactions`);
+        }
+
         try {
           // console.log(`Calling Safe API with URL: ${NETWORK_CONFIGS[network].txServiceUrl}`);
           // console.log(`Full Safe address being checked: ${safe_address}`);
@@ -252,20 +277,23 @@ async function checkTransactions() {
               }
             });
             safeInfo = safeInfoResponse.data;
-            console.log(`Safe info found:`, JSON.stringify(safeInfo).substring(0, 200) + '...');
+            // console.log(`Safe info found:`, JSON.stringify(safeInfo).substring(0, 200) + '...');
           } catch (infoError) {
             console.error(`Error getting Safe info: ${infoError.message}`);
             console.error(`Safe API may not recognize this Safe address on ${network}`);
           }
           
           // Use direct API call with the official Safe Transaction Service API
+          // If we have a last check timestamp, only fetch transactions modified since then
+          const params = modifiedSinceParam ? { modified__gte: modifiedSinceParam } : {};
           const response = await axios.get(`${txServiceUrl}/api/${SAFE_API_VERSION}/safes/${safe_address}/multisig-transactions/`, {
             headers: {
               'accept': 'application/json'
-            }
+            },
+            params: params
           });
           allTransactions = response.data;
-          console.log(`Received ${allTransactions.results?.length || 0} transactions from Safe API`);
+          console.log(`Received ${allTransactions.results?.length || 0} transactions from Safe API${modifiedSinceParam ? ' modified since last check' : ''}`);
         } catch (safeApiError) {
           console.error(`Safe API error for ${safe_address} on ${network}:`, safeApiError.message);
           console.error(`Error details:`, safeApiError.response?.data || 'No additional error details');
@@ -296,7 +324,7 @@ async function checkTransactions() {
         // First, check how many transactions we already have in the database for this safe+network
         const { data: existingTxs, error: countError } = await supabase
           .from('results')
-          .select('id, result')
+          .select('id, result, scanned_at')
           .eq('safe_address', safe_address)
           .eq('network', network);
           
@@ -313,8 +341,8 @@ async function checkTransactions() {
           if (existingTransactionCount <= allTransactions.results.length) {
             console.log(`Processing ${allTransactions.results.length} transactions from Safe API plus any additional test transactions`);
           } else {
-            console.log(`Found ${existingTransactionCount} transactions in database (including test transactions)`);
-            console.log(`Safe API returned ${allTransactions.results.length} transactions`);
+            // console.log(`Found ${existingTransactionCount} transactions in database (including test transactions)`);
+            // console.log(`Safe API returned ${allTransactions.results.length} transactions`);
             
             // Build hash map of known transaction hashes from Safe API
             const apiTxHashes = new Set(allTransactions.results.map(tx => tx.safeTxHash));
@@ -326,7 +354,7 @@ async function checkTransactions() {
               !apiTxHashes.has(item.result.transaction_hash)
             );
             
-            console.log(`Found ${testTransactions.length} test transactions not in Safe API results`);
+            // console.log(`Found ${testTransactions.length} test transactions not in Safe API results`);
             
             // Check for unprocessed test transactions
             const { data: notifiedTxs, error: notifyError } = await supabase
@@ -339,9 +367,27 @@ async function checkTransactions() {
               console.error('Error checking notification status:', notifyError.message);
             } else {
               const notifiedHashes = new Set(notifiedTxs.map(item => item.transaction_hash));
-              const unnotifiedTests = testTransactions.filter(item => 
-                !notifiedHashes.has(item.result.transaction_hash)
-              );
+              
+              // Only process test transactions that:
+              // 1. Haven't been notified yet
+              // 2. Were created or updated since the last check
+              // This prevents repeated processing of old test transactions
+              const unnotifiedTests = testTransactions.filter(item => {
+                // Skip if already notified
+                if (notifiedHashes.has(item.result.transaction_hash)) {
+                  return false;
+                }
+                
+                // If we have a timestamp from the last check and the result has a scanned_at field
+                if (lastCheckData?.unix_timestamp && item.scanned_at) {
+                  // Compare the timestamps to see if this test transaction is newer than the last check
+                  const itemTimestamp = new Date(item.scanned_at).getTime();
+                  return itemTimestamp > lastCheckData.unix_timestamp;
+                }
+                
+                // If we can't determine timing, include it as unnotified
+                return true;
+              });
               
               if (unnotifiedTests.length > 0) {
                 console.log(`Found ${unnotifiedTests.length} unnotified test transactions`);
@@ -609,8 +655,8 @@ async function checkTransactions() {
               }
             }
           }
-          
-          console.log(`Processing ${allTransactions.results.length} transactions (${existingTransactionCount} already in database)`);
+          // if transaction length is greater than 0
+          // console.log(`Processing ${allTransactions.results.length} transactions (${existingTransactionCount} already in database)`);
         }
         
         // Process each transaction

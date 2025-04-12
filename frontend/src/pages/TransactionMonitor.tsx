@@ -518,7 +518,7 @@ const TransactionMonitor = () => {
       const time = tx.submissionDate ? new Date(tx.submissionDate).toLocaleString() : new Date(tx.scanned_at).toLocaleString();
       return [
         safeName,
-        tx.network,
+        tx.network.charAt(0).toUpperCase() + tx.network.slice(1),
         tx.nonce !== undefined ? tx.nonce : '',
         txDescription,
         executionState,
@@ -831,7 +831,7 @@ const TransactionMonitor = () => {
                                 m.network === tx.network
                               )?.alias || truncateAddress(tx.safe_address)}
                             </TableCell>
-                            <TableCell>{tx.network}</TableCell>
+                            <TableCell>{tx.network.charAt(0).toUpperCase() + tx.network.slice(1)}</TableCell>
                             <TableCell>{tx.nonce !== undefined ? tx.nonce : '—'}</TableCell>
                             <TableCell>
                               <div className="max-w-xs truncate">
@@ -978,7 +978,7 @@ const TransactionMonitor = () => {
                 </div>
                 <div>
                   <h3 className="text-sm font-medium text-muted-foreground mb-1">Network</h3>
-                  <p className="text-sm">{selectedTransaction.network}</p>
+                  <p className="text-sm">{selectedTransaction.network.charAt(0).toUpperCase() + selectedTransaction.network.slice(1)}</p>
                 </div>
                 <div>
                   <h3 className="text-sm font-medium text-muted-foreground mb-1">Transaction Hash</h3>

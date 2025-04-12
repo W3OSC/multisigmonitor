@@ -425,7 +425,7 @@ const Monitor = () => {
       const txDescription = alert.description.replace(/,/g, ';'); // Replace commas to avoid CSV issues
       return [
         safeName,
-        alert.network,
+        alert.network.charAt(0).toUpperCase() + alert.network.slice(1),
         txDescription,
         new Date(alert.scanned_at).toLocaleString(),
         alert.type
@@ -572,7 +572,7 @@ const Monitor = () => {
                     </div>
                     <CardDescription className="flex items-center gap-2">
                       <span className={`inline-block w-2 h-2 rounded-full ${monitor.active ? "bg-jsr-green" : "bg-muted-foreground"}`}></span>
-                      {monitor.network} • {monitor.active ? "Active" : "Paused"}
+                      {monitor.network.charAt(0).toUpperCase() + monitor.network.slice(1)} • {monitor.active ? "Active" : "Paused"}
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
@@ -722,7 +722,7 @@ const Monitor = () => {
                                truncateAddress(alert.safe_address)}
                             </TableCell>
                             <TableCell>
-                              {alert.network}
+                              {alert.network.charAt(0).toUpperCase() + alert.network.slice(1)}
                             </TableCell>
                             <TableCell>
                               <div className="max-w-xs truncate">

@@ -40,6 +40,16 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -81,6 +91,11 @@ const Monitor = () => {
   const { toast } = useToast();
   const [monitors, setMonitors] = useState<Monitor[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Delete confirmation modal state
+  const [deleteConfirmModalOpen, setDeleteConfirmModalOpen] = useState(false);
+  const [monitorToDelete, setMonitorToDelete] = useState<Monitor | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
   
   // Alert pagination and filtering state
   const [alerts, setAlerts] = useState<Alert[]>([]);
@@ -355,37 +370,63 @@ const Monitor = () => {
     }
   };
 
-  const deleteMonitor = async (id: string) => {
+  const openDeleteConfirmation = (id: string) => {
     const monitor = monitors.find(m => m.id === id);
     if (!monitor) return;
+
+    setMonitorToDelete(monitor);
+    setDeleteConfirmText("");
+    setDeleteConfirmModalOpen(true);
+  };
+
+  const deleteMonitor = async () => {
+    if (!monitorToDelete) return;
+    
+    // Get the confirmation expected text
+    const expectedConfirmText = `sudo rm ${monitorToDelete.alias || monitorToDelete.safe_address}`;
+    
+    // Check if confirmation text matches
+    if (deleteConfirmText !== expectedConfirmText) {
+      toast({
+        title: "Deletion Cancelled",
+        description: "The confirmation text is incorrect",
+        variant: "destructive",
+      });
+      return;
+    }
     
     try {
       // Update UI first for responsiveness
-      setMonitors(monitors.filter(m => m.id !== id));
+      setMonitors(monitors.filter(m => m.id !== monitorToDelete.id));
+      
+      // Close the modal
+      setDeleteConfirmModalOpen(false);
       
       // Then delete from database
       const { error } = await supabase
         .from('monitors')
         .delete()
-        .eq('id', id);
+        .eq('id', monitorToDelete.id);
 
       if (error) throw error;
       
       toast({
         title: "Monitor Deleted",
-        description: `Successfully removed monitoring for ${monitor.alias || monitor.safe_address}`,
+        description: `Successfully removed monitoring for ${monitorToDelete.alias || monitorToDelete.safe_address}`,
       });
     } catch (error: any) {
       console.error('Error deleting monitor:', error);
       
       // Restore the monitor in the UI on error
-      setMonitors(prev => [...prev, monitor]);
+      setMonitors(prev => [...prev, monitorToDelete]);
       
       toast({
         title: "Error Deleting Monitor",
         description: error.message || "Failed to delete monitor",
         variant: "destructive",
       });
+    } finally {
+      setMonitorToDelete(null);
     }
   };
 
@@ -489,6 +530,51 @@ const Monitor = () => {
     <div className="min-h-screen flex flex-col">
       <HeaderWithLoginDialog />
       
+      {/* Delete Confirmation Modal */}
+      <Dialog open={deleteConfirmModalOpen} onOpenChange={setDeleteConfirmModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-destructive">Delete Monitor</DialogTitle>
+            <DialogDescription>
+              This will permanently delete the monitor for {monitorToDelete?.alias || monitorToDelete?.safe_address}. 
+              This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <p className="text-sm text-muted-foreground">
+              To confirm deletion, please type:
+              <span className="font-mono ml-1 font-bold">
+                sudo rm {monitorToDelete?.alias || monitorToDelete?.safe_address}
+              </span>
+            </p>
+            
+            <Input
+              placeholder="Type confirmation text"
+              value={deleteConfirmText}
+              onChange={(e) => setDeleteConfirmText(e.target.value)}
+              className="font-mono"
+            />
+          </div>
+          
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setDeleteConfirmModalOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={deleteMonitor} 
+              variant="destructive"
+              disabled={deleteConfirmText !== `sudo rm ${monitorToDelete?.alias || monitorToDelete?.safe_address}`}
+            >
+              Delete Monitor
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
       <main className="flex-1 container py-12">
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold">Your Monitors</h1>
@@ -562,7 +648,7 @@ const Monitor = () => {
                           </DropdownMenuItem>
                           <DropdownMenuItem 
                             className="text-destructive focus:text-destructive" 
-                            onClick={() => deleteMonitor(monitor.id)}
+                            onClick={() => openDeleteConfirmation(monitor.id)}
                           >
                             <Trash2 className="mr-2 h-4 w-4" />
                             <span>Delete</span>
@@ -772,9 +858,9 @@ const Monitor = () => {
                   >
                     <ChevronLeft className="h-4 w-4" />
                   </Button>
-                  <div className="flex items-center gap-1 text-sm">
-                    <span>Page {alertsPage} of {totalPages}</span>
-                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Page {alertsPage} of {totalPages}
+                  </p>
                   <Button
                     variant="outline"
                     size="sm"
@@ -796,21 +882,23 @@ const Monitor = () => {
             </Card>
           </div>
         ) : (
-          <div className="flex flex-col items-center justify-center py-12 text-center">
-            <div className="rounded-full bg-muted p-6 mb-6">
-              <Eye className="h-10 w-10 text-muted-foreground" />
-            </div>
-            <h2 className="text-xl font-semibold mb-2">No monitors set up yet</h2>
-            <p className="text-muted-foreground max-w-md mb-6">
-              Start monitoring your Safe multisignature vaults to receive alerts about suspicious transactions
-            </p>
-            <Button 
-              onClick={() => navigate("/monitor/new")}
-              className="jsr-button"
-            >
-              Set Up Your First Monitor
-            </Button>
-          </div>
+          <Card>
+            <CardHeader>
+              <CardTitle>No Monitors</CardTitle>
+              <CardDescription>
+                You haven't set up any Safe monitors yet.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Get started by clicking "Add Monitor" to set up your first Safe vault monitoring.
+              </p>
+              <Button onClick={() => navigate("/monitor/new")} className="jsr-button">
+                <PlusCircle className="mr-2 h-5 w-5" />
+                Add Monitor
+              </Button>
+            </CardContent>
+          </Card>
         )}
       </main>
     </div>

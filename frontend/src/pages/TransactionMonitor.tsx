@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   AlertCircle,
   ArrowDownAZ,
@@ -18,7 +19,8 @@ import {
   Home,
   Loader2,
   SortAsc,
-  SortDesc
+  SortDesc,
+  HelpCircle
 } from "lucide-react";
 import {
   Table,
@@ -469,6 +471,11 @@ const TransactionMonitor = () => {
     return `https://app.safe.global/transactions/tx?safe=${transaction.network}:${transaction.safe_address}&id=multisig_${transaction.safe_address}_${transaction.safeTxHash}`;
   };
 
+  // Generate Safe home URL
+  const getSafeHomeUrl = (transaction: Transaction) => {
+    return `https://app.safe.global/home?safe=${transaction.network}:${transaction.safe_address}`;
+  };
+
   // Generate Etherscan transaction URL
   const getEtherscanTxUrl = (transaction: Transaction) => {
     let baseUrl;
@@ -498,6 +505,37 @@ const TransactionMonitor = () => {
     }
     
     return `${baseUrl}/tx/${transaction.executionTxHash || transaction.transaction_hash}`;
+  };
+
+  // Generate Etherscan address URL
+  const getEtherscanAddressUrl = (transaction: Transaction, address: string) => {
+    let baseUrl;
+    
+    // Set the correct explorer URL based on network
+    switch(transaction.network.toLowerCase()) {
+      case 'ethereum':
+        baseUrl = 'https://etherscan.io';
+        break;
+      case 'polygon':
+        baseUrl = 'https://polygonscan.com';
+        break;
+      case 'arbitrum':
+        baseUrl = 'https://arbiscan.io';
+        break;
+      case 'optimism':
+        baseUrl = 'https://optimistic.etherscan.io';
+        break;
+      case 'goerli':
+        baseUrl = 'https://goerli.etherscan.io';
+        break;
+      case 'sepolia':
+        baseUrl = 'https://sepolia.etherscan.io';
+        break;
+      default:
+        baseUrl = 'https://etherscan.io';
+    }
+    
+    return `${baseUrl}/address/${address}`;
   };
 
   // Function to generate and download CSV data
@@ -970,19 +1008,48 @@ const TransactionMonitor = () => {
           </DialogHeader>
           
           {selectedTransaction && (
-            <div className="space-y-4 py-4">
+            <div className="space-y-6 py-4">
+              {/* Basic Transaction Information */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <h3 className="text-sm font-medium text-muted-foreground mb-1">Safe</h3>
-                  <p className="text-sm font-mono">{selectedTransaction.safe_address}</p>
+                  <p className="text-sm font-mono">
+                    <Link 
+                      to={getSafeHomeUrl(selectedTransaction)} 
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-500 hover:text-blue-600"
+                    >
+                      {selectedTransaction.safe_address}
+                    </Link>
+                  </p>
                 </div>
                 <div>
                   <h3 className="text-sm font-medium text-muted-foreground mb-1">Network</h3>
                   <p className="text-sm">{selectedTransaction.network.charAt(0).toUpperCase() + selectedTransaction.network.slice(1)}</p>
                 </div>
                 <div>
-                  <h3 className="text-sm font-medium text-muted-foreground mb-1">Transaction Hash</h3>
-                  <p className="text-sm font-mono break-all">{selectedTransaction.transaction_hash}</p>
+                  <h3 className="text-sm font-medium text-muted-foreground mb-1">To Address</h3>
+                  <p className="text-sm font-mono break-all">
+                    {selectedTransaction.result.transaction_data?.to ? (
+                      <Link 
+                        to={getEtherscanAddressUrl(selectedTransaction, selectedTransaction.result.transaction_data.to)} 
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-500 hover:text-blue-600"
+                      >
+                        {selectedTransaction.result.transaction_data.to}
+                      </Link>
+                    ) : "—"}
+                  </p>
+                </div>
+                <div>
+                  <h3 className="text-sm font-medium text-muted-foreground mb-1">Value</h3>
+                  <p className="text-sm">
+                    {selectedTransaction.result.transaction_data?.value ? 
+                      `${parseFloat(selectedTransaction.result.transaction_data.value) / 1e18} ETH` 
+                      : "0 ETH"}
+                  </p>
                 </div>
                 <div>
                   <h3 className="text-sm font-medium text-muted-foreground mb-1">Nonce</h3>
@@ -999,11 +1066,191 @@ const TransactionMonitor = () => {
                   </p>
                 </div>
                 <div>
-                  <h3 className="text-sm font-medium text-muted-foreground mb-1">Execution Status</h3>
-                  <p className="text-sm">{selectedTransaction.isExecuted ? 'Executed' : 'Pending'}</p>
+                  <h3 className="text-sm font-medium text-muted-foreground mb-1">Trusted</h3>
+                  <p className="text-sm flex items-center">
+                    {selectedTransaction.result.transaction_data?.trusted ? (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="flex items-center gap-1">
+                              <Badge variant="default">Yes</Badge>
+                              <HelpCircle className="h-3.5 w-3.5 text-muted-foreground" />
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent side="right" align="start" className="z-50">
+                            <p className="max-w-xs text-xs">Indexed, added by a delegate, or with at least one confirmation.</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    ) : (
+                      <Badge variant="outline">No</Badge>
+                    )}
+                  </p>
+                </div>
+                <div>
+                  <h3 className="text-sm font-medium text-muted-foreground mb-1">Operation</h3>
+                  <p className="text-sm">
+                    {selectedTransaction.result.transaction_data?.operation === 0 ? "Call (0)" : 
+                     selectedTransaction.result.transaction_data?.operation === 1 ? "Delegate Call (1)" : 
+                     selectedTransaction.result.transaction_data?.operation === 2 ? "Contract Creation (2)" : 
+                     selectedTransaction.result.transaction_data?.operation || "—"}
+                  </p>
                 </div>
               </div>
               
+              {/* Execution Details */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-medium border-b pb-2">Execution Details</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <h3 className="text-sm font-medium text-muted-foreground mb-1">Execution Status</h3>
+                    <p className="text-sm">
+                      <Badge variant={selectedTransaction.isExecuted ? "default" : "secondary"} 
+                        className={selectedTransaction.isExecuted ? "bg-green-600" : ""}>
+                        {selectedTransaction.isExecuted ? 'Executed' : 'Pending'}
+                      </Badge>
+                    </p>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-medium text-muted-foreground mb-1">Safe Transaction Hash</h3>
+                    <p className="text-sm font-mono break-all">
+                      {selectedTransaction.result.transaction_data?.safeTxHash ? (
+                        <Link 
+                          to={getSafeTxUrl(selectedTransaction)} 
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-500 hover:text-blue-600"
+                        >
+                          {selectedTransaction.result.transaction_data.safeTxHash}
+                        </Link>
+                      ) : "—"}
+                    </p>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-medium text-muted-foreground mb-1">Execution Transaction Hash</h3>
+                    <p className="text-sm font-mono break-all">
+                      {selectedTransaction.result.transaction_data?.transactionHash ? (
+                        <Link 
+                          to={getEtherscanTxUrl(selectedTransaction)} 
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-500 hover:text-blue-600"
+                        >
+                          {selectedTransaction.result.transaction_data.transactionHash}
+                        </Link>
+                      ) : "—"}
+                    </p>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-medium text-muted-foreground mb-1">Submission Date</h3>
+                    <p className="text-sm">
+                      {selectedTransaction.result.transaction_data?.submissionDate ? 
+                        new Date(selectedTransaction.result.transaction_data.submissionDate).toLocaleString() :
+                        "—"}
+                    </p>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-medium text-muted-foreground mb-1">Execution Date</h3>
+                    <p className="text-sm">
+                      {selectedTransaction.result.transaction_data?.executionDate ? 
+                        new Date(selectedTransaction.result.transaction_data.executionDate).toLocaleString() :
+                        "—"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Confirmations */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-medium border-b pb-2">Confirmation Details</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <h3 className="text-sm font-medium text-muted-foreground mb-1">Confirmations</h3>
+                    <p className="text-sm">
+                      {selectedTransaction.result.transaction_data?.confirmations?.length || 0} of {selectedTransaction.result.transaction_data?.confirmationsRequired || "—"} required
+                    </p>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-medium text-muted-foreground mb-1">Proposer</h3>
+                    <p className="text-sm font-mono break-all">
+                      {selectedTransaction.result.transaction_data?.proposer ? (
+                        <Link 
+                          to={getEtherscanAddressUrl(selectedTransaction, selectedTransaction.result.transaction_data.proposer)} 
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-500 hover:text-blue-600"
+                        >
+                          {selectedTransaction.result.transaction_data.proposer}
+                        </Link>
+                      ) : "—"}
+                    </p>
+                  </div>
+                </div>
+                
+                {selectedTransaction.result.transaction_data?.confirmations && 
+                 selectedTransaction.result.transaction_data.confirmations.length > 0 && (
+                  <div className="mt-2">
+                    <h4 className="text-sm font-medium text-muted-foreground mb-2">Signers</h4>
+                    <div className="bg-muted rounded-md p-2 max-h-[150px] overflow-y-auto">
+                      {selectedTransaction.result.transaction_data.confirmations.map((confirmation: any, index: number) => (
+                        <div key={index} className="text-xs py-1 flex justify-between border-b last:border-0">
+                          <span className="font-mono">{confirmation.owner}</span>
+                          <span>{new Date(confirmation.submissionDate).toLocaleString()}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              {/* Gas Information */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-medium border-b pb-2">Gas Information</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <h3 className="text-sm font-medium text-muted-foreground mb-1">Gas Used</h3>
+                    <p className="text-sm">
+                      {selectedTransaction.result.transaction_data?.gasUsed || "—"}
+                    </p>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-medium text-muted-foreground mb-1">Gas Price</h3>
+                    <p className="text-sm">
+                      {selectedTransaction.result.transaction_data?.gasPrice ? 
+                        selectedTransaction.result.transaction_data.gasPrice :
+                        selectedTransaction.result.transaction_data?.ethGasPrice ? 
+                        `${parseInt(selectedTransaction.result.transaction_data.ethGasPrice) / 1e9} Gwei` :
+                        "—"}
+                    </p>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-medium text-muted-foreground mb-1">Gas Token</h3>
+                    <p className="text-sm">
+                      {selectedTransaction.result.transaction_data?.gasToken === "0x0000000000000000000000000000000000000000" ? 
+                        "Native Token" :
+                        selectedTransaction.result.transaction_data?.gasToken || "—"}
+                    </p>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-medium text-muted-foreground mb-1">Max Fee Per Gas</h3>
+                    <p className="text-sm">
+                      {selectedTransaction.result.transaction_data?.maxFeePerGas ? 
+                        `${parseInt(selectedTransaction.result.transaction_data.maxFeePerGas) / 1e9} Gwei` :
+                        "—"}
+                    </p>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-medium text-muted-foreground mb-1">Max Priority Fee</h3>
+                    <p className="text-sm">
+                      {selectedTransaction.result.transaction_data?.maxPriorityFeePerGas ? 
+                        `${parseInt(selectedTransaction.result.transaction_data.maxPriorityFeePerGas) / 1e9} Gwei` :
+                        "—"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              
+              {/* External Links */}
               <div className="space-y-2">
                 <h3 className="text-sm font-medium mb-1">View Transaction</h3>
                 <div className="flex flex-wrap gap-2">
@@ -1033,9 +1280,31 @@ const TransactionMonitor = () => {
                 </div>
               </div>
               
-              <div className="space-y-2 pt-4">
-                <h3 className="text-sm font-medium border-b pb-2">Transaction Data</h3>
-                <pre className="bg-muted p-4 rounded-md text-xs overflow-auto max-h-[300px]">
+              {/* Raw Transaction Data Section */}
+              <div className="space-y-2 pt-2">
+                <div className="flex flex-wrap justify-between items-center border-b pb-2">
+                  <h3 className="text-sm font-medium">Raw Transaction Data</h3>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    className="whitespace-normal text-xs px-2 py-1 h-auto min-h-[28px]"
+                    onClick={() => {
+                      // Toggle showing the raw data
+                      const dataEl = document.getElementById('raw-transaction-data');
+                      if (dataEl) {
+                        const isHidden = dataEl.classList.contains('hidden');
+                        if (isHidden) {
+                          dataEl.classList.remove('hidden');
+                        } else {
+                          dataEl.classList.add('hidden');
+                        }
+                      }
+                    }}
+                  >
+                    View Raw Transaction Data
+                  </Button>
+                </div>
+                <pre id="raw-transaction-data" className="hidden bg-muted p-4 rounded-md text-xs overflow-auto max-h-[300px]">
                   {JSON.stringify(selectedTransaction.result.transaction_data, null, 2)}
                 </pre>
               </div>

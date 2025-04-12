@@ -778,6 +778,53 @@ const TransactionMonitor = () => {
                 </Select>
               </div>
               
+              {/* Pagination controls below filter buttons */}
+              {totalItems > 0 && (
+                <div className="flex items-center justify-between pb-4">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <span>Showing {transactions.length} of {totalItems} results</span>
+                  </div>
+                  
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(1)}
+                      disabled={currentPage === 1}
+                    >
+                      First
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                      disabled={currentPage === 1}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <div className="flex items-center gap-1 text-sm px-2">
+                      <span>Page {currentPage} of {totalPages}</span>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                      disabled={currentPage === totalPages}
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(totalPages)}
+                      disabled={currentPage === totalPages}
+                    >
+                      Last
+                    </Button>
+                  </div>
+                </div>
+              )}
+              
               <div>
                 <div className="rounded-md border">
                   <Table>

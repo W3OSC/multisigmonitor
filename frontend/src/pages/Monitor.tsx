@@ -498,7 +498,8 @@ const Monitor = () => {
   };
   
   const truncateAddress = (address: string) => {
-    return `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
+    const middleStartIndex = Math.floor((address.length - 6) / 2);
+    return `${address.substring(0, 6)}...${address.substring(middleStartIndex, middleStartIndex + 6)}...${address.substring(address.length - 6)}`;
   };
 
   if (!user) {

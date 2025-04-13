@@ -78,6 +78,15 @@ const MonitorConfig = () => {
   const [managementOnly, setManagementOnly] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isNewMonitor, setIsNewMonitor] = useState(false);
+
+  // Check if this is a new monitor being set up or editing an existing one
+  useEffect(() => {
+    // Check if we're coming from the new monitor flow
+    // This could be determined by a query parameter or referrer check
+    const fromNewMonitor = searchParams.get('newSetup') === 'true';
+    setIsNewMonitor(fromNewMonitor);
+  }, [searchParams]);
 
   // Function to fetch monitor data
   async function fetchMonitor() {
@@ -655,51 +664,60 @@ const MonitorConfig = () => {
           
           <Card>
             <CardHeader>
-              <CardTitle>Edit Monitor Settings</CardTitle>
+              <CardTitle>
+                {isNewMonitor ? "Configure Monitor Notifications" : "Edit Monitor Settings"}
+              </CardTitle>
               <CardDescription>
-                Update configuration for this Safe monitoring
+                {isNewMonitor 
+                  ? "Set up notification preferences for your Safe monitor" 
+                  : "Update configuration for this Safe monitoring"}
               </CardDescription>
             </CardHeader>
             
             <form onSubmit={handleSubmit}>
               <CardContent className="space-y-6">
-                <AddressInput
-                  value={address}
-                  onChange={setAddress}
-                  label="Safe Address"
-                  placeholder="0x..."
-                />
+                {/* Only show basic monitor info when editing an existing monitor */}
+                {!isNewMonitor && (
+                  <>
+                    <AddressInput
+                      value={address}
+                      onChange={setAddress}
+                      label="Safe Address"
+                      placeholder="0x..."
+                    />
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="alias">Alias (Optional)</Label>
+                      <Input
+                        id="alias"
+                        value={alias}
+                        onChange={(e) => setAlias(e.target.value)}
+                        placeholder="My Treasury Safe"
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="network">Network</Label>
+                      <Select
+                        value={network}
+                        onValueChange={setNetwork}
+                      >
+                        <SelectTrigger id="network">
+                          <SelectValue placeholder="Select network" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {SUPPORTED_NETWORKS.map((net) => (
+                            <SelectItem key={net.id} value={net.id}>
+                              {net.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </>
+                )}
                 
-                <div className="space-y-2">
-                  <Label htmlFor="alias">Alias (Optional)</Label>
-                  <Input
-                    id="alias"
-                    value={alias}
-                    onChange={(e) => setAlias(e.target.value)}
-                    placeholder="My Treasury Safe"
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="network">Network</Label>
-                  <Select
-                    value={network}
-                    onValueChange={setNetwork}
-                  >
-                    <SelectTrigger id="network">
-                      <SelectValue placeholder="Select network" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {SUPPORTED_NETWORKS.map((net) => (
-                        <SelectItem key={net.id} value={net.id}>
-                          {net.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div className="space-y-4 pt-4 border-t">
+                <div className={`space-y-4 ${!isNewMonitor ? "pt-4 border-t" : ""}`}>
                   <div className="flex items-center justify-between">
                     <div>
                       <Label htmlFor="notifications" className="text-base">
@@ -792,7 +810,7 @@ const MonitorConfig = () => {
                       Saving...
                     </>
                   ) : (
-                    "Save Changes"
+                    isNewMonitor ? "Complete Setup" : "Save Changes"
                   )}
                 </Button>
               </CardFooter>

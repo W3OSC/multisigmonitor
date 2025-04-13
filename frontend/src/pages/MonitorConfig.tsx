@@ -239,7 +239,29 @@ const MonitorConfig = () => {
     setIsSubmitting(true);
     
     try {
-      // Find the discord notification and clear its webhook URL and related fields
+      // Find the Discord notification
+      const discordNotification = notifications.find(n => n.method === "discord");
+      const webhookUrl = discordNotification?.webhookUrl;
+      
+      if (webhookUrl) {
+        // First, delete the webhook from Discord's servers
+        try {
+          const response = await fetch(webhookUrl, {
+            method: 'DELETE',
+          });
+          
+          if (!response.ok) {
+            console.warn('Unable to delete webhook from Discord servers', response.status);
+            // Continue with the process even if Discord API call fails
+            // as we still want to remove it from our database
+          }
+        } catch (discordError) {
+          console.warn('Error deleting Discord webhook:', discordError);
+          // Continue with the process even if the API call fails
+        }
+      }
+      
+      // Update notifications in state - clear webhook URL and related fields
       const updatedNotifications = notifications.map(notification =>
         notification.method === "discord"
           ? { ...notification, webhookUrl: "", serverName: "", channelName: "" }
@@ -300,7 +322,7 @@ const MonitorConfig = () => {
       
       toast({
         title: "Discord Disconnected",
-        description: "Discord webhook has been removed successfully",
+        description: "Discord webhook has been completely removed",
       });
     } catch (error: any) {
       console.error('Error disconnecting Discord webhook:', error);

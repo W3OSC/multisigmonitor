@@ -57,6 +57,9 @@ interface NotificationConfig {
   telegramChatId?: string;
   // For discord, slack, webhook
   webhookUrl?: string;
+  // For discord
+  serverName?: string;
+  channelName?: string;
 }
 
 const MonitorConfig = () => {
@@ -114,7 +117,9 @@ const MonitorConfig = () => {
         email: '',
         telegramBotApiKey: '',
         telegramChatId: '',
-        webhookUrl: ''
+        webhookUrl: '',
+        serverName: '',
+        channelName: ''
       }));
       
       // Handle different notification formats
@@ -135,6 +140,10 @@ const MonitorConfig = () => {
                 notifConfig.telegramChatId = notification.chatId;
                 break;
               case "discord":
+                notifConfig.webhookUrl = notification.webhookUrl;
+                notifConfig.serverName = notification.serverName;
+                notifConfig.channelName = notification.channelName;
+                break;
               case "slack":
               case "webhook":
                 notifConfig.webhookUrl = notification.webhookUrl;
@@ -222,7 +231,9 @@ const MonitorConfig = () => {
     setNotifications(
       NOTIFICATION_METHODS.map(method => ({
         method: method.id,
-        enabled: false
+        enabled: false,
+        serverName: '',
+        channelName: ''
       }))
     );
     
@@ -343,6 +354,10 @@ const MonitorConfig = () => {
               result.chatId = notification.telegramChatId;
               break;
             case "discord":
+              result.webhookUrl = notification.webhookUrl;
+              result.serverName = notification.serverName;
+              result.channelName = notification.channelName;
+              break;
             case "slack":
             case "webhook":
               result.webhookUrl = notification.webhookUrl;
@@ -444,19 +459,20 @@ const MonitorConfig = () => {
         return (
           <div className="pl-6 pt-2 space-y-2">
             {notification.webhookUrl ? (
-              <div className="flex items-center gap-2">
-                <Input
-                  value={notification.webhookUrl}
-                  readOnly
-                  className="bg-muted"
-                />
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  onClick={connectDiscord}
-                >
-                  Reconnect
-                </Button>
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 bg-muted rounded-md px-3 py-2 text-sm">
+                    {/* {notification.serverName || 'Unknown Server'} */}
+                    {notification.channelName || 'Unknown Channel'}
+                  </div>
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    onClick={connectDiscord}
+                  >
+                    Reconnect
+                  </Button>
+                </div>
               </div>
             ) : (
               <Button 

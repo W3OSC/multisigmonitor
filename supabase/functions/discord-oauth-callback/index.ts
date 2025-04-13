@@ -45,6 +45,11 @@ serve(async (req) => {
     if (!tokenData.webhook || !tokenData.webhook.url) {
       return new Response('Failed to obtain webhook', { status: 500 });
     }
+
+    // Extract server name and channel name from webhook data
+    const serverName = tokenData.webhook.guild_id || 'Unknown Server';
+    const channelName = tokenData.webhook.channel_id ? 
+      `#${tokenData.webhook.name}` : 'Unknown Channel';
     
     // Initialize Supabase client with service role key
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
@@ -74,13 +79,17 @@ serve(async (req) => {
     if (discordIndex >= 0) {
       // Update existing Discord notification
       settings.notifications[discordIndex].webhookUrl = tokenData.webhook.url;
+      settings.notifications[discordIndex].serverName = serverName;
+      settings.notifications[discordIndex].channelName = channelName;
       settings.notifications[discordIndex].enabled = true;
     } else {
       // Add new Discord notification
       settings.notifications.push({
         method: 'discord',
         enabled: true,
-        webhookUrl: tokenData.webhook.url
+        webhookUrl: tokenData.webhook.url,
+        serverName: serverName,
+        channelName: channelName
       });
     }
     
@@ -96,11 +105,10 @@ serve(async (req) => {
     if (updateError) {
       return new Response(`Error updating monitor: ${updateError.message}`, { status: 500 });
     }
-
-    // Redirect to our auto-close page that will close the window and notify the opener
-    const hostUrl = new URL(req.url).origin;
-    const frontendUrl = Deno.env.get('FRONTEND_URL') || hostUrl;
-    return Response.redirect(`${frontendUrl}/auto-close.html`, 302);
+  
+  // Redirect to our auto-close page that will close the window and notify the opener
+  const hostUrl = new URL(req.url).origin;
+  return Response.redirect('http://localhost:8080/auto-close.html', 302);
   } catch (err) {
     console.error('Error in Discord OAuth callback:', err);
     return new Response(`Error: ${err.message}`, { status: 500 });

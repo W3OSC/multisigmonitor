@@ -226,6 +226,94 @@ const MonitorConfig = () => {
     }, { once: true }); // Only listen once
   };
 
+  const disconnectDiscord = async () => {
+    if (!id || !user) {
+      toast({
+        title: "Error",
+        description: "Missing required information to update monitor",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setIsSubmitting(true);
+    
+    try {
+      // Find the discord notification and clear its webhook URL and related fields
+      const updatedNotifications = notifications.map(notification =>
+        notification.method === "discord"
+          ? { ...notification, webhookUrl: "", serverName: "", channelName: "" }
+          : notification
+      );
+      
+      setNotifications(updatedNotifications);
+      
+      // Process enabled notifications for storage
+      const processedNotifications = updatedNotifications
+        .filter(n => n.enabled)
+        .map(notification => {
+          const result: Record<string, any> = { method: notification.method };
+          
+          switch (notification.method) {
+            case "email":
+              result.email = user?.email || notification.email;
+              break;
+            case "telegram":
+              result.botApiKey = notification.telegramBotApiKey;
+              result.chatId = notification.telegramChatId;
+              break;
+            case "discord":
+              result.webhookUrl = notification.webhookUrl;
+              result.serverName = notification.serverName;
+              result.channelName = notification.channelName;
+              break;
+            case "slack":
+            case "webhook":
+              result.webhookUrl = notification.webhookUrl;
+              break;
+          }
+          
+          return result;
+        });
+      
+      // Create settings object with all configuration
+      const settings = {
+        alias: alias || null,
+        network,
+        active: true,
+        alertType,
+        notify: notificationsEnabled,
+        managementOnly,
+        notifications: processedNotifications
+      };
+      
+      // Update the monitor in Supabase
+      const { error } = await supabase
+        .from('monitors')
+        .update({
+          safe_address: address,
+          settings: settings
+        })
+        .eq('id', id);
+    
+      if (error) throw error;
+      
+      toast({
+        title: "Discord Disconnected",
+        description: "Discord webhook has been removed successfully",
+      });
+    } catch (error: any) {
+      console.error('Error disconnecting Discord webhook:', error);
+      toast({
+        title: "Error Disconnecting Discord",
+        description: error.message || "There was a problem disconnecting Discord webhook",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   useEffect(() => {
     // Initialize notification methods once
     setNotifications(
@@ -467,10 +555,10 @@ const MonitorConfig = () => {
                   </div>
                   <Button 
                     type="button" 
-                    variant="outline" 
-                    onClick={connectDiscord}
+                    variant="destructive" 
+                    onClick={disconnectDiscord}
                   >
-                    Reconnect
+                    Disconnect
                   </Button>
                 </div>
               </div>

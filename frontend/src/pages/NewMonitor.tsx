@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import axios from "axios";
 import { HeaderWithLoginDialog } from "@/components/Header";
 import { useAuth } from "@/context/AuthContext";
@@ -65,6 +65,7 @@ const NewMonitor = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const [searchParams] = useSearchParams();
   
   const [address, setAddress] = useState("");
   const [isValidSafe, setIsValidSafe] = useState<boolean | null>(null);
@@ -78,6 +79,54 @@ const NewMonitor = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   const { user, setIsLoginDialogOpen } = useAuth();
+
+  // Function to open Discord OAuth popup
+  const connectDiscord = () => {
+    // Open popup window for Discord OAuth
+    const width = 600;
+    const height = 800;
+    const left = window.screenX + (window.outerWidth - width) / 2;
+    const top = window.screenY + (window.outerHeight - height) / 2;
+    
+    // Use the Supabase URL directly
+    const supabaseUrl = "https://jgqotbhokyuasepuhzxy.supabase.co";
+    
+    window.open(
+      `${supabaseUrl}/functions/v1/discord-oauth-start`,
+      'discord-oauth',
+      `width=${width},height=${height},left=${left},top=${top}`
+    );
+    
+    // Listen for message from popup when complete
+    window.addEventListener('message', (event) => {
+      if (event.data === 'discord-webhook-success') {
+        // Get webhook data from localStorage and update the form
+        const webhookData = JSON.parse(localStorage.getItem('discord-webhook') || '{}');
+        if (webhookData && webhookData.url) {
+          // Find Discord notification and update its URL
+          setNotifications(prevNotifications => 
+            prevNotifications.map(notification => 
+              notification.method === 'discord' 
+                ? { ...notification, webhookUrl: webhookData.url, enabled: true } 
+                : notification
+            )
+          );
+          
+          // Make sure notifications are enabled
+          if (!notificationsEnabled) {
+            setNotificationsEnabled(true);
+          }
+          
+          // Clean up
+          localStorage.removeItem('discord-webhook');
+        }
+        toast({
+          title: "Discord Connected",
+          description: "Discord webhook has been successfully connected",
+        });
+      }
+    }, { once: true }); // Only listen once
+  };
 
   // Initialize notification methods
   useEffect(() => {
@@ -100,6 +149,21 @@ const NewMonitor = () => {
       setAddress(addressParam);
     }
   }, [location.search]);
+  
+  // Check for discord=success in URL params and show toast on initial load
+  useEffect(() => {
+    if (searchParams.get('discord') === 'success') {
+      toast({
+        title: "Discord Connected",
+        description: "Discord webhook has been successfully connected",
+      });
+      
+      // Clear the parameter from URL to prevent showing the toast on refresh
+      const newParams = new URLSearchParams(searchParams);
+      newParams.delete('discord');
+      navigate({ search: newParams.toString() }, { replace: true });
+    }
+  }, [searchParams, toast, navigate]);
 
   const handleLogin = () => {
     setIsLoginDialogOpen(true);
@@ -358,11 +422,30 @@ const NewMonitor = () => {
       case "discord":
         return (
           <div className="pl-6 pt-2 space-y-2">
-            <Input
-              value={notification.webhookUrl || ""}
-              onChange={(e) => updateNotificationField(notification.method, "webhookUrl", e.target.value)}
-              placeholder="https://discord.com/api/webhooks/..."
-            />
+            {notification.webhookUrl ? (
+              <div className="flex items-center gap-2">
+                <Input
+                  value={notification.webhookUrl}
+                  readOnly
+                  className="bg-muted"
+                />
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={connectDiscord}
+                >
+                  Reconnect
+                </Button>
+              </div>
+            ) : (
+              <Button 
+                type="button" 
+                onClick={connectDiscord}
+                className="w-full"
+              >
+                Connect Discord Channel
+              </Button>
+            )}
           </div>
         );
 

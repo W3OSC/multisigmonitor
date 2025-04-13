@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { HeaderWithLoginDialog } from "@/components/Header";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -64,6 +64,7 @@ const MonitorConfig = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
   
   const [address, setAddress] = useState("");
   const [alias, setAlias] = useState("");
@@ -74,6 +75,147 @@ const MonitorConfig = () => {
   const [managementOnly, setManagementOnly] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Function to fetch monitor data
+  async function fetchMonitor() {
+    if (!user || !id) {
+      setIsLoading(false);
+      return;
+    }
+    
+    try {
+      // Fetch the monitor data from Supabase
+      const { data, error } = await supabase
+        .from('monitors')
+        .select('*')
+        .eq('id', id)
+        .single();
+      
+      if (error) {
+        throw error;
+      }
+      
+      if (!data) {
+        throw new Error("Monitor not found");
+      }
+      
+      // Set the basic monitor data
+      setAddress(data.safe_address);
+      setAlias(data.settings?.alias || "");
+      setNetwork(data.settings?.network || "ethereum");
+      setNotificationsEnabled(data.settings?.notify || false);
+      setAlertType(data.settings?.alertType || "suspicious");
+      setManagementOnly(data.settings?.managementOnly || false);
+      
+      // Create fresh notification configurations
+      const updatedNotifications = NOTIFICATION_METHODS.map(method => ({
+        method: method.id,
+        enabled: false,
+        email: '',
+        telegramBotApiKey: '',
+        telegramChatId: '',
+        webhookUrl: ''
+      }));
+      
+      // Handle different notification formats
+      if (data.settings?.notifications && Array.isArray(data.settings.notifications)) {
+        // Handle new multi-notification format
+        data.settings.notifications.forEach(notification => {
+          const notifConfig = updatedNotifications.find(n => n.method === notification.method);
+          if (notifConfig) {
+            notifConfig.enabled = true;
+            
+            // Set specific fields based on notification type
+            switch (notification.method) {
+              case "email":
+                notifConfig.email = notification.email;
+                break;
+              case "telegram":
+                notifConfig.telegramBotApiKey = notification.botApiKey;
+                notifConfig.telegramChatId = notification.chatId;
+                break;
+              case "discord":
+              case "slack":
+              case "webhook":
+                notifConfig.webhookUrl = notification.webhookUrl;
+                break;
+            }
+          }
+        });
+      } else if (data.settings?.notificationMethod) {
+        // Handle legacy single notification format for backward compatibility
+        const method = data.settings.notificationMethod;
+        const target = data.settings.notificationTarget;
+        
+        const notifConfig = updatedNotifications.find(n => n.method === method);
+        if (notifConfig) {
+          notifConfig.enabled = true;
+          
+          switch (method) {
+            case "email":
+              notifConfig.email = target;
+              break;
+            case "telegram":
+              // Can't reliably split legacy telegram target, use empty values
+              notifConfig.telegramBotApiKey = "";
+              notifConfig.telegramChatId = "";
+              break;
+            case "discord":
+            case "slack":
+            case "webhook":
+              notifConfig.webhookUrl = target;
+              break;
+          }
+        }
+      }
+      
+      // Set notifications and finish loading
+      setNotifications(updatedNotifications);
+      setIsLoading(false);
+    } catch (error) {
+      console.error('Error fetching monitor:', error);
+      toast({
+        title: "Monitor Not Found",
+        description: "The requested monitor could not be found",
+        variant: "destructive",
+      });
+      navigate("/monitor");
+    }
+  }
+
+  // Function to open Discord OAuth popup
+  const connectDiscord = () => {
+    if (!id) return;
+    
+    // Open popup window for Discord OAuth
+    const width = 600;
+    const height = 800;
+    const left = window.screenX + (window.outerWidth - width) / 2;
+    const top = window.screenY + (window.outerHeight - height) / 2;
+    
+    // Use the Supabase URL directly
+    const supabaseUrl = "https://jgqotbhokyuasepuhzxy.supabase.co";
+    
+    window.open(
+      `${supabaseUrl}/functions/v1/discord-oauth-start?monitorId=${id}`,
+      'discord-oauth',
+      `width=${width},height=${height},left=${left},top=${top}`
+    );
+    
+    // Listen for message from popup when complete
+    window.addEventListener('message', (event) => {
+      if (event.data === 'discord-webhook-success') {
+        // Reload the current monitor data
+        if (id && user) {
+          fetchMonitor();
+        }
+        toast({
+          title: "Discord Connected",
+          description: "Discord webhook has been successfully connected",
+        });
+      }
+    }, { once: true }); // Only listen once
+  };
 
   useEffect(() => {
     // Initialize notification methods once
@@ -90,114 +232,23 @@ const MonitorConfig = () => {
       return;
     }
     
-    async function fetchMonitor() {
-      if (!user) {
-        setIsLoading(false);
-        return;
-      }
-      
-      try {
-        // Fetch the monitor data from Supabase
-        const { data, error } = await supabase
-          .from('monitors')
-          .select('*')
-          .eq('id', id)
-          .single();
-        
-        if (error) {
-          throw error;
-        }
-        
-        if (!data) {
-          throw new Error("Monitor not found");
-        }
-        
-        // Set the basic monitor data
-        setAddress(data.safe_address);
-        setAlias(data.settings?.alias || "");
-        setNetwork(data.settings?.network || "ethereum");
-        setNotificationsEnabled(data.settings?.notify || false);
-        setAlertType(data.settings?.alertType || "suspicious");
-        setManagementOnly(data.settings?.managementOnly || false);
-        
-        // Create fresh notification configurations
-        const updatedNotifications = NOTIFICATION_METHODS.map(method => ({
-          method: method.id,
-          enabled: false,
-          email: '',
-          telegramBotApiKey: '',
-          telegramChatId: '',
-          webhookUrl: ''
-        }));
-        
-        // Handle different notification formats
-        if (data.settings?.notifications && Array.isArray(data.settings.notifications)) {
-          // Handle new multi-notification format
-          data.settings.notifications.forEach(notification => {
-            const notifConfig = updatedNotifications.find(n => n.method === notification.method);
-            if (notifConfig) {
-              notifConfig.enabled = true;
-              
-              // Set specific fields based on notification type
-              switch (notification.method) {
-                case "email":
-                  notifConfig.email = notification.email;
-                  break;
-                case "telegram":
-                  notifConfig.telegramBotApiKey = notification.botApiKey;
-                  notifConfig.telegramChatId = notification.chatId;
-                  break;
-                case "discord":
-                case "slack":
-                case "webhook":
-                  notifConfig.webhookUrl = notification.webhookUrl;
-                  break;
-              }
-            }
-          });
-        } else if (data.settings?.notificationMethod) {
-          // Handle legacy single notification format for backward compatibility
-          const method = data.settings.notificationMethod;
-          const target = data.settings.notificationTarget;
-          
-          const notifConfig = updatedNotifications.find(n => n.method === method);
-          if (notifConfig) {
-            notifConfig.enabled = true;
-            
-            switch (method) {
-              case "email":
-                notifConfig.email = target;
-                break;
-              case "telegram":
-                // Can't reliably split legacy telegram target, use empty values
-                notifConfig.telegramBotApiKey = "";
-                notifConfig.telegramChatId = "";
-                break;
-              case "discord":
-              case "slack":
-              case "webhook":
-                notifConfig.webhookUrl = target;
-                break;
-            }
-          }
-        }
-        
-        // Set notifications and finish loading
-        setNotifications(updatedNotifications);
-        setIsLoading(false);
-      } catch (error) {
-        console.error('Error fetching monitor:', error);
-        toast({
-          title: "Monitor Not Found",
-          description: "The requested monitor could not be found",
-          variant: "destructive",
-        });
-        navigate("/monitor");
-      }
-    }
-    
     fetchMonitor();
   }, [id, navigate, toast, user]);
+  
+  // Check for discord=success in URL params and show toast on initial load
+  useEffect(() => {
+    if (searchParams.get('discord') === 'success') {
+      toast({
+        title: "Discord Connected",
+        description: "Discord webhook has been successfully connected",
+      });
+      
+      // Clear the parameter from URL to prevent showing the toast on refresh
+      const newParams = new URLSearchParams(searchParams);
+      newParams.delete('discord');
+      navigate({ search: newParams.toString() }, { replace: true });
+    }
+  }, [searchParams, toast, navigate]);
   
   const toggleNotificationMethod = (methodId: string, enabled: boolean) => {
     setNotifications(prevState => 
@@ -392,11 +443,30 @@ const MonitorConfig = () => {
       case "discord":
         return (
           <div className="pl-6 pt-2 space-y-2">
-            <Input
-              value={notification.webhookUrl || ""}
-              onChange={(e) => updateNotificationField(notification.method, "webhookUrl", e.target.value)}
-              placeholder="https://discord.com/api/webhooks/..."
-            />
+            {notification.webhookUrl ? (
+              <div className="flex items-center gap-2">
+                <Input
+                  value={notification.webhookUrl}
+                  readOnly
+                  className="bg-muted"
+                />
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={connectDiscord}
+                >
+                  Reconnect
+                </Button>
+              </div>
+            ) : (
+              <Button 
+                type="button" 
+                onClick={connectDiscord}
+                className="w-full"
+              >
+                Connect Discord Channel
+              </Button>
+            )}
           </div>
         );
 

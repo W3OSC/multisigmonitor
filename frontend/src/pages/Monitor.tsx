@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, useParams, Link } from "react-router-dom";
 import { HeaderWithLoginDialog } from "@/components/Header";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -7,17 +7,24 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { 
   AlertCircle, 
-  Eye, 
-  PlusCircle, 
-  Settings, 
-  ToggleLeft, 
-  ToggleRight, 
-  Trash2,
-  FileDown,
-  ExternalLink,
+  ArrowDownAZ,
+  ArrowUpAZ,
   ChevronLeft,
   ChevronRight,
-  Loader2
+  ExternalLink,
+  Eye,
+  FileDown,
+  Filter,
+  HelpCircle,
+  Home,
+  Loader2,
+  PlusCircle, 
+  Settings, 
+  SortAsc,
+  SortDesc,
+  ToggleLeft, 
+  ToggleRight, 
+  Trash2
 } from "lucide-react";
 import {
   Table,
@@ -68,48 +75,152 @@ interface Monitor {
   created_at: string;
 }
 
-// Interface for Alert data
-interface Alert {
+interface Transaction {
   id: string;
   safe_address: string;
   network: string;
-  transaction_hash: string;
-  description: string;
   scanned_at: string;
   type: 'normal' | 'suspicious';
+  description: string;
+  transaction_hash: string;
+  safeTxHash?: string;
+  nonce?: number;
+  isExecuted?: boolean;
+  executionTxHash?: string;
+  submissionDate?: string;
   result: any;
 }
 
-interface AlertFilter {
+interface TransactionFilters {
   safe: string | null;
+  network: string | null;
   type: string | null;
+  transactionType: string | null;
 }
+
+type SortField = 'safe' | 'network' | 'nonce' | 'type' | 'scanned_at';
+type SortDirection = 'asc' | 'desc';
 
 const Monitor = () => {
   const navigate = useNavigate();
+  const params = useParams();
   const { user } = useAuth();
   const { toast } = useToast();
   const [monitors, setMonitors] = useState<Monitor[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingDirectTransaction, setIsLoadingDirectTransaction] = useState(false);
   
   // Delete confirmation modal state
   const [deleteConfirmModalOpen, setDeleteConfirmModalOpen] = useState(false);
   const [monitorToDelete, setMonitorToDelete] = useState<Monitor | null>(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   
-  // Alert pagination and filtering state
-  const [alerts, setAlerts] = useState<Alert[]>([]);
-  const [isLoadingAlerts, setIsLoadingAlerts] = useState(false);
-  const [alertsPage, setAlertsPage] = useState(1);
-  const [alertsPerPage, setAlertsPerPage] = useState(10);
-  const [totalAlerts, setTotalAlerts] = useState(0);
-  const [alertsFilter, setAlertsFilter] = useState<AlertFilter>({
+  // Transaction state
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [isLoadingTransactions, setIsLoadingTransactions] = useState(false);
+  
+  // Filtering state
+  const [filters, setFilters] = useState<TransactionFilters>({
     safe: null,
-    type: null
+    network: null,
+    type: null,
+    transactionType: null
   });
   
-  // Calculate total pages based on total alerts and items per page
-  const totalPages = Math.max(1, Math.ceil(totalAlerts / alertsPerPage));
+  // Sorting state
+  const [sortField, setSortField] = useState<SortField>('scanned_at');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [totalItems, setTotalItems] = useState(0);
+  
+  // Transaction detail modal
+  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
+  const [detailModalOpen, setDetailModalOpen] = useState(false);
+  
+  // Get txHash from URL parameter
+  const { txHash } = params;
+  
+  // Update URL when transaction modal opens/closes
+  useEffect(() => {
+    if (selectedTransaction && detailModalOpen) {
+      // Update URL with transaction hash when modal opens
+      navigate(`/monitor/${selectedTransaction.transaction_hash}`, { replace: true });
+    } else if (!detailModalOpen && txHash) {
+      // Remove transaction hash from URL when modal closes
+      navigate(`/monitor`, { replace: true });
+    }
+  }, [detailModalOpen, selectedTransaction, navigate, txHash]);
+  
+  // Load transaction by hash from URL parameter
+  useEffect(() => {
+    if (!txHash || !user || monitors.length === 0 || isLoadingDirectTransaction) return;
+    
+    const fetchTransactionByHash = async () => {
+      setIsLoadingDirectTransaction(true);
+      
+      try {
+        // Get the transaction from the database
+        const { data, error } = await supabase
+          .from('results')
+          .select('id, safe_address, network, scanned_at, result')
+          .filter('result', 'cs', `{"transaction_hash":"${txHash}"}`)
+          .limit(1)
+          .single();
+        
+        if (error) {
+          if (error.code === 'PGRST116') { // No rows returned
+            toast({
+              title: "Transaction Not Found",
+              description: "The requested transaction could not be found",
+              variant: "destructive",
+            });
+          } else {
+            console.error('Error fetching transaction by hash:', error);
+            toast({
+              title: "Error Loading Transaction",
+              description: error.message,
+              variant: "destructive",
+            });
+          }
+          return;
+        }
+        
+        // Format the transaction
+        const txData = data.result.transaction_data || {};
+        const transaction: Transaction = {
+          id: data.id,
+          safe_address: data.safe_address,
+          network: data.network,
+          scanned_at: data.scanned_at,
+          type: data.result.type || 'normal',
+          description: data.result.description || 'Unknown transaction',
+          transaction_hash: data.result.transaction_hash,
+          safeTxHash: txData.safeTxHash,
+          nonce: txData.nonce !== undefined ? parseInt(txData.nonce) : undefined,
+          isExecuted: txData.isExecuted,
+          executionTxHash: txData.transactionHash,
+          submissionDate: txData.submissionDate,
+          result: data.result
+        };
+        
+        // Set the selected transaction and open the modal
+        setSelectedTransaction(transaction);
+        setDetailModalOpen(true);
+      } catch (error) {
+        console.error('Unexpected error fetching transaction:', error);
+      } finally {
+        setIsLoadingDirectTransaction(false);
+      }
+    };
+    
+    fetchTransactionByHash();
+  }, [txHash, user, monitors, toast, isLoadingDirectTransaction]);
+  
+  // Calculate total pages
+  const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage));
 
   // Fetch monitors on load
   useEffect(() => {
@@ -221,20 +332,17 @@ const Monitor = () => {
     fetchMonitors();
   }, [user, toast]);
   
-  // Fetch alerts when page, filters, or per page settings change
+  // Fetch transactions when filters, sorting, or pagination changes
   useEffect(() => {
-    if (!user) return;
-    
-    // Skip alert fetching if no monitors are set up
-    if (monitors.length === 0) {
-      setAlerts([]);
-      setTotalAlerts(0);
-      setIsLoadingAlerts(false);
+    if (!user || monitors.length === 0) {
+      setTransactions([]);
+      setTotalItems(0);
+      setIsLoadingTransactions(false);
       return;
     }
     
-    async function fetchAlerts() {
-      setIsLoadingAlerts(true);
+    async function fetchTransactions() {
+      setIsLoadingTransactions(true);
       
       try {
         // Get safe addresses and networks from user's monitors
@@ -243,14 +351,14 @@ const Monitor = () => {
           network: m.network
         }));
         
-        // Build the query from results table for transaction alerts
+        // Build the query from results table for transactions
         let query = supabase
           .from('results')
-          .select('id, safe_address, network, scanned_at, result');
+          .select('id, safe_address, network, scanned_at, result', { count: 'exact' });
         
         // Apply safe address filter if selected
-        if (alertsFilter.safe) {
-          const selectedMonitor = monitors.find(m => m.id === alertsFilter.safe);
+        if (filters.safe) {
+          const selectedMonitor = monitors.find(m => m.id === filters.safe);
           if (selectedMonitor) {
             query = query
               .eq('safe_address', selectedMonitor.safe_address)
@@ -267,61 +375,124 @@ const Monitor = () => {
           }
         }
         
-        query = query.order('scanned_at', { ascending: false });
-        
-        // Get count results - simplified approach using client-side filtering
-        const { data: allResults, error: countError } = await query;
-        
-        if (countError) {
-          console.error('Error fetching results:', countError);
-          throw countError;
+        // Apply network filter if selected
+        if (filters.network) {
+          query = query.eq('network', filters.network);
         }
         
-        // Filter for transaction alerts only (exclude status updates)
-        const transactionAlerts = allResults.filter(result => 
-          result.result && 
-          result.result.transaction_hash && 
-          (!alertsFilter.type || result.result.type === alertsFilter.type)
-        );
+        // Apply transaction type filter if selected
+        if (filters.type) {
+          // When filtering by transaction type, we need to use a raw contains query
+          // since we're dealing with a JSON field structure
+          query = query.filter('result', 'cs', `{"type":"${filters.type}"}`);
+        }
         
-        setTotalAlerts(transactionAlerts.length);
+        // Get all results before we do further client-side filtering/sorting
+        const { data: allResults, error, count } = await query;
         
-        // Apply pagination client-side
-        const paginatedAlerts = transactionAlerts.slice(
-          (alertsPage - 1) * alertsPerPage, 
-          alertsPage * alertsPerPage
-        );
+        if (error) {
+          console.error('Error fetching transactions:', error);
+          throw error;
+        }
         
-        // Format alerts from the result JSON
-        const formattedAlerts: Alert[] = paginatedAlerts.map(alert => {
-          const result = alert.result || {};
+        // Filter for transactions with transaction_hash
+        let filteredTransactions = allResults.filter(item => 
+          item.result && item.result.transaction_hash
+        ).map(item => {
+          const txData = item.result.transaction_data || {};
           return {
-            id: alert.id,
-            safe_address: alert.safe_address,
-            network: alert.network,
-            transaction_hash: result.transaction_hash || '',
-            description: result.description || 'Unknown transaction',
-            scanned_at: alert.scanned_at,
-            type: result.type || 'normal',
-            result: result
+            id: item.id,
+            safe_address: item.safe_address,
+            network: item.network,
+            scanned_at: item.scanned_at,
+            type: item.result.type || 'normal',
+            description: item.result.description || 'Unknown transaction',
+            transaction_hash: item.result.transaction_hash,
+            safeTxHash: txData.safeTxHash,
+            nonce: txData.nonce !== undefined ? parseInt(txData.nonce) : undefined,
+            isExecuted: txData.isExecuted,
+            executionTxHash: txData.transactionHash,
+            submissionDate: txData.submissionDate,
+            result: item.result
           };
         });
         
-        setAlerts(formattedAlerts);
+        // Apply transaction method/operation filter
+        if (filters.transactionType) {
+          filteredTransactions = filteredTransactions.filter(tx => {
+            const txData = tx.result.transaction_data || {};
+            const dataDecoded = txData.dataDecoded || {};
+            return dataDecoded.method === filters.transactionType;
+          });
+        }
+        
+        // Calculate total after all filters
+        setTotalItems(filteredTransactions.length);
+        
+        // Sort the transactions
+        filteredTransactions.sort((a, b) => {
+          let valueA, valueB;
+          
+          switch (sortField) {
+            case 'safe':
+              valueA = a.safe_address.toLowerCase();
+              valueB = b.safe_address.toLowerCase();
+              break;
+            case 'network':
+              valueA = a.network.toLowerCase();
+              valueB = b.network.toLowerCase();
+              break;
+            case 'nonce':
+              valueA = a.nonce !== undefined ? a.nonce : Infinity;
+              valueB = b.nonce !== undefined ? b.nonce : Infinity;
+              break;
+            case 'type':
+              valueA = a.type.toLowerCase();
+              valueB = b.type.toLowerCase();
+              break;
+            case 'scanned_at':
+            default:
+              // Use submissionDate if available, fall back to scanned_at
+              valueA = a.submissionDate ? new Date(a.submissionDate).getTime() : new Date(a.scanned_at).getTime();
+              valueB = b.submissionDate ? new Date(b.submissionDate).getTime() : new Date(b.scanned_at).getTime();
+              break;
+          }
+          
+          if (valueA === valueB) {
+            // Secondary sort by scanned_at
+            return sortDirection === 'asc' 
+              ? new Date(a.scanned_at).getTime() - new Date(b.scanned_at).getTime()
+              : new Date(b.scanned_at).getTime() - new Date(a.scanned_at).getTime();
+          }
+          
+          if (sortDirection === 'asc') {
+            return valueA < valueB ? -1 : 1;
+          } else {
+            return valueA > valueB ? -1 : 1;
+          }
+        });
+        
+        // Apply pagination
+        const paginatedTransactions = filteredTransactions.slice(
+          (currentPage - 1) * itemsPerPage,
+          currentPage * itemsPerPage
+        );
+        
+        setTransactions(paginatedTransactions);
       } catch (error) {
-        console.error('Error fetching alerts:', error);
+        console.error('Error processing transactions:', error);
         toast({
-          title: "Error Fetching Alerts",
-          description: "There was a problem retrieving alert data",
+          title: "Error Loading Transactions",
+          description: "There was a problem retrieving transaction data",
           variant: "destructive",
         });
       } finally {
-        setIsLoadingAlerts(false);
+        setIsLoadingTransactions(false);
       }
     }
     
-    fetchAlerts();
-  }, [user, alertsPage, alertsPerPage, alertsFilter, monitors, toast]);
+    fetchTransactions();
+  }, [user, monitors, filters, sortField, sortDirection, currentPage, itemsPerPage, toast]);
 
   const toggleMonitor = async (id: string) => {
     const monitor = monitors.find(m => m.id === id);
@@ -450,53 +621,39 @@ const Monitor = () => {
     return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
   };
 
-  // Function to generate and download CSV data
-  const downloadCsv = () => {
-    // Create CSV header
-    const header = ['Safe', 'Network', 'Transaction', 'Time', 'Type'].join(',');
-    
-    // Convert alerts to CSV rows
-    const rows = alerts.map(alert => {
-      // Find the monitor that matches this safe address
-      const monitor = monitors.find(m => 
-        m.safe_address === alert.safe_address && 
-        m.network === alert.network
-      );
-      const safeName = monitor?.alias || truncateAddress(alert.safe_address);
-      const txDescription = alert.description.replace(/,/g, ';'); // Replace commas to avoid CSV issues
-      return [
-        safeName,
-        alert.network.charAt(0).toUpperCase() + alert.network.slice(1),
-        txDescription,
-        new Date(alert.scanned_at).toLocaleString(),
-        alert.type
-      ].join(',');
-    });
-    
-    // Combine header and rows
-    const csvContent = [header, ...rows].join('\n');
-    
-    // Create a Blob with the CSV content
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    
-    // Create a download link and trigger it
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `safe-watch-alerts-${new Date().toISOString().split('T')[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    
-    // Clean up
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    
-    toast({
-      title: "CSV Export Complete",
-      description: `${alerts.length} alerts exported successfully`
-    });
-  };
+  // Removed downloadCsv function since it's handled in TransactionMonitor.tsx
   
+  // Generate Etherscan transaction URL
+  const getEtherscanTxUrl = (transaction: Transaction) => {
+    let baseUrl;
+    
+    // Set the correct explorer URL based on network
+    switch(transaction.network.toLowerCase()) {
+      case 'ethereum':
+        baseUrl = 'https://etherscan.io';
+        break;
+      case 'polygon':
+        baseUrl = 'https://polygonscan.com';
+        break;
+      case 'arbitrum':
+        baseUrl = 'https://arbiscan.io';
+        break;
+      case 'optimism':
+        baseUrl = 'https://optimistic.etherscan.io';
+        break;
+      case 'goerli':
+        baseUrl = 'https://goerli.etherscan.io';
+        break;
+      case 'sepolia':
+        baseUrl = 'https://sepolia.etherscan.io';
+        break;
+      default:
+        baseUrl = 'https://etherscan.io';
+    }
+    
+    return `${baseUrl}/tx/${transaction.executionTxHash || transaction.transaction_hash}`;
+  };
+
   const truncateAddress = (address: string) => {
     const middleStartIndex = Math.floor((address.length - 6) / 2);
     return `${address.substring(0, 6)}...${address.substring(middleStartIndex, middleStartIndex + 6)}...${address.substring(address.length - 6)}`;
@@ -576,20 +733,177 @@ const Monitor = () => {
         </DialogContent>
       </Dialog>
       
+      {/* Transaction Details Modal */}
+      <Dialog open={detailModalOpen} onOpenChange={setDetailModalOpen}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Transaction Details</DialogTitle>
+            <DialogDescription>
+              {selectedTransaction?.description}
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedTransaction && (
+            <div className="space-y-6 py-4">
+              {/* Basic Transaction Information */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <h3 className="text-sm font-medium text-muted-foreground mb-1">Safe</h3>
+                  <p className="text-sm font-mono">
+                    <a 
+                      href={`https://app.safe.global/home?safe=${selectedTransaction.network}:${selectedTransaction.safe_address}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-500 hover:text-blue-600"
+                    >
+                      {selectedTransaction.safe_address}
+                    </a>
+                  </p>
+                </div>
+                <div>
+                  <h3 className="text-sm font-medium text-muted-foreground mb-1">Network</h3>
+                  <p className="text-sm">{selectedTransaction.network.charAt(0).toUpperCase() + selectedTransaction.network.slice(1)}</p>
+                </div>
+                <div>
+                  <h3 className="text-sm font-medium text-muted-foreground mb-1">To Address</h3>
+                  <p className="text-sm font-mono break-all">
+                    {selectedTransaction.result.transaction_data?.to ? (
+                      <a 
+                        href={`${getEtherscanTxUrl(selectedTransaction).split('/tx/')[0]}/address/${selectedTransaction.result.transaction_data.to}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-500 hover:text-blue-600"
+                      >
+                        {selectedTransaction.result.transaction_data.to}
+                      </a>
+                    ) : "—"}
+                  </p>
+                </div>
+                <div>
+                  <h3 className="text-sm font-medium text-muted-foreground mb-1">Value</h3>
+                  <p className="text-sm">
+                    {selectedTransaction.result.transaction_data?.value ? 
+                      `${parseFloat(selectedTransaction.result.transaction_data.value) / 1e18} ETH` 
+                      : "0 ETH"}
+                  </p>
+                </div>
+                <div>
+                  <h3 className="text-sm font-medium text-muted-foreground mb-1">Nonce</h3>
+                  <p className="text-sm">{selectedTransaction.nonce !== undefined ? selectedTransaction.nonce : '—'}</p>
+                </div>
+                <div>
+                  <h3 className="text-sm font-medium text-muted-foreground mb-1">Type</h3>
+                  <p className="text-sm flex items-center">
+                    {selectedTransaction.type === 'suspicious' ? (
+                      <><AlertCircle className="text-destructive h-4 w-4 mr-1" /> Suspicious</>
+                    ) : (
+                      <>Normal</>
+                    )}
+                  </p>
+                </div>
+              </div>
+              
+              {/* Execution Details */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-medium border-b pb-2">Execution Details</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <h3 className="text-sm font-medium text-muted-foreground mb-1">Execution Status</h3>
+                    <p className="text-sm">
+                      <Badge variant={selectedTransaction.isExecuted ? "default" : "secondary"} 
+                        className={selectedTransaction.isExecuted ? "bg-green-600" : ""}>
+                        {selectedTransaction.isExecuted ? 'Executed' : 'Pending'}
+                      </Badge>
+                    </p>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-medium text-muted-foreground mb-1">Safe Transaction Hash</h3>
+                    <p className="text-sm font-mono break-all">
+                      {selectedTransaction.result.transaction_data?.safeTxHash ? (
+                        <a 
+                          href={`https://app.safe.global/transactions/tx?safe=${selectedTransaction.network}:${selectedTransaction.safe_address}&id=multisig_${selectedTransaction.safe_address}_${selectedTransaction.safeTxHash}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-500 hover:text-blue-600"
+                        >
+                          {selectedTransaction.result.transaction_data.safeTxHash}
+                        </a>
+                      ) : "—"}
+                    </p>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-medium text-muted-foreground mb-1">Execution Transaction Hash</h3>
+                    <p className="text-sm font-mono break-all">
+                      {selectedTransaction.result.transaction_data?.transactionHash ? (
+                        <a 
+                          href={getEtherscanTxUrl(selectedTransaction)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-500 hover:text-blue-600"
+                        >
+                          {selectedTransaction.result.transaction_data.transactionHash}
+                        </a>
+                      ) : "—"}
+                    </p>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-medium text-muted-foreground mb-1">Submission Date</h3>
+                    <p className="text-sm">
+                      {selectedTransaction.result.transaction_data?.submissionDate ? 
+                        new Date(selectedTransaction.result.transaction_data.submissionDate).toLocaleString() :
+                        "—"}
+                    </p>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-medium text-muted-foreground mb-1">Execution Date</h3>
+                    <p className="text-sm">
+                      {selectedTransaction.result.transaction_data?.executionDate ? 
+                        new Date(selectedTransaction.result.transaction_data.executionDate).toLocaleString() :
+                        "—"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              
+              {/* External Links */}
+              <div className="space-y-2">
+                <h3 className="text-sm font-medium mb-1">View Transaction</h3>
+                <div className="flex flex-wrap gap-2">
+                  <a 
+                    href={`https://app.safe.global/transactions/tx?safe=${selectedTransaction.network}:${selectedTransaction.safe_address}&id=multisig_${selectedTransaction.safe_address}_${selectedTransaction.safeTxHash}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-blue-500 hover:text-blue-600 text-sm"
+                  >
+                    <Button size="sm" variant="outline">
+                      View in Safe App <ExternalLink className="h-3.5 w-3.5 ml-1" />
+                    </Button>
+                  </a>
+                  
+                  {selectedTransaction.isExecuted && (
+                    <a 
+                      href={getEtherscanTxUrl(selectedTransaction)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-blue-500 hover:text-blue-600 text-sm"
+                    >
+                      <Button size="sm" variant="outline">
+                        View on Etherscan <ExternalLink className="h-3.5 w-3.5 ml-1" />
+                      </Button>
+                    </a>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+      
       <main className="flex-1 container py-12">
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold">Your Monitors</h1>
           
-          <div className="flex gap-2">
-            <Button 
-              onClick={() => navigate("/monitor/transactions")}
-              variant="outline"
-              className="flex items-center gap-2"
-            >
-              <Eye className="h-4 w-4" />
-              Transactions
-            </Button>
-            
+          <div className="flex gap-2">            
             <Button 
               onClick={() => navigate("/monitor/new")}
               className="jsr-button flex items-center gap-2"
@@ -692,192 +1006,484 @@ const Monitor = () => {
             </div>
             
             <Card>
-              <CardHeader className="pb-2">
+              <CardHeader className="pb-3">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                   <div>
-                    <CardTitle>Alert History</CardTitle>
+                    <CardTitle>Transaction History</CardTitle>
                     <CardDescription>
-                      Transaction alerts from your monitored Safe vaults
+                      View and manage transactions from your monitored Safe vaults
                     </CardDescription>
                   </div>
                   
-                  <div className="flex flex-row gap-2 items-center">
+                  <div className="flex flex-wrap gap-2 items-center">
                     <Button 
                       variant="ghost" 
                       size="sm"
                       className="text-xs flex items-center gap-1 h-8 px-2"
-                      onClick={downloadCsv}
+                      onClick={() => {
+                        // Create CSV header
+                        const header = ['Safe', 'Network', 'Nonce', 'Transaction', 'State', 'Time', 'Type'].join(',');
+                        
+                        // Convert transactions to CSV rows
+                        const rows = transactions.map(tx => {
+                          // Find the monitor that matches this safe address
+                          const monitor = monitors.find(m => 
+                            m.safe_address === tx.safe_address && 
+                            m.network === tx.network
+                          );
+                          const safeName = monitor?.alias || truncateAddress(tx.safe_address);
+                          const txDescription = tx.description.replace(/,/g, ';'); // Replace commas to avoid CSV issues
+                          const executionState = tx.isExecuted ? 'Executed' : 'Proposed';
+                          const time = tx.submissionDate ? new Date(tx.submissionDate).toLocaleString() : new Date(tx.scanned_at).toLocaleString();
+                          return [
+                            safeName,
+                            tx.network.charAt(0).toUpperCase() + tx.network.slice(1),
+                            tx.nonce !== undefined ? tx.nonce : '',
+                            txDescription,
+                            executionState,
+                            time,
+                            tx.type
+                          ].join(',');
+                        });
+                        
+                        // Combine header and rows
+                        const csvContent = [header, ...rows].join('\n');
+                        
+                        // Create a Blob with the CSV content
+                        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                        
+                        // Create a download link and trigger it
+                        const url = URL.createObjectURL(blob);
+                        const link = document.createElement('a');
+                        link.href = url;
+                        link.setAttribute('download', `safe-transactions-${new Date().toISOString().split('T')[0]}.csv`);
+                        document.body.appendChild(link);
+                        link.click();
+                        
+                        // Clean up
+                        document.body.removeChild(link);
+                        URL.revokeObjectURL(url);
+                        
+                        toast({
+                          title: "CSV Export Complete",
+                          description: `${transactions.length} transactions exported successfully`
+                        });
+                      }}
                     >
                       <FileDown className="h-3 w-3" />
                       CSV Export
+                    </Button>
+                    
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className={`h-8 gap-1 ${
+                        Object.values(filters).some(v => v !== null) ? 'bg-primary/10' : ''
+                      }`}
+                      onClick={() => {
+                        setFilters({
+                          safe: null,
+                          network: null,
+                          type: null,
+                          transactionType: null
+                        });
+                        setCurrentPage(1);
+                      }}
+                    >
+                      <Filter className="h-3.5 w-3.5" />
+                      {Object.values(filters).some(v => v !== null) ? 'Reset Filters' : 'Filters'}
                     </Button>
                   </div>
                 </div>
               </CardHeader>
               
               <CardContent className="space-y-4">
-                <div className="flex flex-col md:flex-row justify-between gap-4">
-                  <div className="flex flex-wrap gap-2">
-                    <div className="flex items-center gap-2">
-                      <Select 
-                        value={alertsFilter.safe || "all"} 
-                        onValueChange={(value) => setAlertsFilter(prev => ({ ...prev, safe: value === "all" ? null : value }))}
-                      >
-                        <SelectTrigger className="h-8 text-xs min-w-[140px] w-fit">
-                          <SelectValue placeholder="Filter by Safe" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All Safes</SelectItem>
-                          {monitors.map(monitor => (
-                            <SelectItem key={monitor.id} value={monitor.id}>
-                              {monitor.alias || truncateAddress(monitor.safe_address)}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                <div className="flex flex-wrap gap-3 pb-4">
+                  <Select 
+                    value={filters.safe || "all"} 
+                    onValueChange={(value) => {
+                      setFilters(prev => ({ ...prev, safe: value === "all" ? null : value }));
+                      setCurrentPage(1);
+                    }}
+                  >
+                    <SelectTrigger className="h-8 text-xs min-w-[140px] w-fit">
+                      <SelectValue placeholder="Filter by Safe" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Safes</SelectItem>
+                      {monitors.map(monitor => (
+                        <SelectItem key={monitor.id} value={monitor.id}>
+                          {monitor.alias || truncateAddress(monitor.safe_address)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  
+                  <Select 
+                    value={filters.network || "all"} 
+                    onValueChange={(value) => {
+                      setFilters(prev => ({ ...prev, network: value === "all" ? null : value }));
+                      setCurrentPage(1);
+                    }}
+                  >
+                    <SelectTrigger className="h-8 text-xs min-w-[140px] w-fit">
+                      <SelectValue placeholder="Network" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Networks</SelectItem>
+                      {Array.from(new Set(monitors.map(m => m.network))).sort().map(network => (
+                        <SelectItem key={network} value={network}>
+                          {network}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  
+                  <Select 
+                    value={filters.type || "all"} 
+                    onValueChange={(value) => {
+                      setFilters(prev => ({ ...prev, type: value === "all" ? null : value }));
+                      setCurrentPage(1);
+                    }}
+                  >
+                    <SelectTrigger className="h-8 text-xs min-w-[140px] w-fit">
+                      <SelectValue placeholder="Transaction Type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Types</SelectItem>
+                      <SelectItem value="suspicious">Suspicious</SelectItem>
+                      <SelectItem value="normal">Normal</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  
+                  <Select 
+                    value={filters.transactionType || "all"} 
+                    onValueChange={(value) => {
+                      setFilters(prev => ({ ...prev, transactionType: value === "all" ? null : value }));
+                      setCurrentPage(1);
+                    }}
+                  >
+                    <SelectTrigger className="h-8 text-xs min-w-[160px] w-fit">
+                      <SelectValue placeholder="Transaction Method" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Methods</SelectItem>
+                      {Array.from(new Set(transactions.map(tx => {
+                        const txData = tx.result.transaction_data || {};
+                        const dataDecoded = txData.dataDecoded || {};
+                        return dataDecoded.method;
+                      }).filter(Boolean))).sort().map(method => (
+                        <SelectItem key={method} value={method}>
+                          {method}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                {/* Pagination controls above the table */}
+                {totalItems > 0 && (
+                  <div className="flex items-center justify-between pb-4">
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <span>Showing {transactions.length} of {totalItems} results</span>
                     </div>
                     
-                    <div className="flex items-center gap-2">
-                      <Select 
-                        value={alertsFilter.type || "all"} 
-                        onValueChange={(value) => setAlertsFilter(prev => ({ ...prev, type: value === "all" ? null : value }))}
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(1)}
+                        disabled={currentPage === 1}
                       >
-                        <SelectTrigger className="h-8 text-xs min-w-[140px] w-fit">
-                          <SelectValue placeholder="Alert Type" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All Alerts</SelectItem>
-                          <SelectItem value="suspicious">Suspicious Only</SelectItem>
-                          <SelectItem value="normal">Normal Transactions</SelectItem>
-                        </SelectContent>
-                      </Select>
+                        First
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                        disabled={currentPage === 1}
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </Button>
+                      <div className="flex items-center gap-1 text-sm px-2">
+                        <span>Page {currentPage} of {totalPages}</span>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                        disabled={currentPage === totalPages}
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(totalPages)}
+                        disabled={currentPage === totalPages}
+                      >
+                        Last
+                      </Button>
                     </div>
                   </div>
-                  
-                  <div className="flex items-center gap-2 w-full md:w-auto justify-end">
-                    <p className="text-xs text-muted-foreground whitespace-nowrap mr-2">
-                      {totalAlerts === 0
-                        ? 'No alerts'
-                        : `Showing ${(alertsPage - 1) * alertsPerPage + 1}-${Math.min(alertsPage * alertsPerPage, totalAlerts)} of ${totalAlerts}`}
-                    </p>
-                    <Select 
-                      value={alertsPerPage.toString()} 
+                )}
+                
+                <div>
+                  <div className="rounded-md border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead 
+                            className="cursor-pointer"
+                            onClick={() => {
+                              if (sortField === 'safe') {
+                                setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+                              } else {
+                                setSortField('safe');
+                                setSortDirection('asc');
+                              }
+                              setCurrentPage(1);
+                            }}
+                          >
+                            <div className="flex items-center">
+                              Safe
+                              {sortField === 'safe' && (
+                                sortDirection === 'asc' ? 
+                                <ArrowUpAZ className="ml-1 h-3.5 w-3.5" /> : 
+                                <ArrowDownAZ className="ml-1 h-3.5 w-3.5" />
+                              )}
+                            </div>
+                          </TableHead>
+                          <TableHead 
+                            className="cursor-pointer"
+                            onClick={() => {
+                              if (sortField === 'network') {
+                                setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+                              } else {
+                                setSortField('network');
+                                setSortDirection('asc');
+                              }
+                              setCurrentPage(1);
+                            }}
+                          >
+                            <div className="flex items-center">
+                              Network
+                              {sortField === 'network' && (
+                                sortDirection === 'asc' ? 
+                                <ArrowUpAZ className="ml-1 h-3.5 w-3.5" /> : 
+                                <ArrowDownAZ className="ml-1 h-3.5 w-3.5" />
+                              )}
+                            </div>
+                          </TableHead>
+                          <TableHead 
+                            className="cursor-pointer"
+                            onClick={() => {
+                              if (sortField === 'nonce') {
+                                setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+                              } else {
+                                setSortField('nonce');
+                                setSortDirection('asc');
+                              }
+                              setCurrentPage(1);
+                            }}
+                          >
+                            <div className="flex items-center">
+                              Nonce
+                              {sortField === 'nonce' && (
+                                sortDirection === 'asc' ? 
+                                <SortAsc className="ml-1 h-3.5 w-3.5" /> : 
+                                <SortDesc className="ml-1 h-3.5 w-3.5" />
+                              )}
+                            </div>
+                          </TableHead>
+                          <TableHead>Transaction</TableHead>
+                          <TableHead>State</TableHead>
+                          <TableHead 
+                            className="cursor-pointer"
+                            onClick={() => {
+                              if (sortField === 'scanned_at') {
+                                setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+                              } else {
+                                setSortField('scanned_at');
+                                setSortDirection('asc');
+                              }
+                              setCurrentPage(1);
+                            }}
+                          >
+                            <div className="flex items-center">
+                              Time
+                              {sortField === 'scanned_at' && (
+                                sortDirection === 'asc' ? 
+                                <SortAsc className="ml-1 h-3.5 w-3.5" /> : 
+                                <SortDesc className="ml-1 h-3.5 w-3.5" />
+                              )}
+                            </div>
+                          </TableHead>
+                          <TableHead 
+                            className="cursor-pointer"
+                            onClick={() => {
+                              if (sortField === 'type') {
+                                setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+                              } else {
+                                setSortField('type');
+                                setSortDirection('asc');
+                              }
+                              setCurrentPage(1);
+                            }}
+                          >
+                            <div className="flex items-center">
+                              Type
+                              {sortField === 'type' && (
+                                sortDirection === 'asc' ? 
+                                <ArrowUpAZ className="ml-1 h-3.5 w-3.5" /> : 
+                                <ArrowDownAZ className="ml-1 h-3.5 w-3.5" />
+                              )}
+                            </div>
+                          </TableHead>
+                          <TableHead>View</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {isLoadingTransactions ? (
+                          <TableRow>
+                            <TableCell colSpan={8} className="h-24 text-center">
+                              <Loader2 className="h-5 w-5 animate-spin mx-auto" />
+                            </TableCell>
+                          </TableRow>
+                        ) : transactions.length > 0 ? (
+                          transactions.map((tx) => (
+                            <TableRow key={tx.id} className="cursor-pointer hover:bg-muted/50" onClick={() => {
+                              setSelectedTransaction(tx);
+                              setDetailModalOpen(true);
+                            }}>
+                              <TableCell className="font-medium">
+                                {monitors.find(m => 
+                                  m.safe_address === tx.safe_address && 
+                                  m.network === tx.network
+                                )?.alias || truncateAddress(tx.safe_address)}
+                              </TableCell>
+                              <TableCell>{tx.network.charAt(0).toUpperCase() + tx.network.slice(1)}</TableCell>
+                              <TableCell>{tx.nonce !== undefined ? tx.nonce : '—'}</TableCell>
+                              <TableCell>
+                                <div className="max-w-xs truncate">
+                                  {tx.description}
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant={tx.isExecuted ? "default" : "secondary"} className={tx.isExecuted ? "bg-green-600" : ""}>
+                                  {tx.isExecuted ? 'Executed' : 'Proposed'}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>{formatTimeAgo(tx.submissionDate ? new Date(tx.submissionDate).getTime() : new Date(tx.scanned_at).getTime())}</TableCell>
+                              <TableCell>
+                                {tx.type === 'suspicious' ? (
+                                  <Badge variant="destructive">Suspicious</Badge>
+                                ) : (
+                                  <Badge variant="outline">Normal</Badge>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex gap-1.5">
+                                  <a 
+                                    href={`https://app.safe.global/transactions/tx?safe=${tx.network}:${tx.safe_address}&id=multisig_${tx.safe_address}_${tx.safeTxHash}`} 
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="text-blue-500 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300"
+                                  >
+                                    <Badge variant="secondary" className="cursor-pointer">
+                                      Safe
+                                    </Badge>
+                                  </a>
+                                  
+                                  {tx.isExecuted && (
+                                    <a 
+                                      href={getEtherscanTxUrl(tx)} 
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="text-blue-500 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300"
+                                    >
+                                      <Badge variant="secondary" className="cursor-pointer">
+                                        Etherscan
+                                      </Badge>
+                                    </a>
+                                  )}
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        ) : (
+                          <TableRow>
+                            <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
+                              No transactions found with the current filters
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+                
+                <div className="flex items-center justify-between pt-4">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Select
+                      value={itemsPerPage.toString()}
                       onValueChange={(value) => {
-                        setAlertsPerPage(parseInt(value));
-                        setAlertsPage(1); // Reset to first page when changing items per page
+                        setItemsPerPage(parseInt(value));
+                        setCurrentPage(1);
                       }}
                     >
-                      <SelectTrigger className="h-8 text-xs w-[70px]">
-                        <SelectValue placeholder="Show" />
+                      <SelectTrigger className="h-8 w-[70px]">
+                        <SelectValue />
                       </SelectTrigger>
-                      <SelectContent align="end">
+                      <SelectContent>
                         <SelectItem value="10">10</SelectItem>
                         <SelectItem value="25">25</SelectItem>
                         <SelectItem value="50">50</SelectItem>
                         <SelectItem value="100">100</SelectItem>
                       </SelectContent>
                     </Select>
+                    <span>per page</span>
                   </div>
-                </div>
-                
-                <div>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Safe</TableHead>
-                        <TableHead>Network</TableHead>
-                        <TableHead>Transaction</TableHead>
-                        <TableHead>Time</TableHead>
-                        <TableHead>Type</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {isLoadingAlerts ? (
-                        <TableRow>
-                          <TableCell colSpan={5} className="h-24 text-center">
-                            <Loader2 className="h-4 w-4 animate-spin mx-auto" />
-                          </TableCell>
-                        </TableRow>
-                      ) : alerts.length > 0 ? (
-                        alerts.map((alert, i) => (
-                          <TableRow key={i}>
-                            <TableCell className="font-medium">
-                              {monitors.find(m => 
-                                m.safe_address === alert.safe_address && 
-                                m.network === alert.network
-                              )?.alias || 
-                               truncateAddress(alert.safe_address)}
-                            </TableCell>
-                            <TableCell>
-                              {alert.network.charAt(0).toUpperCase() + alert.network.slice(1)}
-                            </TableCell>
-                            <TableCell>
-                              <div className="max-w-xs truncate">
-                                <Link 
-                                  to={`/monitor/transactions/${alert.transaction_hash}`}
-                                  className="text-blue-500 dark:text-blue-400 hover:underline flex items-center gap-1"
-                                >
-                                  {alert.description}
-                                </Link>
-                              </div>
-                            </TableCell>
-                            <TableCell>{formatTimeAgo(Date.parse(alert.scanned_at))}</TableCell>
-                            <TableCell>
-                              {alert.type === 'suspicious' ? (
-                                <Badge variant="destructive">Suspicious</Badge>
-                              ) : (
-                                <Badge variant="outline">Normal</Badge>
-                              )}
-                            </TableCell>
-                          </TableRow>
-                        ))
-                      ) : (
-                        <TableRow>
-                          <TableCell colSpan={5} className="text-center h-24 text-muted-foreground">
-                            No alerts found with the current filters
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-                
-                <div className="flex items-center justify-end space-x-2 py-4">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setAlertsPage(1)}
-                    disabled={alertsPage === 1}
-                  >
-                    First
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setAlertsPage(prev => Math.max(prev - 1, 1))}
-                    disabled={alertsPage === 1}
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </Button>
-                  <p className="text-xs text-muted-foreground">
-                    Page {alertsPage} of {totalPages}
-                  </p>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setAlertsPage(prev => Math.min(prev + 1, totalPages))}
-                    disabled={alertsPage === totalPages}
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setAlertsPage(totalPages)}
-                    disabled={alertsPage === totalPages}
-                  >
-                    Last
-                  </Button>
+                  
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(1)}
+                      disabled={currentPage === 1}
+                    >
+                      First
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                      disabled={currentPage === 1}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <div className="flex items-center gap-1 text-sm px-2">
+                      <span>Page {currentPage} of {totalPages}</span>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                      disabled={currentPage === totalPages}
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(totalPages)}
+                      disabled={currentPage === totalPages}
+                    >
+                      Last
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>

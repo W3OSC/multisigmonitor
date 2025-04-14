@@ -1,4 +1,3 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -12,7 +11,6 @@ import Review from "./pages/Review";
 import Monitor from "./pages/Monitor";
 import NewMonitor from "./pages/NewMonitor";
 import MonitorConfig from "./pages/MonitorConfig";
-import TransactionMonitor from "./pages/TransactionMonitor";
 import About from "./pages/About";
 import NotFound from "./pages/NotFound";
 
@@ -29,11 +27,10 @@ const App = () => (
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/review" element={<Review />} />
-              <Route path="/monitor" element={<Monitor />} />
-              <Route path="/monitor/transactions" element={<TransactionMonitor />} />
-              <Route path="/monitor/transactions/:txHash" element={<TransactionMonitor />} />
               <Route path="/monitor/new" element={<NewMonitor />} />
               <Route path="/monitor/config/:id" element={<MonitorConfig />} />
+              <Route path="/monitor/:txHash" element={<Monitor />} />
+              <Route path="/monitor" element={<Monitor />} />
               <Route path="/about" element={<About />} />
               <Route path="*" element={<NotFound />} />
             </Routes>

@@ -189,7 +189,6 @@ Safe App: ${txInfo.safeAppLink}
 Safe Monitor: ${txInfo.safeMonitorLink}
 ${txInfo.etherscanLink ? `Etherscan: ${txInfo.etherscanLink}` : ''}
 
-${txInfo.isTest ? 'THIS IS A TEST NOTIFICATION\n' : ''}
 You are receiving this email because you have set up notifications for this Safe address.
 `;
 

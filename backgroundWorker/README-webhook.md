@@ -279,7 +279,7 @@ You can test your webhook setup without creating actual Safe transactions:
   },
   "links": {
     "safe_app": "https://app.safe.global/transactions/tx?safe=eth:0x1234...5678&id=multisig_0x1234...5678_0xabcd...1234",
-    "safe_monitor": "https://safemonitor.io/monitor/transactions/0xabcd...1234"
+    "safe_monitor": "https://safemonitor.io/monitor/0xabcd...1234"
   },
   "timestamp": "2025-04-11T12:30:45.123Z"
 }

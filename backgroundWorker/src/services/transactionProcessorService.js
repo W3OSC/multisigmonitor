@@ -321,6 +321,12 @@ class TransactionProcessorService {
           console.log(`Transaction date: ${transaction.submissionDate || transaction.executionDate}, Monitor created: ${monitor.created_at}`);
           
           const isManagement = isManagementTransaction(transaction);
+          // Get the suspicious status (need to detect it again in this scope)
+          const isSuspicious = detectSuspiciousActivity(transaction, safeAddress);
+          // Get transaction description (need to create it again in this scope)
+          const description = createTransactionDescription(transaction);
+          // Get transaction type from suspicious status
+          const txType = isSuspicious ? 'suspicious' : 'normal';
           
           // Check if notification is appropriate based on monitor settings
           if (notificationService.shouldSendNotification(monitor, transaction, isSuspicious, isManagement)) {

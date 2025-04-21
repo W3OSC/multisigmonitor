@@ -181,10 +181,6 @@ async function checkTransactions() {
           
           console.log(`\nProcessing Safe ${safe_address} on ${network}...`);
           
-          // Record last check time with current Unix timestamp (milliseconds since epoch)
-          // This approach avoids timezone issues as Unix timestamps are timezone-agnostic
-          const lastCheckTimestamp = Date.now();
-          
           // Update the last_checks table with the current timestamp
           try {
             // First check if a record already exists
@@ -195,13 +191,14 @@ async function checkTransactions() {
               .eq('network', network)
               .single();
               
+            const currentTimestamp = new Date().toISOString();
+            
             if (existingCheck) {
               // Update existing record
               await supabase
                 .from('last_checks')
                 .update({ 
-                  checked_at: new Date().toISOString(),  // Keep ISO format for compatibility
-                  unix_timestamp: lastCheckTimestamp     // Add Unix timestamp in milliseconds
+                  checked_at: currentTimestamp  // Update checked_at for frontend display
                 })
                 .eq('id', existingCheck.id);
                 
@@ -213,8 +210,7 @@ async function checkTransactions() {
                 .insert({
                   safe_address: safe_address,
                   network: network,
-                  checked_at: new Date().toISOString(),  // Keep ISO format for compatibility
-                  unix_timestamp: lastCheckTimestamp     // Add Unix timestamp in milliseconds
+                  checked_at: currentTimestamp  // Set checked_at for frontend display
                 });
                 
               console.log(`Created new last check timestamp for ${safe_address} on ${network}`);
@@ -239,24 +235,26 @@ async function checkTransactions() {
         // Variable to track if the Safe exists
         let safeInfo = null;
         
-        // Get the timestamp of the last check for this Safe address + network combination - do this first
-        // to ensure it's available in all scopes later
+        // Get the timestamp of the last transaction found for this Safe address + network combination
         let lastCheckData = null;
         let modifiedSinceParam = null;
         try {
           const { data } = await supabase
             .from('last_checks')
-            .select('unix_timestamp')
+            .select('checked_at, transaction_last_found')
             .eq('safe_address', safe_address)
             .eq('network', network)
             .single();
           
           lastCheckData = data;
           
-          // Convert the timestamp to ISO format for the API call
-          if (lastCheckData && lastCheckData.unix_timestamp) {
-            modifiedSinceParam = new Date(lastCheckData.unix_timestamp).toISOString();
-            console.log(`Fetching transactions modified since: ${modifiedSinceParam}`);
+          // Use transaction_last_found if available, otherwise fall back to checked_at
+          if (lastCheckData && lastCheckData.transaction_last_found) {
+            modifiedSinceParam = lastCheckData.transaction_last_found;
+            console.log(`Fetching transactions modified since last transaction found: ${modifiedSinceParam}`);
+          } else if (lastCheckData && lastCheckData.checked_at) {
+            modifiedSinceParam = lastCheckData.checked_at;
+            console.log(`No last transaction timestamp, using last check time: ${modifiedSinceParam}`);
           } else {
             console.log(`No previous check found, fetching all transactions`);
           }
@@ -379,10 +377,11 @@ async function checkTransactions() {
                 }
                 
                 // If we have a timestamp from the last check and the result has a scanned_at field
-                if (lastCheckData?.unix_timestamp && item.scanned_at) {
+                if (lastCheckData?.checked_at && item.scanned_at) {
                   // Compare the timestamps to see if this test transaction is newer than the last check
                   const itemTimestamp = new Date(item.scanned_at).getTime();
-                  return itemTimestamp > lastCheckData.unix_timestamp;
+                  const checkTimestamp = new Date(lastCheckData.checked_at).getTime();
+                  return itemTimestamp > checkTimestamp;
                 }
                 
                 // If we can't determine timing, include it as unnotified
@@ -726,6 +725,29 @@ async function checkTransactions() {
           }
           
           console.log(`Transaction ${safeTxHash} saved successfully`);
+          
+          // Update the transaction_last_found timestamp in the last_checks table
+          try {
+            const { data: lastCheckRecord } = await supabase
+              .from('last_checks')
+              .select('id')
+              .eq('safe_address', safe_address)
+              .eq('network', network)
+              .single();
+              
+            if (lastCheckRecord) {
+              await supabase
+                .from('last_checks')
+                .update({ 
+                  transaction_last_found: new Date().toISOString()
+                })
+                .eq('id', lastCheckRecord.id);
+                
+              console.log(`Updated transaction_last_found timestamp for ${safe_address} on ${network}`);
+            }
+          } catch (updateTimestampError) {
+            console.error(`Error updating transaction_last_found timestamp: ${updateTimestampError.message}`);
+          }
           // Check if this transaction should trigger notifications
           const shouldNotify = async () => {
             try {

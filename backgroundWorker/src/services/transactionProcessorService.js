@@ -265,7 +265,7 @@ class TransactionProcessorService {
     );
     
     // Always update transaction_last_found regardless of whether it's a new transaction
-    const timestamp = transaction.submissionDate || transaction.executionDate || new Date().toISOString();
+    const timestamp = new Date().toISOString();
     await databaseService.updateTransactionLastFound(safeAddress, network, timestamp);
     
     // If transaction already exists, check if it needs to be updated

@@ -174,7 +174,7 @@ async function insertTestTransaction() {
     console.log('The check cycle runs every minute by default');
     console.log('\nLinks that will be included in notifications:');
     console.log(`- Safe App: https://app.safe.global/transactions/tx?safe=${selectedMonitor.network}:${selectedMonitor.safe_address}&id=multisig_${selectedMonitor.safe_address}_${safeTxHash}`);
-    console.log(`- Safe Monitor: https://safemonitor.io/monitor/transactions/${safeTxHash}`);
+    console.log(`- Safe Monitor: https://safemonitor.io/monitor/${safeTxHash}`);
     if (isExecuted) {
       console.log(`- Etherscan: https://${selectedMonitor.network === 'ethereum' ? '' : selectedMonitor.network + '.'}etherscan.io/tx/${executionHash}`);
     }

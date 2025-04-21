@@ -163,7 +163,7 @@ You can test your webhook setup without creating actual Safe transactions:
           "type": 2,
           "style": 5,
           "label": "View in Safe Monitor",
-          "url": "https://safemonitor.io/monitor/transactions/0xabcd...1234"
+          "url": "https://safemonitor.io/monitor/0xabcd...1234"
         }
       ]
     }
@@ -246,7 +246,7 @@ You can test your webhook setup without creating actual Safe transactions:
             "text": "View in Safe Monitor",
             "emoji": true
           },
-          "url": "https://safemonitor.io/monitor/transactions/0xabcd...1234"
+          "url": "https://safemonitor.io/monitor/0xabcd...1234"
         }
       ]
     }

@@ -422,7 +422,7 @@ const TransactionMonitor = () => {
   // Show transaction details and update URL
   const showTransactionDetails = (transaction: Transaction) => {
     // Update the URL to include the transaction hash
-    navigate(`/monitor/transactions/${transaction.transaction_hash}`, { replace: false });
+    navigate(`/monitor/${transaction.transaction_hash}`, { replace: false });
     setSelectedTransaction(transaction);
     setDetailModalOpen(true);
   };
@@ -431,7 +431,7 @@ const TransactionMonitor = () => {
   const handleModalClose = (open: boolean) => {
     if (!open) {
       // When closing the modal, revert URL to base transactions URL
-      navigate('/monitor/transactions', { replace: true });
+      navigate('/monitor', { replace: true });
     }
     setDetailModalOpen(open);
   };
@@ -486,6 +486,8 @@ const TransactionMonitor = () => {
       case 'ethereum':
         baseUrl = 'https://etherscan.io';
         break;
+      case 'sepolia':
+        baseUrl = 'https://sepolia.etherscan.io';
       case 'polygon':
         baseUrl = 'https://polygonscan.com';
         break;

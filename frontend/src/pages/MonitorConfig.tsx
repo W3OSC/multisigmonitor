@@ -24,6 +24,7 @@ import { supabase } from "@/integrations/supabase/client";
 // Use the same constants as NewMonitor.tsx
 const SUPPORTED_NETWORKS = [
   { id: "ethereum", name: "Ethereum" },
+  { id: "sepolia", name: "Sepolia" },
   { id: "polygon", name: "Polygon" },
   { id: "arbitrum", name: "Arbitrum" },
   { id: "optimism", name: "Optimism" },

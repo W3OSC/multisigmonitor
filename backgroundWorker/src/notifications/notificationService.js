@@ -80,7 +80,7 @@ class NotificationService {
    */
   generateTransactionLinks(safeAddress, network, safeTxHash, isExecuted, transactionHash) {
     const safeAppLink = `https://app.safe.global/transactions/tx?safe=${network}:${safeAddress}&id=multisig_${safeAddress}_${safeTxHash}`;
-    const safeMonitorLink = `https://safemonitor.io/monitor/transactions/${safeTxHash}`;
+    const safeMonitorLink = `https://safemonitor.io/monitor/${safeTxHash}`;
     const etherscanLink = isExecuted 
       ? `https://${network === 'ethereum' ? '' : network + '.'}etherscan.io/tx/${transactionHash || safeTxHash}`
       : null;
@@ -101,10 +101,9 @@ class NotificationService {
    * @param {string} network The network
    * @param {string} description Human-readable description of the transaction
    * @param {string} txType Type of transaction (normal or suspicious)
-   * @param {boolean} isTest Whether this is a test notification
    * @returns {Promise<void>}
    */
-  async sendNotifications(monitor, transaction, safeAddress, network, description, txType, isTest = false) {
+  async sendNotifications(monitor, transaction, safeAddress, network, description, txType) {
     try {
       console.log(`Sending notification for monitor ${monitor.id} for transaction ${transaction.safeTxHash}`);
       
@@ -130,8 +129,7 @@ class NotificationService {
           hash: transaction.safeTxHash,
           nonce: transaction.nonce,
           isExecuted: transaction.isExecuted || false,
-          ...links,
-          isTest: isTest
+          ...links
         };
         
         // Implement notification logic based on method

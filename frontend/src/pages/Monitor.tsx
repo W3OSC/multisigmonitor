@@ -253,7 +253,7 @@ const Monitor = () => {
         const lastChecksPromises = data.map(monitor => 
           supabase
             .from('last_checks')
-            .select('checked_at, unix_timestamp')
+            .select('checked_at')
             .eq('safe_address', monitor.safe_address)
             .eq('network', monitor.network)
             .single()
@@ -272,8 +272,8 @@ const Monitor = () => {
           if (response.data) {
             const monitor = data[index];
             const key = `${monitor.safe_address.toLowerCase()}-${monitor.network.toLowerCase()}`;
-            // Store the unix timestamp for more accurate time difference calculation
-            latestScans[key] = response.data.unix_timestamp || Date.parse(response.data.checked_at);
+            // Store the checked_at timestamp for time difference calculation
+            latestScans[key] = Date.parse(response.data.checked_at);
           }
         });
 
@@ -631,6 +631,9 @@ const Monitor = () => {
     switch(transaction.network.toLowerCase()) {
       case 'ethereum':
         baseUrl = 'https://etherscan.io';
+        break;
+      case 'sepolia':
+        baseUrl = 'https://sepolia.etherscan.io';
         break;
       case 'polygon':
         baseUrl = 'https://polygonscan.com';

@@ -8,6 +8,11 @@ const NETWORK_CONFIGS = {
     chainId: 1,
     name: 'Ethereum Mainnet'
   },
+  'sepolia': {
+    txServiceUrl: 'https://safe-transaction-sepolia.safe.global',
+    chainId: 11155111,
+    name: 'Sepolia Testnet'
+  },
   'polygon': {
     txServiceUrl: 'https://safe-transaction-polygon.safe.global',
     chainId: 137,
@@ -27,11 +32,6 @@ const NETWORK_CONFIGS = {
     txServiceUrl: 'https://safe-transaction-goerli.safe.global',
     chainId: 5,
     name: 'Goerli Testnet'
-  },
-  'sepolia': {
-    txServiceUrl: 'https://safe-transaction-sepolia.safe.global',
-    chainId: 11155111,
-    name: 'Sepolia Testnet'
   }
 };
 

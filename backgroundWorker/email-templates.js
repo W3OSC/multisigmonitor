@@ -15,11 +15,9 @@
  * @param {string} txInfo.safeAppLink Link to view transaction in Safe App
  * @param {string} txInfo.safeMonitorLink Link to view transaction in Safe Monitor
  * @param {string} txInfo.etherscanLink Link to view transaction on Etherscan (optional)
- * @param {boolean} txInfo.isTest Whether this is a test notification
  * @returns {string} HTML email content
  */
 function generateTransactionEmailHtml(txInfo) {
-  const isTestLabel = txInfo.isTest ? '[TEST] ' : '';
   const suspiciousClass = txInfo.type === 'suspicious' ? 'suspicious' : 'normal';
   const suspiciousLabel = txInfo.type === 'suspicious' ? '⚠️ SUSPICIOUS ' : '';
   const statusLabel = txInfo.isExecuted ? '✅ Executed' : '⏳ Awaiting execution';
@@ -31,7 +29,7 @@ function generateTransactionEmailHtml(txInfo) {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${isTestLabel}${suspiciousLabel}Safe Transaction Notification</title>
+  <title>${suspiciousLabel}Safe Transaction Notification</title>
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
@@ -105,18 +103,10 @@ function generateTransactionEmailHtml(txInfo) {
       font-size: 12px;
       border-top: 1px solid #eee;
     }
-    .test-banner {
-      background-color: #ff9800;
-      color: white;
-      text-align: center;
-      padding: 8px;
-      font-weight: bold;
-    }
   </style>
 </head>
 <body>
   <div class="container">
-    ${txInfo.isTest ? '<div class="test-banner">THIS IS A TEST NOTIFICATION</div>' : ''}
     <div class="header">
       <h1>🔔 ${suspiciousLabel}Transaction Alert</h1>
     </div>
@@ -177,12 +167,11 @@ function generateTransactionEmailHtml(txInfo) {
  * @returns {string} Plain text email content
  */
 function generateTransactionEmailText(txInfo) {
-  const isTestLabel = txInfo.isTest ? '[TEST] ' : '';
   const suspiciousLabel = txInfo.type === 'suspicious' ? '⚠️ SUSPICIOUS ' : '';
   const statusLabel = txInfo.isExecuted ? '✅ Executed' : '⏳ Awaiting execution';
 
   let text = `
-${isTestLabel}${suspiciousLabel}SAFE TRANSACTION ALERT
+${suspiciousLabel}SAFE TRANSACTION ALERT
 
 A new ${txInfo.type} transaction has been detected for your monitored Safe:
 

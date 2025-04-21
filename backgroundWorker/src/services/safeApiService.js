@@ -64,7 +64,10 @@ class SafeApiService {
       // If we have a last check timestamp, only fetch transactions modified since then
       const params = modifiedSince ? { modified__gte: modifiedSince } : {};
       
-      const response = await axios.get(`${txServiceUrl}/api/${SAFE_API_VERSION}/safes/${safeAddress}/multisig-transactions/`, {
+      // Build URL for logging
+      const apiUrl = `${txServiceUrl}/api/${SAFE_API_VERSION}/safes/${safeAddress}/multisig-transactions/`;
+      
+      const response = await axios.get(apiUrl, {
         headers: {
           'accept': 'application/json'
         },

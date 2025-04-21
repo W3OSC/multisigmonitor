@@ -39,10 +39,6 @@ class TelegramNotifier {
         message += `- [Etherscan](${txInfo.etherscanLink})\n`;
       }
       
-      if (txInfo.isTest) {
-        message += `\n*Note:* This is a TEST transaction`;
-      }
-      
       // Send the message
       const telegramApiUrl = `https://api.telegram.org/bot${notification.botApiKey}/sendMessage`;
       await axios.post(telegramApiUrl, {

@@ -26,9 +26,7 @@ class EmailNotifier {
       const textContent = generateTransactionEmailText(txInfo);
       
       // Set subject based on transaction type
-      const subject = txInfo.isTest 
-        ? `[TEST] ${txInfo.type === 'suspicious' ? '⚠️ SUSPICIOUS Safe Transaction Detected' : 'Safe Transaction Alert'}`
-        : `${txInfo.type === 'suspicious' ? '⚠️ SUSPICIOUS Safe Transaction Detected' : 'Safe Transaction Alert'}`;
+      const subject = `${txInfo.type === 'suspicious' ? '⚠️ SUSPICIOUS Safe Transaction Detected' : 'Safe Transaction Alert'}`;
       
       const resend = getEmailClient();
       if (resend) {

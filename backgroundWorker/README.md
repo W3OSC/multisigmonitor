@@ -21,7 +21,7 @@ CREATE TABLE monitors (
   safe_address TEXT NOT NULL,
   network TEXT NOT NULL,
   settings JSONB DEFAULT '{}',
-  created_at TIMESTAMP DEFAULT now()
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
 ```
 
@@ -33,7 +33,7 @@ CREATE TABLE results (
   safe_address TEXT NOT NULL,
   network TEXT NOT NULL,
   result JSONB,
-  scanned_at TIMESTAMP DEFAULT now()
+  scanned_at TIMESTAMP WITH TIME ZONE
 );
 ```
 
@@ -44,8 +44,8 @@ CREATE TABLE last_checks (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   safe_address TEXT NOT NULL,
   network TEXT NOT NULL,
-  checked_at TIMESTAMP DEFAULT now(),
-  unix_timestamp BIGINT
+  checked_at TIMESTAMP WITH TIME ZONE,
+  transaction_last_found TIMESTAMP WITH TIME ZONE
 );
 ```
 

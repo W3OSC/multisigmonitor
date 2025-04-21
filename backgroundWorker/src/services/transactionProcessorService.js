@@ -89,13 +89,13 @@ class TransactionProcessorService {
       // Get the timestamp of the last check
       const lastCheckData = await databaseService.getLastCheckTimestamp(safe_address, network);
       
-      // Convert the timestamp to ISO format for the API call
+      // Use transaction_last_found timestamp if available for modifiedSince param
       let modifiedSinceParam = null;
-      if (lastCheckData && lastCheckData.unix_timestamp) {
-        modifiedSinceParam = new Date(lastCheckData.unix_timestamp).toISOString();
-        console.log(`Fetching transactions modified since: ${modifiedSinceParam}`);
+      if (lastCheckData && lastCheckData.transaction_last_found) {
+        modifiedSinceParam = new Date(lastCheckData.transaction_last_found).toISOString();
+        console.log(`Fetching transactions modified since last found transaction: ${modifiedSinceParam}`);
       } else {
-        console.log(`No previous check found, fetching all transactions`);
+        console.log(`No previous transaction found, fetching all transactions`);
       }
       
       // Variable to track if the Safe exists
@@ -141,10 +141,10 @@ class TransactionProcessorService {
         item.result && item.result.transaction_hash
       ).length || 0;
       
-      // Process test transactions if needed
-      if (existingTransactionCount > allTransactions.results.length) {
-        await this.processTestTransactions(existingTxs, allTransactions, safe_address, network, lastCheckData, relatedMonitors);
-      }
+      // // Process test transactions if needed
+      // if (existingTransactionCount > allTransactions.results.length) {
+      //   await this.processTestTransactions(existingTxs, allTransactions, safe_address, network, lastCheckData, relatedMonitors);
+      // }
       
       // Process transactions from Safe API
       for (const transaction of allTransactions.results) {
@@ -157,93 +157,92 @@ class TransactionProcessorService {
     }
   }
 
-  /**
-   * Process test transactions (those in database but not in API results)
-   * 
-   * @param {Array} existingTxs Existing transactions in the database
-   * @param {Object} allTransactions Transactions from Safe API
-   * @param {string} safeAddress The Safe address
-   * @param {string} network The network
-   * @param {Object} lastCheckData Last check timestamp data
-   * @param {Array} relatedMonitors Related monitors for this Safe address and network
-   * @returns {Promise<void>}
-   */
-  async processTestTransactions(existingTxs, allTransactions, safeAddress, network, lastCheckData, relatedMonitors) {
-    // Build hash map of known transaction hashes from Safe API
-    const apiTxHashes = new Set(allTransactions.results.map(tx => tx.safeTxHash));
+  // /**
+  //  * Process test transactions (those in database but not in API results)
+  //  * 
+  //  * @param {Array} existingTxs Existing transactions in the database
+  //  * @param {Object} allTransactions Transactions from Safe API
+  //  * @param {string} safeAddress The Safe address
+  //  * @param {string} network The network
+  //  * @param {Object} lastCheckData Last check timestamp data
+  //  * @param {Array} relatedMonitors Related monitors for this Safe address and network
+  //  * @returns {Promise<void>}
+  //  */
+  // async processTestTransactions(existingTxs, allTransactions, safeAddress, network, lastCheckData, relatedMonitors) {
+  //   // Build hash map of known transaction hashes from Safe API
+  //   const apiTxHashes = new Set(allTransactions.results.map(tx => tx.safeTxHash));
     
-    // Find test transactions (those in database but not in API results)
-    const testTransactions = existingTxs.filter(item => 
-      item.result && 
-      item.result.transaction_hash && 
-      !apiTxHashes.has(item.result.transaction_hash)
-    );
+
     
-    console.log(`Found ${testTransactions.length} test transactions not in Safe API results`);
+  //   // Check for unprocessed test transactions
+  //   const notifiedTxs = await databaseService.getNotificationStatus(safeAddress, network);
     
-    // Check for unprocessed test transactions
-    const notifiedTxs = await databaseService.getNotificationStatus(safeAddress, network);
+  //   const notifiedHashes = new Set(notifiedTxs.map(item => item.transaction_hash));
     
-    const notifiedHashes = new Set(notifiedTxs.map(item => item.transaction_hash));
-    
-    // Only process test transactions that:
-    // 1. Haven't been notified yet
-    // 2. Were created or updated since the last check
-    // This prevents repeated processing of old test transactions
-    const unnotifiedTests = testTransactions.filter(item => {
-      // Skip if already notified
-      if (notifiedHashes.has(item.result.transaction_hash)) {
-        return false;
-      }
+  //   // Only process test transactions that:
+  //   // 1. Haven't been notified yet
+  //   // 2. Were created or updated since the last check
+  //   // This prevents repeated processing of old test transactions
+  //   const unnotifiedTests = testTransactions.filter(item => {
+  //     // Skip if already notified
+  //     if (notifiedHashes.has(item.result.transaction_hash)) {
+  //       return false;
+  //     }
       
-      // If we have a timestamp from the last check and the result has a scanned_at field
-      if (lastCheckData?.unix_timestamp && item.scanned_at) {
-        // Compare the timestamps to see if this test transaction is newer than the last check
-        const itemTimestamp = new Date(item.scanned_at).getTime();
-        return itemTimestamp > lastCheckData.unix_timestamp;
-      }
+  //     // If we have a timestamp from the last check and the result has a scanned_at field
+  //     if (lastCheckData?.checked_at && item.scanned_at) {
+  //       // Compare the timestamps to see if this test transaction is newer than the last check
+  //       const lastCheckTime = new Date(lastCheckData.checked_at).getTime();
+  //       const itemTimestamp = new Date(item.scanned_at).getTime();
+  //       return itemTimestamp > lastCheckTime;
+  //     }
       
-      // If we can't determine timing, include it as unnotified
-      return true;
-    });
+  //     // If we can't determine timing, include it as unnotified
+  //     return true;
+  //   });
     
-    if (unnotifiedTests.length > 0) {
-      console.log(`Found ${unnotifiedTests.length} unnotified test transactions`);
+  //   if (unnotifiedTests.length > 0) {
+  //     console.log(`Found ${unnotifiedTests.length} unnotified test transactions`);
       
-      // Process these test transactions specially
-      for (const testTx of unnotifiedTests) {
-        console.log(`Processing test transaction ${testTx.result.transaction_hash}`);
+  //     // Process these test transactions specially
+  //     for (const testTx of unnotifiedTests) {
+  //       console.log(`Processing test transaction ${testTx.result.transaction_hash}`);
         
-        const txType = testTx.result.type || 'normal';
-        const isSuspicious = txType === 'suspicious';
-        const description = testTx.result.description || 'Test transaction';
+  //       const txType = testTx.result.type || 'normal';
+  //       const isSuspicious = txType === 'suspicious';
+  //       const description = testTx.result.description || 'Test transaction';
         
-        // Send notifications for this test transaction
-        for (const monitor of relatedMonitors) {
-          // Get transaction data from the test transaction
-          const transaction = testTx.result.transaction_data || {};
-          const isManagement = transaction.dataDecoded ? 
-            isManagementTransaction(transaction) : false;
+  //       // Send notifications for this test transaction
+  //       for (const monitor of relatedMonitors) {
+  //         // Get transaction data from the test transaction
+  //         const transaction = testTx.result.transaction_data || {};
+  //         const isManagement = transaction.dataDecoded ? 
+  //           isManagementTransaction(transaction) : false;
           
-          // Check if notification is appropriate based on monitor settings
-          if (notificationService.shouldSendNotification(monitor, transaction, isSuspicious, isManagement)) {
-            console.log(`TEST: Sending notification for ${testTx.result.transaction_hash}`);
+  //         // Update transaction_last_found timestamp for test transactions too
+  //         const testTimestamp = testTx.scanned_at || new Date().toISOString();
+  //         await databaseService.updateTransactionLastFound(safeAddress, network, testTimestamp);
+  //         console.log(`Updated transaction_last_found to ${testTimestamp} for test transaction on ${safeAddress} (${network})`);
+          
+  //         // Check if notification is appropriate based on monitor settings
+  //         if (notificationService.shouldSendNotification(monitor, transaction, isSuspicious, isManagement)) {
+  //           console.log(`TEST: Sending notification for ${testTx.result.transaction_hash}`);
             
-            // Send the notification
-            await notificationService.sendNotifications(
-              monitor,
-              { ...transaction, safeTxHash: testTx.result.transaction_hash },
-              safeAddress,
-              network,
-              description,
-              txType,
-              true // Mark as test notification
-            );
-          }
-        }
-      }
-    }
-  }
+  //           // Send the notification
+  //           await notificationService.sendNotifications(
+  //             monitor,
+  //             { ...transaction, safeTxHash: testTx.result.transaction_hash },
+  //             safeAddress,
+  //             network,
+  //             description,
+  //             txType,
+  //             true // Mark as test notification
+  //           );
+  //         }
+  //       }
+  //     }
+  //   }
+  // }
 
   /**
    * Process a single transaction
@@ -265,25 +264,51 @@ class TransactionProcessorService {
       item.result.transaction_hash === safeTxHash
     );
     
-    // Skip if transaction has already been processed
+    // Always update transaction_last_found regardless of whether it's a new transaction
+    const timestamp = transaction.submissionDate || transaction.executionDate || new Date().toISOString();
+    await databaseService.updateTransactionLastFound(safeAddress, network, timestamp);
+    
+    // If transaction already exists, check if it needs to be updated
     if (existingTx) {
-      // console.log(`Transaction ${safeTxHash} already processed, skipping`);
-      return;
+      const shouldUpdate = await this.shouldUpdateTransaction(transaction, existingTx, safeAddress, network);
+      if (shouldUpdate) {
+        // Update the existing transaction with new data
+        console.log(`Updating existing transaction ${safeTxHash} with new data`);
+        
+        // Determine if the transaction is suspicious
+        const isSuspicious = detectSuspiciousActivity(transaction, safeAddress);
+        const txType = isSuspicious ? 'suspicious' : 'normal';
+        
+        // Create a simplified description of the transaction
+        const description = createTransactionDescription(transaction);
+        
+        // Update the transaction in database
+        await databaseService.updateTransaction(existingTx.id, safeAddress, network, transaction, description, txType);
+        console.log(`Transaction ${safeTxHash} updated successfully`);
+        
+        // Continue to check for notifications
+      } else {
+        console.log(`Transaction ${safeTxHash} already processed, no changes detected`);
+        return;
+      }
+    } else {
+      // This is a new transaction we haven't seen before
+      console.log(`New transaction found for Safe ${safeAddress}: ${safeTxHash}`);
+      
+      // Determine if the transaction is suspicious
+      const isSuspicious = detectSuspiciousActivity(transaction, safeAddress);
+      const txType = isSuspicious ? 'suspicious' : 'normal';
+      console.log(`Transaction ${safeTxHash} classified as ${txType}`);
+      
+      // Create a simplified description of the transaction
+      const description = createTransactionDescription(transaction);
+      
+      // Save result to database
+      await databaseService.saveTransaction(safeAddress, network, transaction, description, txType);
+      console.log(`Transaction ${safeTxHash} saved successfully`);
     }
     
-    console.log(`New transaction found for Safe ${safeAddress}: ${safeTxHash}`);
-    
-    // Determine if the transaction is suspicious
-    const isSuspicious = detectSuspiciousActivity(transaction, safeAddress);
-    const txType = isSuspicious ? 'suspicious' : 'normal';
-    console.log(`Transaction ${safeTxHash} classified as ${txType}`);
-    
-    // Create a simplified description of the transaction
-    const description = createTransactionDescription(transaction);
-    
-    // Save result to database
-    await databaseService.saveTransaction(safeAddress, network, transaction, description, txType);
-    console.log(`Transaction ${safeTxHash} saved successfully`);
+    // Transaction processing continues for all transactions...
     
     // Check if we should send notifications
     const needsNotification = !(await databaseService.hasNotificationBeenSent(safeTxHash, safeAddress, network));
@@ -311,6 +336,37 @@ class TransactionProcessorService {
           }
         }
       }
+    }
+  }
+  /**
+   * Check if a transaction needs to be updated by comparing it with the existing data
+   * 
+   * @param {Object} transaction The transaction from Safe API
+   * @param {Object} existingTx The existing transaction from the database
+   * @param {string} safeAddress The Safe address
+   * @param {string} network The network
+   * @returns {Promise<boolean>} True if the transaction should be updated
+   */
+  async shouldUpdateTransaction(transaction, existingTx, safeAddress, network) {
+    try {
+      // Extract existing transaction data
+      const existingData = existingTx.result.transaction_data || {};
+      
+      // Check for changes in key properties that might require an update
+      const isExecutionChanged = existingData.isExecuted !== transaction.isExecuted;
+      const isConfirmationsChanged = 
+        !existingData.confirmations || 
+        !transaction.confirmations || 
+        existingData.confirmations.length !== transaction.confirmations.length;
+      const isExecutionDateChanged = existingData.executionDate !== transaction.executionDate;
+      const isTransactionHashChanged = existingData.transactionHash !== transaction.transactionHash;
+      
+      // If any significant property has changed, we should update
+      return isExecutionChanged || isConfirmationsChanged || isExecutionDateChanged || isTransactionHashChanged;
+    } catch (error) {
+      console.error(`Error comparing transactions: ${error.message}`);
+      // If we encounter an error during comparison, update to be safe
+      return true;
     }
   }
 }

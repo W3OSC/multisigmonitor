@@ -34,7 +34,7 @@ class DatabaseService {
     try {
       const { data } = await supabase
         .from('last_checks')
-        .select('unix_timestamp')
+        .select('checked_at, transaction_last_found')
         .eq('safe_address', safeAddress)
         .eq('network', network)
         .single();
@@ -51,10 +51,10 @@ class DatabaseService {
    * 
    * @param {string} safeAddress The Safe address
    * @param {string} network The network
-   * @returns {Promise<void>}
+   * @returns {Promise<string>} The ISO timestamp that was set
    */
   async updateLastCheckTimestamp(safeAddress, network) {
-    const timestamp = Date.now();
+    const now = new Date().toISOString();
     
     try {
       // First check if a record already exists
@@ -70,8 +70,7 @@ class DatabaseService {
         await supabase
           .from('last_checks')
           .update({ 
-            checked_at: new Date().toISOString(),
-            unix_timestamp: timestamp
+            checked_at: now
           })
           .eq('id', existingCheck.id);
           
@@ -83,8 +82,7 @@ class DatabaseService {
           .insert({
             safe_address: safeAddress,
             network: network,
-            checked_at: new Date().toISOString(),
-            unix_timestamp: timestamp
+            checked_at: now
           });
           
         console.log(`Created new last check timestamp for ${safeAddress} on ${network}`);
@@ -94,7 +92,53 @@ class DatabaseService {
       throw error;
     }
     
-    return timestamp;
+    return now;
+  }
+  
+  /**
+   * Update the transaction_last_found timestamp for a Safe address and network
+   * This timestamp is used to find new transactions since the last found transaction
+   * 
+   * @param {string} safeAddress The Safe address
+   * @param {string} network The network
+   * @param {string} timestamp ISO string timestamp when transaction was found
+   * @returns {Promise<void>}
+   */
+  async updateTransactionLastFound(safeAddress, network, timestamp) {
+    try {
+      // First check if a record already exists
+      const { data: existingCheck } = await supabase
+        .from('last_checks')
+        .select('id')
+        .eq('safe_address', safeAddress)
+        .eq('network', network)
+        .single();
+        
+      if (existingCheck) {
+        // Update existing record
+        await supabase
+          .from('last_checks')
+          .update({ 
+            transaction_last_found: timestamp
+          })
+          .eq('id', existingCheck.id);
+      } else {
+        // Create new record
+        await supabase
+          .from('last_checks')
+          .insert({
+            safe_address: safeAddress,
+            network: network,
+            checked_at: new Date().toISOString(),
+            transaction_last_found: timestamp
+          });
+          
+        console.log(`Created new record with transaction_last_found timestamp for ${safeAddress} on ${network}`);
+      }
+    } catch (error) {
+      console.error(`Error updating transaction_last_found timestamp: ${error.message}`);
+      throw error;
+    }
   }
   
   /**
@@ -151,6 +195,44 @@ class DatabaseService {
     }
     
     return;
+  }
+  
+  /**
+   * Update an existing transaction in the database
+   * 
+   * @param {number|string} resultId The ID of the result record to update
+   * @param {string} safeAddress The Safe address
+   * @param {string} network The network
+   * @param {Object} transaction The updated transaction object
+   * @param {string} description Human-readable description of the transaction
+   * @param {string} type Type of transaction (normal or suspicious)
+   * @returns {Promise<void>}
+   */
+  async updateTransaction(resultId, safeAddress, network, transaction, description, type) {
+    const safeTxHash = transaction.safeTxHash;
+    const timestamp = new Date().toISOString();
+    
+    try {
+      const { error } = await supabase.from('results').update({
+        result: {
+          transaction_hash: safeTxHash,
+          transaction_data: transaction,
+          description: description,
+          type: type
+        },
+        scanned_at: timestamp // Update the scanned_at field to track when it was last updated
+      }).eq('id', resultId);
+      
+      if (error) {
+        console.error('DB error updating transaction:', error.message);
+        throw error;
+      }
+      
+      console.log(`Transaction ${safeTxHash} updated in database with latest data`);
+    } catch (error) {
+      console.error(`Error updating transaction in database: ${error.message}`);
+      throw error;
+    }
   }
   
   /**

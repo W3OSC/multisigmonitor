@@ -23,6 +23,7 @@ import { supabase } from "@/integrations/supabase/client";
 // This would be fetched from your API in a real app
 const SUPPORTED_NETWORKS = [
   { id: "ethereum", name: "Ethereum" },
+  { id: "sepolia", name: "Sepolia" },
   { id: "polygon", name: "Polygon" },
   { id: "arbitrum", name: "Arbitrum" },
   { id: "optimism", name: "Optimism" },
@@ -78,6 +79,7 @@ const NewMonitor = () => {
       const txServiceUrl = (() => {
         switch(network.toLowerCase()) {
           case 'ethereum': return 'https://safe-transaction-mainnet.safe.global';
+          case 'sepolia': return 'https://safe-transaction-sepolia.safe.global';
           case 'polygon': return 'https://safe-transaction-polygon.safe.global';
           case 'arbitrum': return 'https://safe-transaction-arbitrum.safe.global';
           case 'optimism': return 'https://safe-transaction-optimism.safe.global';

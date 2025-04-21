@@ -15,16 +15,13 @@
  * @param {string} txInfo.safeAppLink Link to view transaction in Safe App
  * @param {string} txInfo.safeMonitorLink Link to view transaction in Safe Monitor
  * @param {string} txInfo.etherscanLink Link to view transaction on Etherscan (optional)
- * @param {boolean} txInfo.isTest Whether this is a test notification
  * @returns {Object} Discord webhook payload
  */
 function generateDiscordWebhook(txInfo) {
-  // Set color based on transaction type and test status
+  // Set color based on transaction type
   // Discord colors are decimal representation of hex colors
   let color;
-  if (txInfo.isTest) {
-    color = 16750848; // Orange for test - #FF9800
-  } else if (txInfo.type === 'suspicious') {
+  if (txInfo.type === 'suspicious') {
     color = 16724719; // Red for suspicious - #FF6B6B
   } else {
     color = 4886754; // Blue for normal - #4A86F7
@@ -69,9 +66,7 @@ function generateDiscordWebhook(txInfo) {
 
   // Build the main embed
   const embed = {
-    title: txInfo.isTest 
-      ? `[TEST] ${txInfo.type === 'suspicious' ? '⚠️ SUSPICIOUS TRANSACTION' : 'New Transaction'}`
-      : `${txInfo.type === 'suspicious' ? '⚠️ SUSPICIOUS TRANSACTION' : 'New Transaction'}`,
+    title: `${txInfo.type === 'suspicious' ? '⚠️ SUSPICIOUS TRANSACTION' : 'New Transaction'}`,
     color: color,
     description: `A new ${txInfo.type} transaction has been detected on Safe: \`${txInfo.safeAddress.substring(0, 6)}...${txInfo.safeAddress.substring(txInfo.safeAddress.length - 4)}\``,
     fields: fields,
@@ -130,11 +125,9 @@ function generateDiscordWebhook(txInfo) {
  * @returns {Object} Slack webhook payload
  */
 function generateSlackWebhook(txInfo) {
-  // Set color based on transaction type and test status
+  // Set color based on transaction type and status
   let color;
-  if (txInfo.isTest) {
-    color = '#FF9800'; // Orange for test
-  } else if (txInfo.type === 'suspicious') {
+  if (txInfo.type === 'suspicious') {
     color = '#FF6B6B'; // Red for suspicious
   } else {
     color = '#4A86F7'; // Blue for normal
@@ -146,9 +139,7 @@ function generateSlackWebhook(txInfo) {
       type: 'header',
       text: {
         type: 'plain_text',
-        text: txInfo.isTest 
-          ? `[TEST] ${txInfo.type === 'suspicious' ? '⚠️ SUSPICIOUS TRANSACTION' : 'New Transaction'}`
-          : `${txInfo.type === 'suspicious' ? '⚠️ SUSPICIOUS TRANSACTION' : 'New Transaction'}`,
+        text: `${txInfo.type === 'suspicious' ? '⚠️ SUSPICIOUS TRANSACTION' : 'New Transaction'}`,
         emoji: true
       }
     },
@@ -252,19 +243,6 @@ function generateSlackWebhook(txInfo) {
   // Add actions block
   blocks.push(actions);
   
-  // Add test note if needed
-  if (txInfo.isTest) {
-    blocks.push({
-      type: 'context',
-      elements: [
-        {
-          type: 'mrkdwn',
-          text: '_This is a TEST notification_'
-        }
-      ]
-    });
-  }
-  
   return {
     blocks: blocks,
     attachments: [
@@ -286,7 +264,6 @@ function generateSlackWebhook(txInfo) {
 function generateGenericWebhook(txInfo, safeAddress, network) {
   const payload = {
     event_type: 'safe_transaction',
-    test: txInfo.isTest || false,
     alert_type: txInfo.type,
     safe: {
       address: safeAddress,

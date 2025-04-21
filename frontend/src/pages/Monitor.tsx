@@ -156,7 +156,8 @@ const Monitor = () => {
   
   // Load transaction by hash from URL parameter
   useEffect(() => {
-    if (!txHash || !user || monitors.length === 0 || isLoadingDirectTransaction) return;
+    // Only proceed if there's a transaction hash in the URL and we're not already showing a modal
+    if (!txHash || !user || monitors.length === 0 || isLoadingDirectTransaction || detailModalOpen) return;
     
     const fetchTransactionByHash = async () => {
       setIsLoadingDirectTransaction(true);

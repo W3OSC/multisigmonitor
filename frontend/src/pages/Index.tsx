@@ -82,15 +82,13 @@ const Index = () => {
             
             <div className="w-full max-w-lg space-y-6 mb-12">
               <div className="space-y-4">
-                <div className="flex gap-3 items-end">
+                <div className="flex gap-3">
                   <div className="flex-1">
-                    {/* <label className="text-sm font-medium text-muted-foreground mb-2 block">
-                      Multisignature Address
-                    </label> */}
                     <AddressInput
                       value={address}
                       onChange={setAddress}
                       placeholder="Enter multisignature address (0x...)"
+                      label="Multisignature Address"
                     />
                   </div>
                   <div className="w-40">

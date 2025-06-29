@@ -163,11 +163,11 @@ const Monitor = () => {
       setIsLoadingDirectTransaction(true);
       
       try {
-        // Get the transaction from the database
+        // Get the transaction from the database (detail view - includes full JSON)
         const { data, error } = await supabase
           .from('results')
           .select('id, safe_address, network, scanned_at, result')
-          .filter('result', 'cs', `{"transaction_hash":"${txHash}"}`)
+          .eq('transaction_hash', txHash)
           .limit(1)
           .single();
         
@@ -219,6 +219,55 @@ const Monitor = () => {
     
     fetchTransactionByHash();
   }, [txHash, user, monitors, toast, isLoadingDirectTransaction]);
+  
+  // Fetch full transaction details when clicking on a transaction from the list
+  const fetchTransactionDetails = async (transactionId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('results')
+        .select('id, safe_address, network, scanned_at, result')
+        .eq('id', transactionId)
+        .single();
+      
+      if (error) {
+        console.error('Error fetching transaction details:', error);
+        toast({
+          title: "Error Loading Transaction Details",
+          description: error.message,
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      // Format the transaction with full detail
+      const txData = data.result.transaction_data || {};
+      const transaction: Transaction = {
+        id: data.id,
+        safe_address: data.safe_address,
+        network: data.network,
+        scanned_at: data.scanned_at,
+        type: data.result.type || 'normal',
+        description: data.result.description || 'Unknown transaction',
+        transaction_hash: data.result.transaction_hash,
+        safeTxHash: txData.safeTxHash,
+        nonce: txData.nonce !== undefined ? parseInt(txData.nonce) : undefined,
+        isExecuted: txData.isExecuted,
+        executionTxHash: txData.transactionHash,
+        submissionDate: txData.submissionDate,
+        result: data.result
+      };
+      
+      setSelectedTransaction(transaction);
+      setDetailModalOpen(true);
+    } catch (error) {
+      console.error('Error in fetchTransactionDetails:', error);
+      toast({
+        title: "Error Loading Transaction Details",
+        description: "An unexpected error occurred",
+        variant: "destructive",
+      });
+    }
+  };
   
   // Calculate total pages
   const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage));
@@ -352,10 +401,22 @@ const Monitor = () => {
           network: m.network
         }));
         
-        // Build the query from results table for transactions
+        // Build the optimized query from results table for transactions (list view)
         let query = supabase
           .from('results')
-          .select('id, safe_address, network, scanned_at, result', { count: 'exact' });
+          .select(`
+            id, 
+            transaction_hash,
+            safe_address, 
+            network, 
+            nonce,
+            description,
+            transaction_type,
+            is_executed,
+            execution_tx_hash,
+            submission_date,
+            scanned_at
+          `, { count: 'exact' });
         
         // Apply safe address filter if selected
         if (filters.safe) {
@@ -383,9 +444,7 @@ const Monitor = () => {
         
         // Apply transaction type filter if selected
         if (filters.type) {
-          // When filtering by transaction type, we need to use a raw contains query
-          // since we're dealing with a JSON field structure
-          query = query.filter('result', 'cs', `{"type":"${filters.type}"}`);
+          query = query.eq('transaction_type', filters.type);
         }
         
         // Get all results before we do further client-side filtering/sorting
@@ -396,36 +455,26 @@ const Monitor = () => {
           throw error;
         }
         
-        // Filter for transactions with transaction_hash
+        // Filter for transactions with transaction_hash and map to optimized structure
         let filteredTransactions = allResults.filter(item => 
-          item.result && item.result.transaction_hash
+          item.transaction_hash
         ).map(item => {
-          const txData = item.result.transaction_data || {};
           return {
             id: item.id,
             safe_address: item.safe_address,
             network: item.network,
             scanned_at: item.scanned_at,
-            type: item.result.type || 'normal',
-            description: item.result.description || 'Unknown transaction',
-            transaction_hash: item.result.transaction_hash,
-            safeTxHash: txData.safeTxHash,
-            nonce: txData.nonce !== undefined ? parseInt(txData.nonce) : undefined,
-            isExecuted: txData.isExecuted,
-            executionTxHash: txData.transactionHash,
-            submissionDate: txData.submissionDate,
-            result: item.result
+            type: item.transaction_type || 'normal',
+            description: item.description || 'Unknown transaction',
+            transaction_hash: item.transaction_hash,
+            safeTxHash: item.transaction_hash, // Use transaction_hash as safeTxHash
+            nonce: item.nonce,
+            isExecuted: item.is_executed,
+            executionTxHash: item.execution_tx_hash,
+            submissionDate: item.submission_date
           };
         });
         
-        // Apply transaction method/operation filter
-        if (filters.transactionType) {
-          filteredTransactions = filteredTransactions.filter(tx => {
-            const txData = tx.result.transaction_data || {};
-            const dataDecoded = txData.dataDecoded || {};
-            return dataDecoded.method === filters.transactionType;
-          });
-        }
         
         // Calculate total after all filters
         setTotalItems(filteredTransactions.length);
@@ -1357,8 +1406,7 @@ const Monitor = () => {
                         ) : transactions.length > 0 ? (
                           transactions.map((tx) => (
                             <TableRow key={tx.id} className="cursor-pointer hover:bg-muted/50" onClick={() => {
-                              setSelectedTransaction(tx);
-                              setDetailModalOpen(true);
+                              fetchTransactionDetails(tx.id);
                             }}>
                               <TableCell className="font-medium">
                                 {monitors.find(m => 

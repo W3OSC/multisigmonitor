@@ -41,18 +41,75 @@ export type Database = {
           monitor_id: string
           result: Json
           scanned_at: string
+          // New optimized columns
+          transaction_hash: string | null
+          safe_tx_hash: string | null
+          nonce: number | null
+          description: string | null
+          transaction_type: string | null
+          is_executed: boolean | null
+          execution_tx_hash: string | null
+          submission_date: string | null
+          execution_date: string | null
+          to_address: string | null
+          value_wei: string | null
+          network: string | null
+          safe_address: string | null
+          proposer: string | null
+          confirmations_required: number | null
+          confirmations_count: number | null
+          trusted: boolean | null
+          operation_type: number | null
         }
         Insert: {
           id?: string
           monitor_id: string
           result: Json
           scanned_at?: string
+          // New optimized columns
+          transaction_hash?: string | null
+          safe_tx_hash?: string | null
+          nonce?: number | null
+          description?: string | null
+          transaction_type?: string | null
+          is_executed?: boolean | null
+          execution_tx_hash?: string | null
+          submission_date?: string | null
+          execution_date?: string | null
+          to_address?: string | null
+          value_wei?: string | null
+          network?: string | null
+          safe_address?: string | null
+          proposer?: string | null
+          confirmations_required?: number | null
+          confirmations_count?: number | null
+          trusted?: boolean | null
+          operation_type?: number | null
         }
         Update: {
           id?: string
           monitor_id?: string
           result?: Json
           scanned_at?: string
+          // New optimized columns
+          transaction_hash?: string | null
+          safe_tx_hash?: string | null
+          nonce?: number | null
+          description?: string | null
+          transaction_type?: string | null
+          is_executed?: boolean | null
+          execution_tx_hash?: string | null
+          submission_date?: string | null
+          execution_date?: string | null
+          to_address?: string | null
+          value_wei?: string | null
+          network?: string | null
+          safe_address?: string | null
+          proposer?: string | null
+          confirmations_required?: number | null
+          confirmations_count?: number | null
+          trusted?: boolean | null
+          operation_type?: number | null
         }
       }
     }

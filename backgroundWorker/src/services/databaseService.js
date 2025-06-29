@@ -180,6 +180,24 @@ class DatabaseService {
     const { error } = await supabase.from('results').insert({
       safe_address: safeAddress,
       network: network,
+      // New optimized columns
+      transaction_hash: safeTxHash,
+      safe_tx_hash: safeTxHash,
+      nonce: transaction.nonce,
+      description: description,
+      transaction_type: type,
+      is_executed: transaction.isExecuted,
+      execution_tx_hash: transaction.transactionHash,
+      submission_date: transaction.submissionDate,
+      execution_date: transaction.executionDate,
+      to_address: transaction.to,
+      value_wei: transaction.value,
+      proposer: transaction.proposer,
+      confirmations_required: transaction.confirmationsRequired,
+      confirmations_count: transaction.confirmations ? transaction.confirmations.length : 0,
+      trusted: transaction.trusted,
+      operation_type: transaction.operation,
+      // Keep existing JSON structure for backward compatibility and detail views
       result: {
         transaction_hash: safeTxHash,
         transaction_data: transaction,
@@ -214,6 +232,24 @@ class DatabaseService {
     
     try {
       const { error } = await supabase.from('results').update({
+        // Update optimized columns
+        transaction_hash: safeTxHash,
+        safe_tx_hash: safeTxHash,
+        nonce: transaction.nonce,
+        description: description,
+        transaction_type: type,
+        is_executed: transaction.isExecuted,
+        execution_tx_hash: transaction.transactionHash,
+        submission_date: transaction.submissionDate,
+        execution_date: transaction.executionDate,
+        to_address: transaction.to,
+        value_wei: transaction.value,
+        proposer: transaction.proposer,
+        confirmations_required: transaction.confirmationsRequired,
+        confirmations_count: transaction.confirmations ? transaction.confirmations.length : 0,
+        trusted: transaction.trusted,
+        operation_type: transaction.operation,
+        // Keep existing JSON structure for backward compatibility and detail views
         result: {
           transaction_hash: safeTxHash,
           transaction_data: transaction,

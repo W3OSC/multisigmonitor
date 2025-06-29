@@ -90,7 +90,7 @@ const Review = () => {
                   Analyzing Safe
                 </CardTitle>
                 <CardDescription>
-                  Running comprehensive security checks on the provided Safe address...
+                  Running security checks on the provided multisignature wallet...
                 </CardDescription>
               </CardHeader>
               <CardContent>

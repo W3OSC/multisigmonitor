@@ -37,17 +37,71 @@ class SecurityAnalysisService {
    * 
    * @param {Object} transaction - The Safe transaction object
    * @param {string} safeAddress - The Safe address
+   * @param {Object} options - Additional options for analysis
    * @returns {Object} Analysis result with warnings and risk level
    */
-  analyzeTransaction(transaction, safeAddress) {
+  analyzeTransaction(transaction, safeAddress, options = {}) {
     const analysis = {
       isSuspicious: false,
       riskLevel: 'low', // low, medium, high, critical
       warnings: [],
-      details: []
+      details: [],
+      hashVerification: null,
+      nonceCheck: null,
+      calldata: null
     };
 
     try {
+      // Perform hash verification if chain info provided
+      if (options.chainId && options.safeVersion) {
+        const hashVerificationService = require('./hashVerificationService');
+        analysis.hashVerification = hashVerificationService.verifyTransactionHashes(
+          transaction,
+          options.chainId,
+          safeAddress,
+          options.safeVersion
+        );
+
+        // Add critical warning if hash mismatch
+        if (!analysis.hashVerification.verified) {
+          analysis.warnings.push('Hash Verification Failed');
+          analysis.details.push({
+            type: 'hash_mismatch',
+            severity: 'critical',
+            message: analysis.hashVerification.error || 'Transaction hash verification failed',
+            priority: 'P0'
+          });
+        }
+      }
+
+      // Perform nonce sequence check if previous nonce provided
+      if (options.previousNonce !== undefined && transaction.nonce !== undefined) {
+        const hashVerificationService = require('./hashVerificationService');
+        analysis.nonceCheck = hashVerificationService.checkNonceSequence(
+          transaction.nonce,
+          options.previousNonce
+        );
+
+        if (analysis.nonceCheck.isRisky) {
+          analysis.warnings.push('Nonce Sequence Issue');
+          analysis.details.push({
+            type: 'nonce_gap',
+            severity: analysis.nonceCheck.riskLevel,
+            message: analysis.nonceCheck.message,
+            gap: analysis.nonceCheck.gap
+          });
+        }
+      }
+
+      // Decode calldata
+      if (transaction.data || transaction.dataDecoded) {
+        const hashVerificationService = require('./hashVerificationService');
+        analysis.calldata = hashVerificationService.decodeCalldata(
+          transaction.data,
+          transaction.dataDecoded
+        );
+      }
+
       // Perform various security checks
       this.checkGasTokenAttack(transaction, analysis);
       this.checkDelegateCall(transaction, analysis);

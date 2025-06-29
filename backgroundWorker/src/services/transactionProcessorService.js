@@ -7,6 +7,7 @@ const {
 const safeApiService = require('./safeApiService');
 const databaseService = require('./databaseService');
 const notificationService = require('../notifications/notificationService');
+const { NETWORK_CONFIGS } = require('../config/networks');
 
 /**
  * Service for processing Safe transactions
@@ -148,7 +149,7 @@ class TransactionProcessorService {
       
       // Process transactions from Safe API
       for (const transaction of allTransactions.results) {
-        await this.processTransaction(transaction, safe_address, network, existingTxs, relatedMonitors);
+        await this.processTransaction(transaction, safe_address, network, existingTxs, relatedMonitors, safeInfo);
       }
       
       console.log(`Completed processing for ${safe_address} on ${network}`);
@@ -252,9 +253,10 @@ class TransactionProcessorService {
    * @param {string} network The network
    * @param {Array} existingTxs Existing transactions in the database
    * @param {Array} relatedMonitors Related monitors for this Safe address and network
+   * @param {Object} safeInfo Safe information including version
    * @returns {Promise<void>}
    */
-  async processTransaction(transaction, safeAddress, network, existingTxs, relatedMonitors) {
+  async processTransaction(transaction, safeAddress, network, existingTxs, relatedMonitors, safeInfo = null) {
     // Extract the safeTxHash
     const safeTxHash = transaction.safeTxHash;
     
@@ -268,6 +270,32 @@ class TransactionProcessorService {
     const timestamp = new Date().toISOString();
     await databaseService.updateTransactionLastFound(safeAddress, network, timestamp);
     
+    // Prepare security analysis options with hash verification data
+    const analysisOptions = {};
+    
+    // Add chain ID from network config
+    const networkConfig = NETWORK_CONFIGS[network];
+    if (networkConfig) {
+      analysisOptions.chainId = networkConfig.chainId;
+    }
+    
+    // Add Safe version if available
+    if (safeInfo && safeInfo.version) {
+      analysisOptions.safeVersion = safeInfo.version;
+    }
+    
+    // Get previous nonce for sequence checking (from existing transactions)
+    if (existingTxs && existingTxs.length > 0) {
+      const transactionWithNonces = existingTxs
+        .filter(item => item.result && item.result.transaction_data && 
+                typeof item.result.transaction_data.nonce === 'number')
+        .sort((a, b) => b.result.transaction_data.nonce - a.result.transaction_data.nonce);
+      
+      if (transactionWithNonces.length > 0) {
+        analysisOptions.previousNonce = transactionWithNonces[0].result.transaction_data.nonce;
+      }
+    }
+    
     // If transaction already exists, check if it needs to be updated
     if (existingTx) {
       const shouldUpdate = await this.shouldUpdateTransaction(transaction, existingTx, safeAddress, network);
@@ -275,9 +303,9 @@ class TransactionProcessorService {
         // Update the existing transaction with new data
         console.log(`Updating existing transaction ${safeTxHash} with new data`);
         
-        // Perform security analysis
+        // Perform enhanced security analysis with hash verification
         const securityAnalysis = require('./securityAnalysisService');
-        const analysis = securityAnalysis.analyzeTransaction(transaction, safeAddress);
+        const analysis = securityAnalysis.analyzeTransaction(transaction, safeAddress, analysisOptions);
         
         // Determine if the transaction is suspicious based on analysis
         const isSuspicious = analysis.isSuspicious;
@@ -288,7 +316,7 @@ class TransactionProcessorService {
         
         // Update the transaction in database with security analysis
         await databaseService.updateTransaction(existingTx.id, safeAddress, network, transaction, description, txType, analysis);
-        console.log(`Transaction ${safeTxHash} updated successfully with security analysis`);
+        console.log(`Transaction ${safeTxHash} updated successfully with enhanced security analysis`);
         
         // Continue to check for notifications
       } else {
@@ -299,9 +327,9 @@ class TransactionProcessorService {
       // This is a new transaction we haven't seen before
       console.log(`New transaction found for Safe ${safeAddress}: ${safeTxHash}`);
       
-      // Perform security analysis
+      // Perform enhanced security analysis with hash verification
       const securityAnalysis = require('./securityAnalysisService');
-      const analysis = securityAnalysis.analyzeTransaction(transaction, safeAddress);
+      const analysis = securityAnalysis.analyzeTransaction(transaction, safeAddress, analysisOptions);
       
       // Determine if the transaction is suspicious based on analysis
       const isSuspicious = analysis.isSuspicious;
@@ -313,7 +341,7 @@ class TransactionProcessorService {
       
       // Save result to database with security analysis
       await databaseService.saveTransaction(safeAddress, network, transaction, description, txType, analysis);
-      console.log(`Transaction ${safeTxHash} saved successfully with security analysis`);
+      console.log(`Transaction ${safeTxHash} saved successfully with enhanced security analysis`);
     }
     
     // Transaction processing continues for all transactions...
@@ -339,7 +367,7 @@ class TransactionProcessorService {
           // Check if notification is appropriate based on monitor settings
           // Get the security analysis if available for special event handling
           const securityAnalysis = require('./securityAnalysisService');
-          const analysis = securityAnalysis.analyzeTransaction(transaction, safeAddress);
+          const analysis = securityAnalysis.analyzeTransaction(transaction, safeAddress, analysisOptions);
           
           if (notificationService.shouldSendNotification(monitor, transaction, isSuspicious, isManagement, analysis)) {
             // Send notifications

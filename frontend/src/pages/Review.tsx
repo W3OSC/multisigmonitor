@@ -41,20 +41,6 @@ const CANONICAL_PROXY_FACTORIES: { [key: string]: string } = {
   
   // L2 Safe Proxy Factories
   '0x12302fE9c02ff50939BaAaaf415fc226C078613C': 'Safe: Proxy Factory 1.3.0 (L2)',
-  '0xC22834581EbC8527d974F8a1c97E1bEA4EF910BC': 'Safe: Proxy Factory 1.4.1 (L2)',
-  '0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67': 'Safe: Proxy Factory 1.4.1 (L2 Alt)',
-  '0xa6B71E26C5e0845f74c812102Ca7114b6a896AB2': 'Safe: Proxy Factory 1.3.0 (L2)',
-  
-  // Gnosis Chain
-  '0x76E2cFc1F5Fa8F6a5b3fC4c8F4788F0116861F9B': 'Safe: Proxy Factory 1.1.1 (Gnosis)',
-  '0xa6B71E26C5e0845f74c812102Ca7114b6a896AB2': 'Safe: Proxy Factory 1.3.0 (Gnosis)',
-  '0x12302fE9c02ff50939BaAaaf415fc226C078613C': 'Safe: Proxy Factory 1.3.0 (Gnosis)',
-  
-  // Testnets (Sepolia, Goerli, etc.)
-  '0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67': 'Safe: Proxy Factory 1.4.1 (Testnet)',
-  '0xC22834581EbC8527d974F8a1c97E1bEA4EF910BC': 'Safe: Proxy Factory 1.4.1+ (Testnet)',
-  '0xa6B71E26C5e0845f74c812102Ca7114b6a896AB2': 'Safe: Proxy Factory 1.3.0 (Testnet)',
-  '0x12302fE9c02ff50939BaAaaf415fc226C078613C': 'Safe: Proxy Factory 1.3.0 L2 (Testnet)',
   
   // Additional known factories
   '0x0000000000FFe8B47B3e2130213B802212439497': 'Safe: Proxy Factory (Legacy)',
@@ -80,13 +66,8 @@ const CANONICAL_MASTERCOPIES: { [key: string]: string } = {
   '0x017062a1dE2FE6b99BE3d9d37841FeD19F573804': 'Safe: Master Copy 1.3.0 (Gnosis)',
   '0x8942595A2dC5181Df0465AF0D7be08c8f23C93af': 'Safe: Master Copy 1.1.1 (Gnosis)',
   
-  // Testnet contracts
-  '0xd9Db270c1B5E3Bd161E8c8503c55cEABeE709552': 'Safe: Master Copy 1.3.0 (Testnet)',
-  '0x29fcB43b46531BcA003ddC8FCB67FFE91900C762': 'Safe: Master Copy 1.4.1 (Testnet L2)',
-  
   // Additional known Safe implementations
-  '0x76E2cFc1F5Fa8F6a5b3fC4c8F4788F0116861F9B': 'Safe: Master Copy (Legacy)',
-  '0x8942595A2dC5181Df0465AF0D7be08c8f23C93af': 'Safe: Master Copy 1.1.1 (Legacy)'
+  '0x76E2cFc1F5Fa8F6a5b3fC4c8F4788F0116861F9B': 'Safe: Master Copy (Legacy)'
 };
 
 function getSafeApiUrl(network: string): string | null {
@@ -212,7 +193,7 @@ async function performSecurityAssessment(safeAddress: string, network: string): 
 
     // Ownership validation
     if (assessment.details.owners.length > 0 && assessment.details.threshold) {
-      assessment.checks.ownershipValidation.isValid = true;
+        assessment.checks.ownershipValidation.isValid = true;
       
       if (assessment.details.threshold === 1 && assessment.details.owners.length > 1) {
         assessment.riskFactors.push('Low threshold detected - single signature required');

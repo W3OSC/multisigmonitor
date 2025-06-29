@@ -84,65 +84,65 @@ const Index = () => {
               <div className="space-y-4">
                 <div>
                   <label className="text-sm font-medium text-muted-foreground mb-2 block">
-                    Network
+                    Safe Address & Network
                   </label>
-                  <Select value={network} onValueChange={setNetwork}>
-                    <SelectTrigger className="w-full">
-                      <div className="flex items-center gap-2">
-                        <Network className="h-4 w-4" />
-                        <SelectValue />
-                      </div>
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="ethereum">
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 rounded-full bg-blue-500"></div>
-                          Ethereum
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="sepolia">
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 rounded-full bg-purple-500"></div>
-                          Sepolia Testnet
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="polygon">
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 rounded-full bg-purple-600"></div>
-                          Polygon
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="arbitrum">
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 rounded-full bg-blue-400"></div>
-                          Arbitrum
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="optimism">
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 rounded-full bg-red-500"></div>
-                          Optimism
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="base">
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 rounded-full bg-blue-600"></div>
-                          Base
-                        </div>
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div>
-                  <label className="text-sm font-medium text-muted-foreground mb-2 block">
-                    Safe Address
-                  </label>
-                  <AddressInput
-                    value={address}
-                    onChange={setAddress}
-                    placeholder="Enter multisignature address (0x...)"
-                  />
+                  <div className="flex gap-3">
+                    <div className="flex-1">
+                      <AddressInput
+                        value={address}
+                        onChange={setAddress}
+                        placeholder="Enter multisignature address (0x...)"
+                      />
+                    </div>
+                    <div className="w-32">
+                      <Select value={network} onValueChange={setNetwork}>
+                        <SelectTrigger className="w-full">
+                          <div className="flex items-center gap-2">
+                            <Network className="h-4 w-4" />
+                            <SelectValue />
+                          </div>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="ethereum">
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                              Ethereum
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="sepolia">
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 rounded-full bg-purple-500"></div>
+                              Sepolia Testnet
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="polygon">
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 rounded-full bg-purple-600"></div>
+                              Polygon
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="arbitrum">
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 rounded-full bg-blue-400"></div>
+                              Arbitrum
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="optimism">
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                              Optimism
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="base">
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 rounded-full bg-blue-600"></div>
+                              Base
+                            </div>
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
                 </div>
               </div>
               

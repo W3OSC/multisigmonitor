@@ -111,7 +111,7 @@ function generateTransactionEmailHtml(txInfo) {
       <h1>🔔 ${suspiciousLabel}Transaction Alert</h1>
     </div>
     <div class="content">
-      <p>A new ${txInfo.type} transaction has been detected for your monitored Safe:</p>
+      <p>A new ${txInfo.type} transaction has been detected for your monitored multisignature wallet:</p>
       
       <div class="transaction-details">
         <div class="detail-row">
@@ -119,7 +119,7 @@ function generateTransactionEmailHtml(txInfo) {
           <span>${txInfo.network}</span>
         </div>
         <div class="detail-row">
-          <span class="detail-label">Safe Address:</span>
+          <span class="detail-label">Multisignature Address:</span>
           <span>${truncatedSafe}</span>
         </div>
         <div class="detail-row">

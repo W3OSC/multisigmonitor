@@ -88,7 +88,7 @@ const Index = () => {
               <AddressInput
                 value={address}
                 onChange={setAddress}
-                placeholder="Enter Safe address (0x...)"
+                placeholder="Enter multisignature address (0x...)"
               />
               
               <div className="flex flex-col sm:flex-row gap-4 justify-center">

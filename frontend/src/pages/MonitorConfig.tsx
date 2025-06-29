@@ -670,8 +670,8 @@ const MonitorConfig = () => {
               </CardTitle>
               <CardDescription>
                 {isNewMonitor 
-                  ? "Set up notification preferences for your Safe monitor" 
-                  : "Update configuration for this Safe monitoring"}
+                  ? "Set up notification preferences for your multisignature monitor" 
+                  : "Update configuration for this multisignature monitoring"}
               </CardDescription>
             </CardHeader>
             
@@ -683,7 +683,7 @@ const MonitorConfig = () => {
                     <AddressInput
                       value={address}
                       onChange={setAddress}
-                      label="Safe Address"
+                      label="Multisignature Address"
                       placeholder="0x..."
                     />
                     
@@ -693,7 +693,7 @@ const MonitorConfig = () => {
                         id="alias"
                         value={alias}
                         onChange={(e) => setAlias(e.target.value)}
-                        placeholder="My Treasury Safe"
+                        placeholder="Our Treasury Multisignature Wallet"
                       />
                     </div>
                     

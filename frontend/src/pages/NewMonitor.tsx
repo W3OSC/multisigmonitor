@@ -60,11 +60,11 @@ const NewMonitor = () => {
 
   const isFormValid = () => {
     // Only validate the basic monitor info in the first step
-    // Address must be a valid ETH address and confirmed as a Safe
+    // Address must be a valid ETH address and confirmed as a supported multisignature wallet
     return address.match(/^0x[a-fA-F0-9]{40}$/) && network && isValidSafe === true;
   };
 
-  // Check if an address is a valid Safe on the specified network
+  // Check if an address is a supported multisignature wallet on the specified network
   const checkIsSafe = async (address: string, network: string) => {
     if (!address || !address.match(/^0x[a-fA-F0-9]{40}$/)) {
       setIsValidSafe(null);
@@ -75,7 +75,7 @@ const NewMonitor = () => {
     setIsValidSafe(null);
     
     try {
-      // Network-specific API URLs for Safe Transaction Service
+      // Network-specific API URLs for Multisignature Transaction Service
       const txServiceUrl = (() => {
         switch(network.toLowerCase()) {
           case 'ethereum': return 'https://safe-transaction-mainnet.safe.global';
@@ -102,15 +102,15 @@ const NewMonitor = () => {
         setIsValidSafe(false);
       } else {
         // For other errors, we can't determine validity
-        console.error('Error checking Safe:', error);
+        console.error('Error checking multisignature wallet:', error);
         setIsValidSafe(null);
       }
     } finally {
       setIsCheckingSafe(false);
     }
   };
-  
-  // Validate the Safe when address or network changes, with debounce
+
+  // Validate the multisignature wallet when address or network changes, with debounce
   useEffect(() => {
     if (!address || !address.match(/^0x[a-fA-F0-9]{40}$/)) {
       setIsValidSafe(null);
@@ -130,7 +130,7 @@ const NewMonitor = () => {
     if (!isFormValid()) {
       toast({
         title: "Invalid Form",
-        description: "Please provide a valid Safe address on the selected network",
+        description: "Please provide a valid multisignature wallet address on the selected network",
         variant: "destructive",
       });
       return;
@@ -207,7 +207,7 @@ const NewMonitor = () => {
             <CardHeader>
               <CardTitle>Sign In Required</CardTitle>
               <CardDescription>
-                You need to sign in to set up monitoring for your Safe
+                You need to sign in to set up monitoring for your multisignature wallet
               </CardDescription>
             </CardHeader>
             
@@ -261,7 +261,7 @@ const NewMonitor = () => {
                   <AddressInput
                     value={address}
                     onChange={setAddress}
-                    label="Safe Address"
+                    label="Multisignature Address"
                     placeholder="0x..."
                   />
                   
@@ -270,18 +270,18 @@ const NewMonitor = () => {
                       {isCheckingSafe ? (
                         <div className="flex items-center text-muted-foreground text-sm">
                           <Loader2 className="animate-spin h-3 w-3 mr-1" />
-                          Checking if this is a valid Safe...
+                          Checking if this is a supported multisignature wallet...
                         </div>
                       ) : isValidSafe === true ? (
                         <Alert className="py-2 bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-900">
                           <AlertDescription className="text-green-600 dark:text-green-400 text-sm flex items-center">
-                            ✓ Valid Safe address confirmed on {SUPPORTED_NETWORKS.find(n => n.id === network)?.name}
+                            ✓ Supported multisignature wallet address confirmed on {SUPPORTED_NETWORKS.find(n => n.id === network)?.name}
                           </AlertDescription>
                         </Alert>
                       ) : isValidSafe === false ? (
                         <Alert className="py-2 bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-900">
                           <AlertDescription className="text-red-600 dark:text-red-400 text-sm flex items-center">
-                            ✗ This address is not a Safe on {SUPPORTED_NETWORKS.find(n => n.id === network)?.name}
+                            ✗ This address is not a supported multisignature wallet on {SUPPORTED_NETWORKS.find(n => n.id === network)?.name}
                           </AlertDescription>
                         </Alert>
                       ) : null}
@@ -295,7 +295,7 @@ const NewMonitor = () => {
                     id="alias"
                     value={alias}
                     onChange={(e) => setAlias(e.target.value)}
-                    placeholder="My Treasury Safe"
+                    placeholder="My Treasury Multisignature Wallet"
                   />
                 </div>
                 

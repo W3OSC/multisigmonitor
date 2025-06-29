@@ -13,8 +13,8 @@ interface AddressInputProps {
 export function AddressInput({ 
   value, 
   onChange, 
-  placeholder = "Enter Safe address (0x...)", 
-  label = "Safe Address" 
+  placeholder = "Enter multisignature address (0x...)", 
+  label = "Multisignature Address" 
 }: AddressInputProps) {
   const [isValid, setIsValid] = useState<boolean | null>(null);
   

@@ -206,15 +206,14 @@ const NewMonitor = () => {
           <Card className="w-full max-w-md mx-auto">
             <CardHeader>
               <CardTitle>Sign In Required</CardTitle>
-              <CardDescription>
+              {/* <CardDescription>
                 You need to sign in to set up monitoring for your multisignature wallet
-              </CardDescription>
+              </CardDescription> */}
             </CardHeader>
             
             <CardContent className="space-y-4">
               <p className="text-sm text-muted-foreground">
                 Monitoring requires an account to store your preferences and send notifications.
-                Your data is kept secure and private.
               </p>
               
               <div className="flex justify-center">

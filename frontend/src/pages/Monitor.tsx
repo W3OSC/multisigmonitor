@@ -334,8 +334,8 @@ const Monitor = () => {
             .select('id', { count: 'exact' })
             .eq('safe_address', monitor.safe_address)
             .eq('network', monitor.network)
-            .eq('result->type', 'suspicious')
-            .not('result->transaction_hash', 'is', null)
+            .eq('transaction_type', 'suspicious')
+            .not('transaction_hash', 'is', null)
         );
         
         const alertResponses = await Promise.all(alertPromises);
@@ -456,7 +456,7 @@ const Monitor = () => {
         }
         
         // Filter for transactions with transaction_hash and map to optimized structure
-        let filteredTransactions = allResults.filter(item => 
+        const filteredTransactions = allResults.filter(item => 
           item.transaction_hash
         ).map(item => {
           return {
@@ -796,7 +796,7 @@ const Monitor = () => {
             </DialogDescription>
           </DialogHeader>
           
-          {selectedTransaction && (
+          {selectedTransaction && selectedTransaction.result && selectedTransaction.result.transaction_data && (
             <div className="space-y-6 py-4">
               {/* Basic Transaction Information */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -946,6 +946,15 @@ const Monitor = () => {
                     </a>
                   )}
                 </div>
+              </div>
+            </div>
+          )}
+          
+          {selectedTransaction && (!selectedTransaction.result || !selectedTransaction.result.transaction_data) && (
+            <div className="flex items-center justify-center py-8">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+                <p className="text-muted-foreground">Loading transaction details...</p>
               </div>
             </div>
           )}
@@ -1221,15 +1230,7 @@ const Monitor = () => {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Methods</SelectItem>
-                      {Array.from(new Set(transactions.map(tx => {
-                        const txData = tx.result.transaction_data || {};
-                        const dataDecoded = txData.dataDecoded || {};
-                        return dataDecoded.method;
-                      }).filter(Boolean))).sort().map(method => (
-                        <SelectItem key={method} value={method}>
-                          {method}
-                        </SelectItem>
-                      ))}
+                      {/* Transaction method filter temporarily disabled - requires full JSON data */}
                     </SelectContent>
                   </Select>
                 </div>

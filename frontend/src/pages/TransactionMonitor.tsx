@@ -331,7 +331,7 @@ const TransactionMonitor = () => {
         }
         
         // Filter for transactions with transaction_hash and map to optimized structure
-        let filteredTransactions = allResults.filter(item => 
+        const filteredTransactions = allResults.filter(item => 
           item.transaction_hash
         ).map(item => {
           return {
@@ -419,17 +419,11 @@ const TransactionMonitor = () => {
     fetchTransactions();
   }, [user, monitors, filters, sortField, sortDirection, currentPage, itemsPerPage, toast]);
 
-  // Unique transaction types for filtering
+  // Unique transaction types for filtering - temporarily disabled
   const uniqueTransactionTypes = useMemo(() => {
-    const types = new Set<string>();
-    transactions.forEach(tx => {
-      const txData = tx.result.transaction_data || {};
-      const dataDecoded = txData.dataDecoded || {};
-      if (dataDecoded.method) {
-        types.add(dataDecoded.method);
-      }
-    });
-    return Array.from(types).sort();
+    // Transaction method filtering requires full JSON data
+    // Temporarily disabled for optimized list view
+    return [];
   }, [transactions]);
   
   // Unique networks for filtering
@@ -1095,7 +1089,7 @@ const TransactionMonitor = () => {
             </DialogDescription>
           </DialogHeader>
           
-          {selectedTransaction && (
+          {selectedTransaction && selectedTransaction.result && selectedTransaction.result.transaction_data && (
             <div className="space-y-6 py-4">
               {/* Basic Transaction Information */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1395,6 +1389,15 @@ const TransactionMonitor = () => {
                 <pre id="raw-transaction-data" className="hidden bg-muted p-4 rounded-md text-xs overflow-auto max-h-[300px]">
                   {JSON.stringify(selectedTransaction.result.transaction_data, null, 2)}
                 </pre>
+              </div>
+            </div>
+          )}
+          
+          {selectedTransaction && (!selectedTransaction.result || !selectedTransaction.result.transaction_data) && (
+            <div className="flex items-center justify-center py-8">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+                <p className="text-muted-foreground">Loading transaction details...</p>
               </div>
             </div>
           )}

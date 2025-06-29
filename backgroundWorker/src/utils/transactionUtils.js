@@ -11,31 +11,50 @@ function isManagementTransaction(transaction) {
     return false;
   }
   
-  // Define management-related methods
+  // Define management-related methods - expanded to include all critical events
   const managementMethods = [
-    // Owner management
+    // Owner management - CRITICAL
+    'addOwner',
+    'AddedOwner',
     'addOwnerWithThreshold',
-    'removeOwner',
+    'removeOwner', 
+    'RemovedOwner',
     'swapOwner',
     'changeThreshold',
+    'ChangedThreshold',
     
-    // Module management
+    // Module management - CRITICAL
     'enableModule',
+    'EnabledModule',
     'disableModule',
+    'DisabledModule',
     
-    // Guard management
+    // Guard management - CRITICAL
     'setGuard',
+    'ChangedGuard',
     
-    // Fallback management
+    // Fallback management - CRITICAL
     'setFallbackHandler',
+    'ChangedFallbackHandler',
+    
+    // Implementation/Master Copy - CRITICAL
+    'changeMasterCopy',
+    'ChangedMasterCopy',
     
     // Other Safe management functions
-    'changeMasterCopy',
     'setup',
     'execTransactionFromModule',
     'execTransactionFromModuleReturnData',
+    'setStorageAt',
+    
+    // Additional events to track when "All transactions" enabled
+    'signMessage',
+    'SignMsg',
     'approveHash',
-    'setStorageAt'
+    'ApproveHash',
+    'execTransaction',
+    'ExecutionSuccess',
+    'ExecutionFailure'
   ];
   
   // Check if the transaction method is in our list of management methods

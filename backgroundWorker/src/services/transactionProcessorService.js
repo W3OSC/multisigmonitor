@@ -337,7 +337,11 @@ class TransactionProcessorService {
           const txType = isSuspicious ? 'suspicious' : 'normal';
           
           // Check if notification is appropriate based on monitor settings
-          if (notificationService.shouldSendNotification(monitor, transaction, isSuspicious, isManagement)) {
+          // Get the security analysis if available for special event handling
+          const securityAnalysis = require('./securityAnalysisService');
+          const analysis = securityAnalysis.analyzeTransaction(transaction, safeAddress);
+          
+          if (notificationService.shouldSendNotification(monitor, transaction, isSuspicious, isManagement, analysis)) {
             // Send notifications
             await notificationService.sendNotifications(
               monitor,

@@ -16,7 +16,7 @@ class NotificationService {
    * @param {boolean} isManagement Whether the transaction is a management transaction
    * @returns {boolean} Whether a notification should be sent
    */
-  shouldSendNotification(monitor, transaction, isSuspicious, isManagement) {
+  shouldSendNotification(monitor, transaction, isSuspicious, isManagement, analysis = null) {
     console.log(`Checking notification settings for monitor ${monitor.id}:`, JSON.stringify(monitor.settings));
     
     // Must have notifications enabled (check both locations due to schema transition)
@@ -44,22 +44,41 @@ class NotificationService {
     const alertType = monitor.settings.alertType || 'suspicious';
     let shouldNotify = false;
     
-    switch (alertType) {
-      case 'all':
-        // Notify for all transactions
-        shouldNotify = true;
-        break;
-      case 'suspicious':
-        // Notify for suspicious transactions and management transactions
-        shouldNotify = isSuspicious || isManagement;
-        break;
-      case 'management':
-        // Notify only for management transactions
-        shouldNotify = isManagement;
-        break;
-      default:
-        // Default to suspicious transactions only (legacy behavior)
-        shouldNotify = isSuspicious;
+    // Check if this is a P0/Critical priority event - always notify for these
+    if (analysis && analysis.priority === 'P0') {
+      console.log(`- P0/Critical priority event detected - will notify regardless of settings`);
+      shouldNotify = true;
+    } else {
+      // Check if this is a "track when all enabled" event
+      const isTrackWhenAllEnabled = analysis && analysis.details.some(d => d.trackWhenAllEnabled);
+      
+      switch (alertType) {
+        case 'all':
+          // Notify for all transactions
+          shouldNotify = true;
+          break;
+        case 'suspicious':
+          // Notify for suspicious transactions and management transactions
+          // Skip "track when all enabled" events unless alert type is "all"
+          if (isTrackWhenAllEnabled) {
+            shouldNotify = false;
+          } else {
+            shouldNotify = isSuspicious || isManagement;
+          }
+          break;
+        case 'management':
+          // Notify only for management transactions
+          // Skip "track when all enabled" events unless they are also management
+          if (isTrackWhenAllEnabled && !isManagement) {
+            shouldNotify = false;
+          } else {
+            shouldNotify = isManagement;
+          }
+          break;
+        default:
+          // Default to suspicious transactions only (legacy behavior)
+          shouldNotify = isSuspicious;
+      }
     }
     
     console.log(`- Alert type: ${alertType}, Transaction is suspicious: ${isSuspicious}, Transaction is management: ${isManagement}`);

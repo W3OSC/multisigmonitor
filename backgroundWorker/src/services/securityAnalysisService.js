@@ -184,7 +184,7 @@ class SecurityAnalysisService {
   }
 
   /**
-   * Check for suspicious owner management operations
+   * Check for critical Safe management operations
    * 
    * @param {Object} transaction - The Safe transaction object
    * @param {Object} analysis - The analysis object to update
@@ -195,50 +195,203 @@ class SecurityAnalysisService {
     const method = transaction.dataDecoded.method;
     const parameters = transaction.dataDecoded.parameters || [];
 
+    // Critical Safe management operations (P0/Critical priority)
     switch (method) {
-      case 'removeOwner':
-        analysis.warnings.push('Owner Removal');
+      // Owner Management - CRITICAL
+      case 'addOwner':
+      case 'AddedOwner':
+        analysis.warnings.push('Owner Added');
         analysis.details.push({
-          type: 'owner_removal',
-          severity: 'high',
-          message: 'Transaction removes a Safe owner. Verify this action is authorized.',
+          type: 'owner_added',
+          severity: 'critical',
+          message: 'CRITICAL: New owner added to Safe. Verify this action is authorized.',
           method,
-          parameters
+          parameters,
+          priority: 'P0'
+        });
+        break;
+
+      case 'removeOwner':
+      case 'RemovedOwner':
+        analysis.warnings.push('Owner Removed');
+        analysis.details.push({
+          type: 'owner_removed',
+          severity: 'critical',
+          message: 'CRITICAL: Owner removed from Safe. This affects Safe control.',
+          method,
+          parameters,
+          priority: 'P0'
         });
         break;
 
       case 'swapOwner':
-        analysis.warnings.push('Owner Replacement');
+        analysis.warnings.push('Owner Replaced');
         analysis.details.push({
-          type: 'owner_swap',
-          severity: 'high',
-          message: 'Transaction replaces a Safe owner. Verify the new owner address.',
+          type: 'owner_swapped',
+          severity: 'critical',
+          message: 'CRITICAL: Safe owner replaced. Verify the new owner address.',
           method,
-          parameters
-        });
-        break;
-
-      case 'changeThreshold':
-        const newThreshold = parameters.find(p => p.name === '_threshold')?.value;
-        analysis.warnings.push('Threshold Change');
-        analysis.details.push({
-          type: 'threshold_change',
-          severity: 'medium',
-          message: `Transaction changes the signature threshold to ${newThreshold}. Verify this is intended.`,
-          method,
-          newThreshold,
-          parameters
+          parameters,
+          priority: 'P0'
         });
         break;
 
       case 'addOwnerWithThreshold':
-        analysis.warnings.push('Owner Addition');
+        analysis.warnings.push('Owner Added with Threshold Change');
         analysis.details.push({
-          type: 'owner_addition',
-          severity: 'medium',
-          message: 'Transaction adds a new Safe owner. Verify the new owner address.',
+          type: 'owner_added_with_threshold',
+          severity: 'critical',
+          message: 'CRITICAL: New owner added and threshold changed. Double verification required.',
           method,
-          parameters
+          parameters,
+          priority: 'P0'
+        });
+        break;
+
+      // Threshold Management - CRITICAL
+      case 'changeThreshold':
+      case 'ChangedThreshold':
+        const newThreshold = parameters.find(p => p.name === '_threshold' || p.name === 'threshold')?.value;
+        analysis.warnings.push('Threshold Changed');
+        analysis.details.push({
+          type: 'threshold_changed',
+          severity: 'critical',
+          message: `CRITICAL: Signature threshold changed to ${newThreshold}. This affects Safe security.`,
+          method,
+          newThreshold,
+          parameters,
+          priority: 'P0'
+        });
+        break;
+
+      // Module Management - CRITICAL
+      case 'enableModule':
+      case 'EnabledModule':
+        analysis.warnings.push('Module Enabled');
+        analysis.details.push({
+          type: 'module_enabled',
+          severity: 'critical',
+          message: 'CRITICAL: New module enabled. Modules can execute transactions without signatures.',
+          method,
+          parameters,
+          priority: 'P0'
+        });
+        break;
+
+      case 'disableModule':
+      case 'DisabledModule':
+        analysis.warnings.push('Module Disabled');
+        analysis.details.push({
+          type: 'module_disabled',
+          severity: 'critical',
+          message: 'CRITICAL: Module disabled. Verify this doesn\'t break existing automations.',
+          method,
+          parameters,
+          priority: 'P0'
+        });
+        break;
+
+      // Guard Management - CRITICAL
+      case 'setGuard':
+      case 'ChangedGuard':
+        analysis.warnings.push('Guard Changed');
+        analysis.details.push({
+          type: 'guard_changed',
+          severity: 'critical',
+          message: 'CRITICAL: Transaction guard changed. Guards can block all transactions.',
+          method,
+          parameters,
+          priority: 'P0'
+        });
+        break;
+
+      // Fallback Handler - CRITICAL
+      case 'setFallbackHandler':
+      case 'ChangedFallbackHandler':
+        analysis.warnings.push('Fallback Handler Changed');
+        analysis.details.push({
+          type: 'fallback_handler_changed',
+          severity: 'critical',
+          message: 'CRITICAL: Fallback handler changed. This affects how Safe handles unknown calls.',
+          method,
+          parameters,
+          priority: 'P0'
+        });
+        break;
+
+      // Master Copy / Implementation - CRITICAL
+      case 'changeMasterCopy':
+      case 'ChangedMasterCopy':
+        analysis.warnings.push('Implementation Changed');
+        analysis.details.push({
+          type: 'implementation_changed',
+          severity: 'critical',
+          message: 'CRITICAL: Safe implementation upgraded/changed. Verify the new implementation.',
+          method,
+          parameters,
+          priority: 'P0'
+        });
+        break;
+
+      // Additional operations to track when "All transactions" is enabled
+      case 'signMessage':
+      case 'SignMsg':
+        analysis.details.push({
+          type: 'message_signed',
+          severity: 'low',
+          message: 'Message signing confirmation recorded.',
+          method,
+          parameters,
+          trackWhenAllEnabled: true
+        });
+        break;
+
+      case 'approveHash':
+      case 'ApproveHash':
+        analysis.details.push({
+          type: 'hash_approved',
+          severity: 'low',
+          message: 'Transaction hash approved by owner.',
+          method,
+          parameters,
+          trackWhenAllEnabled: true
+        });
+        break;
+
+      case 'execTransaction':
+      case 'ExecutionSuccess':
+        analysis.details.push({
+          type: 'execution_success',
+          severity: 'low',
+          message: 'Transaction executed successfully.',
+          method,
+          parameters,
+          trackWhenAllEnabled: true
+        });
+        break;
+
+      case 'ExecutionFailure':
+        analysis.warnings.push('Execution Failed');
+        analysis.details.push({
+          type: 'execution_failure',
+          severity: 'medium',
+          message: 'Transaction execution failed. Review the failure reason.',
+          method,
+          parameters,
+          trackWhenAllEnabled: true
+        });
+        break;
+
+      // Safe setup - CRITICAL
+      case 'setup':
+        analysis.warnings.push('Safe Setup Changed');
+        analysis.details.push({
+          type: 'safe_setup',
+          severity: 'critical',
+          message: 'CRITICAL: Safe setup modified. This is a fundamental configuration change.',
+          method,
+          parameters,
+          priority: 'P0'
         });
         break;
     }
@@ -333,17 +486,25 @@ class SecurityAnalysisService {
       low: 0
     };
 
-    // Count severities
+    let hasP0Priority = false;
+
+    // Count severities and check for P0 priority
     analysis.details.forEach(detail => {
       if (severityCounts.hasOwnProperty(detail.severity)) {
         severityCounts[detail.severity]++;
       }
+      
+      // Check if this is a P0/Critical priority event
+      if (detail.priority === 'P0') {
+        hasP0Priority = true;
+      }
     });
 
     // Determine overall risk level
-    if (severityCounts.critical > 0) {
+    if (severityCounts.critical > 0 || hasP0Priority) {
       analysis.riskLevel = 'critical';
       analysis.isSuspicious = true;
+      analysis.priority = 'P0';
     } else if (severityCounts.high > 0) {
       analysis.riskLevel = 'high';
       analysis.isSuspicious = true;

@@ -109,6 +109,99 @@ const testTransactions = [
       refundReceiver: "0x0000000000000000000000000000000000000000",
       gasPrice: "0" // Zero gas price
     }
+  },
+  {
+    name: "Module enabled (CRITICAL)",
+    transaction: {
+      safeTxHash: "0x333...",
+      to: "0x1234567890123456789012345678901234567890",
+      value: "0",
+      data: "0x1234",
+      operation: 0,
+      gasToken: "0x0000000000000000000000000000000000000000",
+      refundReceiver: "0x0000000000000000000000000000000000000000",
+      gasPrice: "0",
+      dataDecoded: {
+        method: "enableModule",
+        parameters: [
+          { name: "module", value: "0x3333333333333333333333333333333333333333" }
+        ]
+      }
+    }
+  },
+  {
+    name: "Guard changed (CRITICAL)",
+    transaction: {
+      safeTxHash: "0x444...",
+      to: "0x1234567890123456789012345678901234567890",
+      value: "0",
+      data: "0x1234",
+      operation: 0,
+      gasToken: "0x0000000000000000000000000000000000000000",
+      refundReceiver: "0x0000000000000000000000000000000000000000",
+      gasPrice: "0",
+      dataDecoded: {
+        method: "setGuard",
+        parameters: [
+          { name: "guard", value: "0x4444444444444444444444444444444444444444" }
+        ]
+      }
+    }
+  },
+  {
+    name: "Threshold changed (CRITICAL)",
+    transaction: {
+      safeTxHash: "0x555...",
+      to: "0x1234567890123456789012345678901234567890",
+      value: "0",
+      data: "0x1234",
+      operation: 0,
+      gasToken: "0x0000000000000000000000000000000000000000",
+      refundReceiver: "0x0000000000000000000000000000000000000000",
+      gasPrice: "0",
+      dataDecoded: {
+        method: "changeThreshold",
+        parameters: [
+          { name: "_threshold", value: "1" }
+        ]
+      }
+    }
+  },
+  {
+    name: "Message signed (track when all enabled)",
+    transaction: {
+      safeTxHash: "0x666...",
+      to: "0x1234567890123456789012345678901234567890",
+      value: "0",
+      data: "0x1234",
+      operation: 0,
+      gasToken: "0x0000000000000000000000000000000000000000",
+      refundReceiver: "0x0000000000000000000000000000000000000000",
+      gasPrice: "0",
+      dataDecoded: {
+        method: "SignMsg",
+        parameters: [
+          { name: "msgHash", value: "0x7777777777777777777777777777777777777777777777777777777777777777" }
+        ]
+      }
+    }
+  },
+  {
+    name: "Execution failed",
+    transaction: {
+      safeTxHash: "0x777...",
+      to: "0x1234567890123456789012345678901234567890",
+      value: "0",
+      data: "0x1234",
+      operation: 0,
+      gasToken: "0x0000000000000000000000000000000000000000",
+      refundReceiver: "0x0000000000000000000000000000000000000000",
+      gasPrice: "0",
+      dataDecoded: {
+        method: "ExecutionFailure",
+        parameters: []
+      }
+    }
   }
 ];
 
@@ -168,7 +261,12 @@ function runSecurityAnalysisTests() {
     "Gas token attack (custom token + receiver)",
     "Untrusted delegate call", 
     "Large value transfer",
-    "Owner removal"
+    "Owner removal",
+    "Zero gas price with gas token",
+    "Module enabled (CRITICAL)",
+    "Guard changed (CRITICAL)",
+    "Threshold changed (CRITICAL)",
+    "Execution failed"
   ];
   
   console.log('\n🎯 Expected vs Actual Results:');

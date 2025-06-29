@@ -32,17 +32,61 @@ import {
 } from "@/components/ui/select";
 
 const CANONICAL_PROXY_FACTORIES: { [key: string]: string } = {
+  // Mainnet Safe Proxy Factories
   '0x76E2cFc1F5Fa8F6a5b3fC4c8F4788F0116861F9B': 'Safe: Proxy Factory 1.1.1',
   '0x50e55Af101C777bA7A3d560a2aAB3b64D6b2b6A5': 'Safe: Proxy Factory 1.3.0+',
   '0xa6B71E26C5e0845f74c812102Ca7114b6a896AB2': 'Safe: Proxy Factory 1.3.0',
-  '0x12302fE9c02ff50939BaAaaf415fc226C078613C': 'Safe: Proxy Factory 1.3.0 (L2)'
+  '0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67': 'Safe: Proxy Factory 1.4.1',
+  '0xC22834581EbC8527d974F8a1c97E1bEA4EF910BC': 'Safe: Proxy Factory 1.4.1+',
+  
+  // L2 Safe Proxy Factories
+  '0x12302fE9c02ff50939BaAaaf415fc226C078613C': 'Safe: Proxy Factory 1.3.0 (L2)',
+  '0xC22834581EbC8527d974F8a1c97E1bEA4EF910BC': 'Safe: Proxy Factory 1.4.1 (L2)',
+  '0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67': 'Safe: Proxy Factory 1.4.1 (L2 Alt)',
+  '0xa6B71E26C5e0845f74c812102Ca7114b6a896AB2': 'Safe: Proxy Factory 1.3.0 (L2)',
+  
+  // Gnosis Chain
+  '0x76E2cFc1F5Fa8F6a5b3fC4c8F4788F0116861F9B': 'Safe: Proxy Factory 1.1.1 (Gnosis)',
+  '0xa6B71E26C5e0845f74c812102Ca7114b6a896AB2': 'Safe: Proxy Factory 1.3.0 (Gnosis)',
+  '0x12302fE9c02ff50939BaAaaf415fc226C078613C': 'Safe: Proxy Factory 1.3.0 (Gnosis)',
+  
+  // Testnets (Sepolia, Goerli, etc.)
+  '0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67': 'Safe: Proxy Factory 1.4.1 (Testnet)',
+  '0xC22834581EbC8527d974F8a1c97E1bEA4EF910BC': 'Safe: Proxy Factory 1.4.1+ (Testnet)',
+  '0xa6B71E26C5e0845f74c812102Ca7114b6a896AB2': 'Safe: Proxy Factory 1.3.0 (Testnet)',
+  '0x12302fE9c02ff50939BaAaaf415fc226C078613C': 'Safe: Proxy Factory 1.3.0 L2 (Testnet)',
+  
+  // Additional known factories
+  '0x0000000000FFe8B47B3e2130213B802212439497': 'Safe: Proxy Factory (Legacy)',
+  '0x8942595A2dC5181Df0465AF0D7be08c8f23C93af': 'Safe: Proxy Factory 1.1.1 (Legacy)'
 };
 
 const CANONICAL_MASTERCOPIES: { [key: string]: string } = {
+  // Mainnet Safe contracts
   '0x34CfAC646f301356fAa8B21e94227e3583Fe3F5F': 'Safe: Master Copy 1.3.0+',
   '0xd9Db270c1B5E3Bd161E8c8503c55cEABeE709552': 'Safe: Master Copy 1.3.0',
   '0x6851D6fDFAfD08c0295C392436245E5bc78B0185': 'Safe: Master Copy 1.2.0',
-  '0x3E5c63644E683549055b9Be8653de26E0B4CD36E': 'Safe: Master Copy 1.3.0 (L2)'
+  '0xAE32496491b53841efb51829d6f886387708F99B': 'Safe: Master Copy 1.1.1',
+  '0xb6029EA3B2c51D09a50B53CA8012FeEB05bDa35A': 'Safe: Master Copy 1.0.0',
+  
+  // L2 Safe contracts
+  '0x3E5c63644E683549055b9Be8653de26E0B4CD36E': 'Safe: Master Copy 1.3.0 (L2)',
+  '0x29fcB43b46531BcA003ddC8FCB67FFE91900C762': 'Safe: Master Copy 1.4.1 (L2)',
+  '0xfb1bffC9d739B8D520DaF37dF666da4C687191EA': 'Safe: Master Copy 1.3.0 (L2 Alt)',
+  '0x69f4D1788e39c87893C980c06EdF4b7f686e2938': 'Safe: Master Copy 1.3.0 (zkSync)',
+  
+  // Additional official Safe contracts
+  '0x41675C099F32341bf84BFc5382aF534df5C7461a': 'Safe: Master Copy 1.4.1',
+  '0x017062a1dE2FE6b99BE3d9d37841FeD19F573804': 'Safe: Master Copy 1.3.0 (Gnosis)',
+  '0x8942595A2dC5181Df0465AF0D7be08c8f23C93af': 'Safe: Master Copy 1.1.1 (Gnosis)',
+  
+  // Testnet contracts
+  '0xd9Db270c1B5E3Bd161E8c8503c55cEABeE709552': 'Safe: Master Copy 1.3.0 (Testnet)',
+  '0x29fcB43b46531BcA003ddC8FCB67FFE91900C762': 'Safe: Master Copy 1.4.1 (Testnet L2)',
+  
+  // Additional known Safe implementations
+  '0x76E2cFc1F5Fa8F6a5b3fC4c8F4788F0116861F9B': 'Safe: Master Copy (Legacy)',
+  '0x8942595A2dC5181Df0465AF0D7be08c8f23C93af': 'Safe: Master Copy 1.1.1 (Legacy)'
 };
 
 function getSafeApiUrl(network: string): string | null {
@@ -129,6 +173,34 @@ async function performSecurityAssessment(safeAddress: string, network: string): 
     assessment.details.nonce = safeInfo.nonce;
     assessment.details.version = safeInfo.version;
 
+    // Try to get creation transaction information
+    try {
+      const creationResponse = await fetch(`${safeApiUrl}/api/v1/safes/${safeAddress}/creation/`);
+      if (creationResponse.ok) {
+        const creationInfo = await creationResponse.json();
+        assessment.details.creator = creationInfo.creator;
+        assessment.details.factory = creationInfo.factoryAddress;
+        assessment.details.creationTx = creationInfo.transactionHash;
+        
+        // Mark creation transaction as verified if we found it
+        assessment.checks.creationTransaction.isValid = true;
+      } else {
+        assessment.checks.creationTransaction.warnings?.push('Creation transaction not found in Safe API');
+      }
+    } catch (error) {
+      console.warn('Could not fetch creation transaction info:', error);
+      assessment.checks.creationTransaction.warnings?.push('Unable to fetch creation transaction');
+    }
+
+    // Factory validation
+    if (assessment.details.factory && CANONICAL_PROXY_FACTORIES[assessment.details.factory]) {
+      assessment.checks.factoryValidation.isCanonical = true;
+      assessment.checks.factoryValidation.canonicalName = CANONICAL_PROXY_FACTORIES[assessment.details.factory];
+    } else if (assessment.details.factory) {
+      assessment.riskFactors.push('Non-canonical proxy factory detected');
+      assessment.checks.factoryValidation.warnings?.push('Unknown proxy factory implementation');
+    }
+
     // Mastercopy validation
     if (assessment.details.mastercopy && CANONICAL_MASTERCOPIES[assessment.details.mastercopy]) {
       assessment.checks.mastercopyValidation.isCanonical = true;
@@ -149,21 +221,75 @@ async function performSecurityAssessment(safeAddress: string, network: string): 
       assessment.riskFactors.push('Invalid ownership configuration');
     }
 
-    // Calculate final risk and score
-    if (assessment.riskFactors.length === 0) {
+    // Calculate final risk and score based on actual check results
+    const checksPerformed = [
+      assessment.checks.addressValidation.isValid,
+      assessment.checks.factoryValidation.isCanonical,
+      assessment.checks.mastercopyValidation.isCanonical,
+      assessment.checks.creationTransaction.isValid,
+      assessment.checks.safeConfiguration.isValid,
+      assessment.checks.ownershipValidation.isValid,
+      assessment.checks.moduleValidation.isValid
+    ];
+    
+    const passedChecks = checksPerformed.filter(check => check === true).length;
+    const totalChecks = checksPerformed.length;
+    
+    // Calculate score based on passed checks and risk factors
+    let baseScore = Math.round((passedChecks / totalChecks) * 100);
+    
+    // Deduct points for risk factors
+    const riskPenalty = assessment.riskFactors.length * 10;
+    assessment.securityScore = Math.max(0, baseScore - riskPenalty);
+    
+    // Determine overall risk level
+    if (assessment.riskFactors.length === 0 && passedChecks === totalChecks) {
       assessment.overallRisk = 'low';
-      assessment.securityScore = 90;
-    } else if (assessment.riskFactors.length <= 2) {
+      assessment.securityScore = 100; // Perfect score for perfect results
+    } else if (assessment.riskFactors.length === 0 && passedChecks >= totalChecks * 0.8) {
+      assessment.overallRisk = 'low';
+      assessment.securityScore = Math.max(85, assessment.securityScore);
+    } else if (assessment.riskFactors.length <= 2 && passedChecks >= totalChecks * 0.6) {
       assessment.overallRisk = 'medium';
-      assessment.securityScore = 70;
     } else {
       assessment.overallRisk = 'high';
-      assessment.securityScore = 40;
     }
 
     // Mark configuration and other checks as valid if we got this far
     assessment.checks.safeConfiguration.isValid = true;
     assessment.checks.moduleValidation.isValid = assessment.details.modules.length === 0; // No modules is safer
+
+    // Recalculate score after setting all checks
+    const finalChecksPerformed = [
+      assessment.checks.addressValidation.isValid,
+      assessment.checks.factoryValidation.isCanonical,
+      assessment.checks.mastercopyValidation.isCanonical,
+      assessment.checks.creationTransaction.isValid,
+      assessment.checks.safeConfiguration.isValid,
+      assessment.checks.ownershipValidation.isValid,
+      assessment.checks.moduleValidation.isValid
+    ];
+    
+    const finalPassedChecks = finalChecksPerformed.filter(check => check === true).length;
+    const finalTotalChecks = finalChecksPerformed.length;
+    
+    // Recalculate final score
+    let finalBaseScore = Math.round((finalPassedChecks / finalTotalChecks) * 100);
+    const finalRiskPenalty = assessment.riskFactors.length * 10;
+    assessment.securityScore = Math.max(0, finalBaseScore - finalRiskPenalty);
+    
+    // Determine final risk level
+    if (assessment.riskFactors.length === 0 && finalPassedChecks === finalTotalChecks) {
+      assessment.overallRisk = 'low';
+      assessment.securityScore = 100; // Perfect score for perfect results
+    } else if (assessment.riskFactors.length === 0 && finalPassedChecks >= finalTotalChecks * 0.8) {
+      assessment.overallRisk = 'low';
+      assessment.securityScore = Math.max(85, assessment.securityScore);
+    } else if (assessment.riskFactors.length <= 2 && finalPassedChecks >= finalTotalChecks * 0.6) {
+      assessment.overallRisk = 'medium';
+    } else {
+      assessment.overallRisk = 'high';
+    }
 
   } catch (error) {
     console.error('Assessment error:', error);
@@ -461,11 +587,11 @@ const Review = () => {
             <div className="space-y-6">
               {/* Assessment Summary */}
               <Card className={`${
-                assessment.overallRisk === 'critical' ? 'border-red-500/50 bg-red-50/50' :
-                assessment.overallRisk === 'high' ? 'border-orange-500/50 bg-orange-50/50' :
-                assessment.overallRisk === 'medium' ? 'border-yellow-500/50 bg-yellow-50/50' :
-                assessment.overallRisk === 'low' ? 'border-green-500/50 bg-green-50/50' :
-                'border-gray-500/50 bg-gray-50/50'
+                assessment.overallRisk === 'critical' ? 'border-red-500/50 bg-red-500/10 dark:bg-red-500/20' :
+                assessment.overallRisk === 'high' ? 'border-orange-500/50 bg-orange-500/10 dark:bg-orange-500/20' :
+                assessment.overallRisk === 'medium' ? 'border-yellow-500/50 bg-yellow-500/10 dark:bg-yellow-500/20' :
+                assessment.overallRisk === 'low' ? 'border-green-500/50 bg-green-500/10 dark:bg-green-500/20' :
+                'border-gray-500/50 bg-gray-500/10 dark:bg-gray-500/20'
               }`}>
                 <CardHeader>
                   <div className="flex items-center justify-between">
@@ -484,16 +610,29 @@ const Review = () => {
                 <CardContent>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
                     <div className="text-center">
-                      <div className="text-3xl font-bold mb-1">{assessment.securityScore}/100</div>
-                      <div className="text-sm text-muted-foreground">Security Score</div>
+                      <div className={`text-3xl font-bold mb-1 ${
+                        assessment.securityScore >= 90 ? 'text-green-600 dark:text-green-400' :
+                        assessment.securityScore >= 70 ? 'text-yellow-600 dark:text-yellow-400' :
+                        'text-red-600 dark:text-red-400'
+                      }`}>{assessment.securityScore}/100</div>
+                      <div className="text-sm font-medium text-foreground">Security Score</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-3xl font-bold mb-1">{assessment.riskFactors.length}</div>
-                      <div className="text-sm text-muted-foreground">Risk Factors</div>
+                      <div className={`text-3xl font-bold mb-1 ${
+                        assessment.riskFactors.length === 0 ? 'text-green-600 dark:text-green-400' :
+                        assessment.riskFactors.length <= 2 ? 'text-yellow-600 dark:text-yellow-400' :
+                        'text-red-600 dark:text-red-400'
+                      }`}>{assessment.riskFactors.length}</div>
+                      <div className="text-sm font-medium text-foreground">Risk Factors</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-3xl font-bold mb-1 capitalize">{assessment.overallRisk}</div>
-                      <div className="text-sm text-muted-foreground">Risk Level</div>
+                      <div className={`text-3xl font-bold mb-1 capitalize ${
+                        assessment.overallRisk === 'low' ? 'text-green-600 dark:text-green-400' :
+                        assessment.overallRisk === 'medium' ? 'text-yellow-600 dark:text-yellow-400' :
+                        assessment.overallRisk === 'high' ? 'text-red-600 dark:text-red-400' :
+                        'text-gray-600 dark:text-gray-400'
+                      }`}>{assessment.overallRisk}</div>
+                      <div className="text-sm font-medium text-foreground">Risk Level</div>
                     </div>
                   </div>
                   

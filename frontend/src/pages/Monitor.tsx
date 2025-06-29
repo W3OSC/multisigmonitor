@@ -484,7 +484,8 @@ const Monitor = () => {
             submissionDate: item.submission_date,
             risk_level: item.risk_level || 'low',
             security_analysis: item.security_analysis,
-            security_warnings: item.security_warnings
+            security_warnings: item.security_warnings,
+            result: {} // Add empty result object for list view compatibility
           };
         });
         
@@ -1271,7 +1272,7 @@ const Monitor = () => {
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-sm space-y-1">
+                    <div className="text-sm space-y-1 mb-4">
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Address:</span>
                         <span className="font-mono">{truncateAddress(monitor.safe_address)}</span>
@@ -1294,6 +1295,16 @@ const Monitor = () => {
                         </span>
                       </div>
                     </div>
+                    
+                    <Button 
+                      onClick={() => navigate(`/review?address=${monitor.safe_address}&network=${monitor.network}`)}
+                      variant="outline"
+                      size="sm"
+                      className="w-full flex items-center gap-2"
+                    >
+                      <Shield className="h-4 w-4" />
+                      Security Review
+                    </Button>
                   </CardContent>
                 </Card>
               ))}

@@ -5,11 +5,19 @@ import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { HeaderWithLoginDialog } from "@/components/Header";
 import { AddressInput } from "@/components/AddressInput";
-import { AlertCircle, Shield, Eye } from "lucide-react";
+import { AlertCircle, Shield, Eye, Network } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const Index = () => {
   const [address, setAddress] = useState("");
+  const [network, setNetwork] = useState("ethereum");
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user } = useAuth();
@@ -20,14 +28,14 @@ const Index = () => {
     }
   }, [user, navigate]);
 
-  const handleReview = () => {
+  const validateInputs = () => {
     if (!address) {
       toast({
         title: "Address Required",
-        description: "Please enter a Safe address to review",
+        description: "Please enter a Safe address",
         variant: "destructive",
       });
-      return;
+      return false;
     }
     
     if (!address.match(/^0x[a-fA-F0-9]{40}$/)) {
@@ -36,32 +44,20 @@ const Index = () => {
         description: "Please enter a valid Ethereum address",
         variant: "destructive",
       });
-      return;
+      return false;
     }
     
-    navigate(`/review?address=${address}`);
+    return true;
+  };
+
+  const handleReview = () => {
+    if (!validateInputs()) return;
+    navigate(`/review?address=${address}&network=${network}`);
   };
 
   const handleMonitor = () => {
-    if (!address) {
-      toast({
-        title: "Address Required",
-        description: "Please enter a Safe address to monitor",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    if (!address.match(/^0x[a-fA-F0-9]{40}$/)) {
-      toast({
-        title: "Invalid Address",
-        description: "Please enter a valid Ethereum address",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    navigate(`/monitor/new?address=${address}`);
+    if (!validateInputs()) return;
+    navigate(`/monitor/new?address=${address}&network=${network}`);
   };
 
   return (
@@ -84,30 +80,98 @@ const Index = () => {
               Monitor and review your multisignature wallets. Get notified about suspicious transactions and keep your assets secure.
             </p>
             
-            <div className="w-full max-w-md space-y-6 mb-12">
-              <AddressInput
-                value={address}
-                onChange={setAddress}
-                placeholder="Enter multisignature address (0x...)"
-              />
+            <div className="w-full max-w-lg space-y-6 mb-12">
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground mb-2 block">
+                    Network
+                  </label>
+                  <Select value={network} onValueChange={setNetwork}>
+                    <SelectTrigger className="w-full">
+                      <div className="flex items-center gap-2">
+                        <Network className="h-4 w-4" />
+                        <SelectValue />
+                      </div>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ethereum">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                          Ethereum
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="sepolia">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full bg-purple-500"></div>
+                          Sepolia Testnet
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="polygon">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full bg-purple-600"></div>
+                          Polygon
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="arbitrum">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full bg-blue-400"></div>
+                          Arbitrum
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="optimism">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                          Optimism
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="base">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full bg-blue-600"></div>
+                          Base
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground mb-2 block">
+                    Safe Address
+                  </label>
+                  <AddressInput
+                    value={address}
+                    onChange={setAddress}
+                    placeholder="Enter multisignature address (0x...)"
+                  />
+                </div>
+              </div>
               
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <Button 
                   onClick={handleReview}
+                  disabled={!address}
                   className="jsr-button group flex items-center gap-2"
                 >
                   <AlertCircle className="h-5 w-5 group-hover:animate-pulse" />
-                  Review
+                  Security Review
                 </Button>
                 
                 <Button 
                   onClick={handleMonitor}
+                  disabled={!address}
                   className="jsr-button-alt group flex items-center gap-2"
                 >
                   <Eye className="h-5 w-5 group-hover:animate-pulse" />
-                  Monitor
+                  Set Up Monitor
                 </Button>
               </div>
+              
+              {network && (
+                <p className="text-xs text-muted-foreground text-center">
+                  Selected network: <span className="font-medium capitalize">{network}</span>
+                  {network === 'sepolia' && ' (Testnet)'}
+                </p>
+              )}
             </div>
           </div>
           

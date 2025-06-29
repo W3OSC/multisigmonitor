@@ -138,6 +138,45 @@ async function getInitializerFromTransaction(txHash: string): Promise<{
   }
 }
 
+async function checkSanctions(address: string): Promise<{
+  sanctioned: boolean;
+  data?: any[];
+  error?: string;
+}> {
+  try {
+    const response = await fetch('https://jgqotbhokyuasepuhzxy.supabase.co/functions/v1/check-sanctions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        address: address
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      return {
+        sanctioned: false,
+        error: `Failed to check sanctions: ${response.status} ${errorText}`
+      };
+    }
+
+    const data = await response.json();
+    return {
+      sanctioned: data.sanctioned || false,
+      data: data.data || [],
+      error: undefined
+    };
+  } catch (error) {
+    console.error('Error calling sanctions check function:', error);
+    return {
+      sanctioned: false,
+      error: `Network error: ${error.message}`
+    };
+  }
+}
+
 async function performSecurityAssessment(safeAddress: string, network: string): Promise<SafeAssessment> {
   const assessment: SafeAssessment = {
     safeAddress,
@@ -156,7 +195,8 @@ async function performSecurityAssessment(safeAddress: string, network: string): 
       moduleValidation: { isValid: false, warnings: [] },
       proxyValidation: { isValid: false, warnings: [] },
       initializerValidation: { isValid: false, warnings: [] },
-      fallbackHandlerValidation: { isValid: false, warnings: [] }
+      fallbackHandlerValidation: { isValid: false, warnings: [] },
+      sanctionsValidation: { isValid: false, warnings: [] }
     },
     details: {
       creator: null,
@@ -169,7 +209,8 @@ async function performSecurityAssessment(safeAddress: string, network: string): 
       nonce: null,
       creationTx: null,
       initializer: null,
-      fallbackHandler: null
+      fallbackHandler: null,
+      sanctionsData: []
     }
   };
 
@@ -293,9 +334,15 @@ async function performSecurityAssessment(safeAddress: string, network: string): 
 
     // Initializer validation
     if (assessment.details.initializer) {
-      if (CANONICAL_INITIALIZERS[assessment.details.initializer]) {
+      // Convert to lowercase for case-insensitive comparison
+      const initializerLower = assessment.details.initializer.toLowerCase();
+      const matchedCanonical = Object.keys(CANONICAL_INITIALIZERS).find(key => 
+        key.toLowerCase() === initializerLower
+      );
+      
+      if (matchedCanonical) {
         assessment.checks.initializerValidation.isValid = true;
-        assessment.checks.initializerValidation.canonicalName = CANONICAL_INITIALIZERS[assessment.details.initializer];
+        assessment.checks.initializerValidation.canonicalName = CANONICAL_INITIALIZERS[matchedCanonical];
       } else {
         assessment.riskFactors.push('CRITICAL RISK: Non-canonical initializer detected');
         assessment.checks.initializerValidation.warnings?.push('Unknown initializer - CRITICAL security risk');
@@ -373,6 +420,39 @@ async function performSecurityAssessment(safeAddress: string, network: string): 
 
     assessment.checks.ownershipValidation.isValid = ownershipIsValid;
 
+    // Sanctions validation for creator address
+    if (assessment.details.creator) {
+      try {
+        const sanctionsResult = await checkSanctions(assessment.details.creator);
+        
+        if (sanctionsResult.error) {
+          console.warn('Could not check sanctions:', sanctionsResult.error);
+          assessment.checks.sanctionsValidation.warnings?.push(`Unable to check sanctions: ${sanctionsResult.error}`);
+          assessment.checks.sanctionsValidation.isValid = false;
+        } else {
+          assessment.details.sanctionsData = sanctionsResult.data || [];
+          
+          if (sanctionsResult.sanctioned) {
+            assessment.riskFactors.push('CRITICAL RISK: Safe creator is on sanctions list!');
+            assessment.checks.sanctionsValidation.isValid = false;
+            assessment.checks.sanctionsValidation.warnings?.push('Creator address found on sanctions list');
+            assessment.overallRisk = 'critical';
+          } else {
+            assessment.checks.sanctionsValidation.isValid = true;
+            assessment.checks.sanctionsValidation.canonicalName = 'Creator Clear';
+          }
+        }
+      } catch (error) {
+        console.warn('Error checking sanctions:', error);
+        assessment.checks.sanctionsValidation.warnings?.push('Failed to verify sanctions status');
+        assessment.checks.sanctionsValidation.isValid = false;
+      }
+    } else {
+      // No creator address available to check
+      assessment.checks.sanctionsValidation.isValid = false;
+      assessment.checks.sanctionsValidation.warnings?.push('No creator address available for sanctions check');
+    }
+
     // Calculate final risk and score based on actual check results
     const checksPerformed = [
       assessment.checks.addressValidation.isValid,
@@ -383,7 +463,8 @@ async function performSecurityAssessment(safeAddress: string, network: string): 
       assessment.checks.ownershipValidation.isValid,
       assessment.checks.moduleValidation.isValid,
       assessment.checks.initializerValidation.isValid,
-      assessment.checks.fallbackHandlerValidation.isValid
+      assessment.checks.fallbackHandlerValidation.isValid,
+      assessment.checks.sanctionsValidation.isValid
     ];
     
     const passedChecks = checksPerformed.filter(check => check === true).length;
@@ -423,7 +504,8 @@ async function performSecurityAssessment(safeAddress: string, network: string): 
       assessment.checks.ownershipValidation.isValid,
       assessment.checks.moduleValidation.isValid,
       assessment.checks.initializerValidation.isValid,
-      assessment.checks.fallbackHandlerValidation.isValid
+      assessment.checks.fallbackHandlerValidation.isValid,
+      assessment.checks.sanctionsValidation.isValid
     ];
     
     const finalPassedChecks = finalChecksPerformed.filter(check => check === true).length;
@@ -475,6 +557,7 @@ interface SafeAssessment {
     proxyValidation: any;
     initializerValidation: any;
     fallbackHandlerValidation: any;
+    sanctionsValidation: any;
   };
   details: {
     creator: string | null;
@@ -488,6 +571,7 @@ interface SafeAssessment {
     creationTx: string | null;
     initializer: string | null;
     fallbackHandler: string | null;
+    sanctionsData: any[];
   };
 }
 
@@ -540,7 +624,8 @@ const Review = () => {
           moduleValidation: { isValid: false, warnings: ['API unavailable'] },
           proxyValidation: { isValid: false, warnings: ['API unavailable'] },
           initializerValidation: { isValid: false, warnings: ['API unavailable'] },
-          fallbackHandlerValidation: { isValid: false, warnings: ['API unavailable'] }
+          fallbackHandlerValidation: { isValid: false, warnings: ['API unavailable'] },
+          sanctionsValidation: { isValid: false, warnings: ['API unavailable'] }
         },
         details: {
           creator: null,
@@ -553,7 +638,8 @@ const Review = () => {
           nonce: null,
           creationTx: null,
           initializer: null,
-          fallbackHandler: null
+          fallbackHandler: null,
+          sanctionsData: []
         }
       });
     } finally {
@@ -888,7 +974,7 @@ const Review = () => {
                           <span className="text-sm">Address Validation</span>
                         </div>
                         <Badge variant="outline" className="text-xs">
-                          {assessment.checks.addressValidation?.isValid ? 'Valid' : 'Invalid'}
+                          {assessment.checks.addressValidation?.isValid ? 'Clear' : 'Invalid'}
                         </Badge>
                       </div> */}
                       
@@ -898,7 +984,7 @@ const Review = () => {
                           <span className="text-sm">Proxy Factory</span>
                         </div>
                         <Badge variant="outline" className="text-xs">
-                          {assessment.checks.factoryValidation?.isCanonical ? 'Valid' : 'Issues'}
+                          {assessment.checks.factoryValidation?.isCanonical ? 'Clear' : 'Issues'}
                         </Badge>
                       </div>
                       
@@ -908,7 +994,7 @@ const Review = () => {
                           <span className="text-sm">Mastercopy</span>
                         </div>
                         <Badge variant="outline" className="text-xs">
-                          {assessment.checks.mastercopyValidation?.isCanonical ? 'Valid' : 'Issues'}
+                          {assessment.checks.mastercopyValidation?.isCanonical ? 'Clear' : 'Issues'}
                         </Badge>
                       </div>
                       
@@ -918,7 +1004,7 @@ const Review = () => {
                           <span className="text-sm">Ownership Structure</span>
                         </div>
                         <Badge variant="outline" className="text-xs">
-                          {assessment.checks.ownershipValidation?.isValid ? 'Valid' : 'Issues'}
+                          {assessment.checks.ownershipValidation?.isValid ? 'Clear' : 'Issues'}
                         </Badge>
                       </div>
                       
@@ -928,7 +1014,7 @@ const Review = () => {
                           <span className="text-sm">Initializer</span>
                         </div>
                         <Badge variant="outline" className="text-xs">
-                          {assessment.checks.initializerValidation?.isValid ? 'Valid' : 'Issues'}
+                          {assessment.checks.initializerValidation?.isValid ? 'Clear' : 'Issues'}
                         </Badge>
                       </div>
                       
@@ -938,7 +1024,17 @@ const Review = () => {
                           <span className="text-sm">Fallback Handler</span>
                         </div>
                         <Badge variant="outline" className="text-xs">
-                          {assessment.checks.fallbackHandlerValidation?.isValid ? 'Valid' : 'Issues'}
+                          {assessment.checks.fallbackHandlerValidation?.isValid ? 'Clear' : 'Issues'}
+                        </Badge>
+                      </div>
+                      
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          {getCheckIcon(assessment.checks.sanctionsValidation)}
+                          <span className="text-sm">Sanctions Check</span>
+                        </div>
+                        <Badge variant="outline" className="text-xs">
+                          {assessment.checks.sanctionsValidation?.isValid ? 'Clear' : 'Issues'}
                         </Badge>
                       </div>
                       
@@ -948,7 +1044,7 @@ const Review = () => {
                           <span className="text-sm">Module Configuration</span>
                         </div>
                         <Badge variant="outline" className="text-xs">
-                          {assessment.checks.moduleValidation?.isValid ? 'Valid' : 'Unknown'}
+                          {assessment.checks.moduleValidation?.isValid ? 'Clear' : 'Unknown'}
                         </Badge>
                       </div>
                     </div>
@@ -982,6 +1078,16 @@ const Review = () => {
                             </a>
                           ) : "—"}
                         </div>
+                        {assessment.checks.sanctionsValidation?.isValid && (
+                          <div className="text-xs text-green-600 mt-1">
+                            Creator Clear - No Sanctions
+                          </div>
+                        )}
+                        {assessment.checks.sanctionsValidation?.isValid === false && assessment.details.sanctionsData?.length > 0 && (
+                          <div className="text-xs text-red-600 mt-1">
+                            {assessment.details.sanctionsData[0]?.name || 'Sanctioned Address'}
+                          </div>
+                        )}
                       </div>
                       
                       <div>
@@ -1002,6 +1108,28 @@ const Review = () => {
                         {assessment.checks.factoryValidation?.canonicalName && (
                           <div className="text-xs text-green-600 mt-1">
                             {assessment.checks.factoryValidation.canonicalName}
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div>
+                        <span className="text-muted-foreground font-medium">Initializer:</span>
+                        <div className="font-mono text-xs mt-1">
+                          {assessment.details.initializer ? (
+                            <a 
+                              href={`${getExplorerUrl(assessment.network)}/address/${assessment.details.initializer}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                            >
+                              {truncateAddress(assessment.details.initializer)}
+                              <ExternalLink className="h-3 w-3" />
+                            </a>
+                          ) : "—"}
+                        </div>
+                        {assessment.checks.initializerValidation?.canonicalName && (
+                          <div className="text-xs text-green-600 mt-1">
+                            {assessment.checks.initializerValidation.canonicalName}
                           </div>
                         )}
                       </div>
@@ -1026,28 +1154,6 @@ const Review = () => {
                         {assessment.checks.mastercopyValidation?.canonicalName && (
                           <div className="text-xs text-green-600 mt-1">
                             {assessment.checks.mastercopyValidation.canonicalName}
-                          </div>
-                        )}
-                      </div>
-                      
-                      <div>
-                        <span className="text-muted-foreground font-medium">Initializer:</span>
-                        <div className="font-mono text-xs mt-1">
-                          {assessment.details.initializer ? (
-                            <a 
-                              href={`${getExplorerUrl(assessment.network)}/address/${assessment.details.initializer}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-blue-600 hover:text-blue-800 flex items-center gap-1"
-                            >
-                              {truncateAddress(assessment.details.initializer)}
-                              <ExternalLink className="h-3 w-3" />
-                            </a>
-                          ) : "—"}
-                        </div>
-                        {assessment.checks.initializerValidation?.canonicalName && (
-                          <div className="text-xs text-green-600 mt-1">
-                            {assessment.checks.initializerValidation.canonicalName}
                           </div>
                         )}
                       </div>

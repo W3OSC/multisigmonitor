@@ -793,13 +793,13 @@ const Monitor = () => {
             <CardHeader>
               <CardTitle>Sign In Required</CardTitle>
               <CardDescription>
-                You need to sign in to view your monitors
+                You need to sign in to view your multisignature wallets
               </CardDescription>
             </CardHeader>
             
             <CardContent className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                Please sign in to access your Safe monitoring dashboard.
+                Please sign in to access your multisignature wallet dashboard.
               </p>
             </CardContent>
           </Card>
@@ -1195,7 +1195,7 @@ const Monitor = () => {
       
       <main className="flex-1 container py-12">
         <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold">Your Monitors</h1>
+          <h1 className="text-3xl font-bold">Multisignature Wallets</h1>
           
           <div className="flex gap-2">            
             <Button 

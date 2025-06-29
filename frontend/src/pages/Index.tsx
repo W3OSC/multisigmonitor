@@ -77,11 +77,11 @@ const Index = () => {
             </div>
             
             <h1 className="text-4xl md:text-6xl font-bold mb-6">
-              <span className="jsr-text-gradient">safe</span>monitor
+              <span className="jsr-text-gradient">multisig</span>monitor
             </h1>
             
             <p className="max-w-[42rem] text-lg text-muted-foreground mb-8">
-              Monitor and review your Safe.global multisignature vaults. Get notified about suspicious transactions and keep your assets secure.
+              Monitor and review your multisignature vaults. Get notified about suspicious transactions and keep your assets secure.
             </p>
             
             <div className="w-full max-w-md space-y-6 mb-12">

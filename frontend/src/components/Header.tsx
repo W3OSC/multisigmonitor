@@ -15,21 +15,25 @@ export function Header() {
   const { user, isLoginDialogOpen, setIsLoginDialogOpen, signOut } = useAuth();
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-background/80 backdrop-blur-sm">
-      <div className="w-full px-4 flex h-16 items-center justify-between">
-        <div className="flex-shrink-0">
-          <Link 
-            to={user ? "/monitor" : "/"} 
-            className="flex items-center gap-2 font-bold text-xl"
-            onClick={() => setIsMenuOpen(false)}
-          >
-            <Shield className="h-6 w-6 text-jsr-purple" />
-            <span className="jsr-text-gradient">multisigmonitor</span>
-          </Link>
-        </div>
+    <header className={cn(
+      "sticky top-0 z-50 w-full border-b bg-background/80 backdrop-blur-sm transition-all duration-300",
+      isMenuOpen && isMobile ? "pb-6" : ""
+    )}>
+      <div className="w-full px-4">
+        {/* Top row with logo and hamburger menu */}
+        <div className="flex h-16 items-center justify-between">
+          <div className="flex-shrink-0">
+            <Link 
+              to={user ? "/monitor" : "/"} 
+              className="flex items-center gap-2 font-bold text-xl"
+              onClick={() => setIsMenuOpen(false)}
+            >
+              <Shield className="h-6 w-6 text-jsr-purple" />
+              <span className="jsr-text-gradient">multisigmonitor</span>
+            </Link>
+          </div>
 
-        {isMobile ? (
-          <>
+          {isMobile ? (
             <Button
               variant="ghost"
               size="icon"
@@ -42,57 +46,56 @@ export function Header() {
                 <Menu className="h-6 w-6" />
               )}
             </Button>
-
-            {isMenuOpen && (
-              <div className="fixed inset-0 top-16 z-50 bg-background/95 backdrop-blur-sm">
-                <div className="container mx-auto px-4 py-6">
-                  <nav className="flex flex-col gap-4">
-                    {user ? (
-                      <div className="flex justify-center">
-                        <UserDropdownMenu />
-                      </div>
-                    ) : (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setIsLoginDialogOpen(true);
-                          setIsMenuOpen(false);
-                        }}
-                        className="flex items-center gap-2 justify-center"
-                      >
-                        <LogIn className="h-4 w-4" />
-                        <span>Login</span>
-                      </Button>
-                    )}
-                    <div className="flex justify-center">
-                      <ThemeToggle />
-                    </div>
-                  </nav>
+          ) : (
+            <div className="flex items-center justify-end flex-shrink-0">
+              <div className="flex items-center gap-6">
+                <div className="flex items-center gap-4">
+                  {user ? (
+                    <UserDropdownMenu />
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setIsLoginDialogOpen(true)}
+                      className="flex items-center gap-1"
+                    >
+                      <LogIn className="h-4 w-4" />
+                      <span>Login</span>
+                    </Button>
+                  )}
+                  <ThemeToggle />
                 </div>
               </div>
-            )}
-          </>
-        ) : (
-          <div className="flex items-center justify-end flex-shrink-0">
-            <div className="flex items-center gap-6">
-              <div className="flex items-center gap-4">
-                {user ? (
+            </div>
+          )}
+        </div>
+
+        {/* Mobile menu content inside the navbar */}
+        {isMenuOpen && isMobile && (
+          <div className="py-4">
+            <nav className="flex flex-col gap-4">
+              {user ? (
+                <div className="flex justify-center">
                   <UserDropdownMenu />
-                ) : (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setIsLoginDialogOpen(true)}
-                    className="flex items-center gap-1"
-                  >
-                    <LogIn className="h-4 w-4" />
-                    <span>Login</span>
-                  </Button>
-                )}
+                </div>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setIsLoginDialogOpen(true);
+                    setIsMenuOpen(false);
+                  }}
+                  className="flex items-center gap-2 justify-center"
+                >
+                  <LogIn className="h-4 w-4" />
+                  <span>Login</span>
+                </Button>
+              )}
+              <div className="flex justify-center">
                 <ThemeToggle />
               </div>
-            </div>
+            </nav>
           </div>
         )}
       </div>

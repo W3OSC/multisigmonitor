@@ -75,14 +75,9 @@ SET
   END
 WHERE result IS NOT NULL;
 
--- Step 3: Populate network and safe_address from monitor relationship
-UPDATE results 
-SET 
-  network = m.network,
-  safe_address = m.safe_address
-FROM monitors m 
-WHERE results.monitor_id = m.id
-AND (results.network IS NULL OR results.safe_address IS NULL);
+-- Step 3: Populate network and safe_address if they are missing
+-- Note: Since there's no monitor_id column, these should already be populated
+-- This step can be skipped if the columns already have data
 
 -- Step 4: Create indexes for efficient querying
 CREATE INDEX IF NOT EXISTS idx_results_user_list 

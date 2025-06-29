@@ -38,7 +38,6 @@ export type Database = {
       results: {
         Row: {
           id: string
-          monitor_id: string
           result: Json
           scanned_at: string
           // New optimized columns
@@ -63,7 +62,6 @@ export type Database = {
         }
         Insert: {
           id?: string
-          monitor_id: string
           result: Json
           scanned_at?: string
           // New optimized columns
@@ -88,7 +86,6 @@ export type Database = {
         }
         Update: {
           id?: string
-          monitor_id?: string
           result?: Json
           scanned_at?: string
           // New optimized columns

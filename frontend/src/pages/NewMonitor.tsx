@@ -17,7 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { ChevronLeft, Loader2 } from "lucide-react";
+import { ChevronLeft, Loader2, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 // This would be fetched from your API in a real app
@@ -211,7 +211,17 @@ const NewMonitor = () => {
         <main className="flex-1 container py-12 flex flex-col items-center justify-center">
           <Card className="w-full max-w-md mx-auto">
             <CardHeader>
-              <CardTitle>Sign In Required</CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle>Sign In Required</CardTitle>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => navigate("/")}
+                  className="h-6 w-6"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
               {/* <CardDescription>
                 You need to sign in to set up monitoring for your multisignature wallet
               </CardDescription> */}

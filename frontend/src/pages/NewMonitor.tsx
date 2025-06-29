@@ -49,8 +49,14 @@ const NewMonitor = () => {
   useEffect(() => {
     const searchParams = new URLSearchParams(location.search);
     const addressParam = searchParams.get("address");
+    const networkParam = searchParams.get("network");
+    
     if (addressParam) {
       setAddress(addressParam);
+    }
+    
+    if (networkParam && SUPPORTED_NETWORKS.some(n => n.id === networkParam.toLowerCase())) {
+      setNetwork(networkParam.toLowerCase());
     }
   }, [location.search]);
 

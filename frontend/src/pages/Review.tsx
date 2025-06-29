@@ -741,9 +741,9 @@ const Review = () => {
       
       <main className="flex-1 container py-12">
         <div className="max-w-6xl mx-auto">
-          <h1 className="text-3xl font-bold mb-6">Safe Security Assessment</h1>
+          <h1 className="text-3xl font-bold mb-6">Multisignature Security Assessment</h1>
           <p className="text-muted-foreground mb-8">
-            Comprehensive security analysis of Safe multisignature wallets including factory validation, 
+            Security analysis of multisignature wallets including factory validation, 
             mastercopy verification, ownership structure review, and creation transaction analysis.
           </p>
           
@@ -798,7 +798,7 @@ const Review = () => {
               <CardHeader>
                 <CardTitle className="flex items-center">
                   <Loader2 className="mr-2 h-5 w-5 animate-spin text-jsr-blue" />
-                  Analyzing Safe Security
+                  Analyzing Multisignature Security
                 </CardTitle>
                 <CardDescription>
                   Performing comprehensive security checks including factory validation, mastercopy verification, 

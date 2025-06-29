@@ -768,7 +768,7 @@ const TransactionMonitor = () => {
                     <SelectValue placeholder="Filter by Safe" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Safes</SelectItem>
+                    <SelectItem value="all">All Multisigs</SelectItem>
                     {monitors.map(monitor => (
                       <SelectItem key={monitor.id} value={monitor.id}>
                         {monitor.alias || truncateAddress(monitor.safe_address)}
@@ -883,7 +883,7 @@ const TransactionMonitor = () => {
                           onClick={() => handleSortChange('safe')}
                         >
                           <div className="flex items-center">
-                            Safe
+                            Multisig
                             {sortField === 'safe' && (
                               sortDirection === 'asc' ? 
                               <ArrowUpAZ className="ml-1 h-3.5 w-3.5" /> : 
@@ -1107,7 +1107,7 @@ const TransactionMonitor = () => {
               {/* Basic Transaction Information */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <h3 className="text-sm font-medium text-muted-foreground mb-1">Safe</h3>
+                  <h3 className="text-sm font-medium text-muted-foreground mb-1">Multisignature Wallet</h3>
                   <p className="text-sm font-mono">
                     <Link 
                       to={getSafeHomeUrl(selectedTransaction)} 

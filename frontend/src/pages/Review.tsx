@@ -72,7 +72,7 @@ const CANONICAL_MASTERCOPIES: { [key: string]: string } = {
 
 const CANONICAL_INITIALIZERS: { [key: string]: string } = {
   // Known Safe initializers
-  '0xBD89A1CE4DDe368FFAb0eC35506EcE0b1fFdc54': 'Safe: Initializer 1.4.1',
+  '0xBD89A1CE4DDe368FFAb0eC35506EcE0b1ffFdc54': 'Safe: Initializer 1.4.1',
   '0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67': 'Safe: Initializer 1.4.1 (Alt)',
   '0xa6B71E26C5e0845f74c812102Ca7114b6a896AB2': 'Safe: Initializer 1.3.0',
   '0x12302fE9c02ff50939BaAaaf415fc226C078613C': 'Safe: Initializer 1.3.0 (L2)',
@@ -99,6 +99,43 @@ function getSafeApiUrl(network: string): string | null {
   };
   
   return apiUrls[network.toLowerCase()] || null;
+}
+
+async function getInitializerFromTransaction(txHash: string): Promise<{
+  initializer: string | null;
+  error?: string;
+}> {
+  try {
+    const response = await fetch('https://jgqotbhokyuasepuhzxy.supabase.co/functions/v1/get-initializer', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        txhash: txHash
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      return {
+        initializer: null,
+        error: `Failed to fetch initializer: ${response.status} ${errorText}`
+      };
+    }
+
+    const data = await response.json();
+    return {
+      initializer: data.initializer || null,
+      error: data.error || undefined
+    };
+  } catch (error) {
+    console.error('Error calling get-initializer function:', error);
+    return {
+      initializer: null,
+      error: `Network error: ${error.message}`
+    };
+  }
 }
 
 async function performSecurityAssessment(safeAddress: string, network: string): Promise<SafeAssessment> {
@@ -152,6 +189,8 @@ async function performSecurityAssessment(safeAddress: string, network: string): 
     const safeApiUrl = getSafeApiUrl(network);
     if (!safeApiUrl) {
       assessment.riskFactors.push('Unsupported network');
+      assessment.overallRisk = 'critical';
+      assessment.securityScore = 0; // Cannot verify anything on unsupported network
       return assessment;
     }
 
@@ -163,6 +202,8 @@ async function performSecurityAssessment(safeAddress: string, network: string): 
       } else {
         assessment.riskFactors.push('Unable to fetch Safe information');
       }
+      assessment.overallRisk = 'critical';
+      assessment.securityScore = 0; // Cannot verify anything - zero security confidence
       return assessment;
     }
 
@@ -188,6 +229,24 @@ async function performSecurityAssessment(safeAddress: string, network: string): 
         
         // Mark creation transaction as verified if we found it
         assessment.checks.creationTransaction.isValid = true;
+
+        // Extract initializer from creation transaction
+        if (creationInfo.transactionHash) {
+          try {
+            const initializerData = await getInitializerFromTransaction(creationInfo.transactionHash);
+            
+            if (initializerData.error) {
+              console.warn('Could not extract initializer:', initializerData.error);
+              assessment.checks.initializerValidation.warnings?.push(`Unable to extract initializer: ${initializerData.error}`);
+            } else {
+              // Set the initializer
+              assessment.details.initializer = initializerData.initializer;
+            }
+          } catch (error) {
+            console.warn('Error extracting initializer from transaction:', error);
+            assessment.checks.initializerValidation.warnings?.push('Failed to extract initializer from creation transaction');
+          }
+        }
       } else {
         assessment.checks.creationTransaction.warnings?.push('Creation transaction not found in Safe API');
       }
@@ -230,6 +289,24 @@ async function performSecurityAssessment(safeAddress: string, network: string): 
       // No fallback handler is actually safer in most cases
       assessment.checks.fallbackHandlerValidation.isValid = true;
       assessment.checks.fallbackHandlerValidation.canonicalName = 'No Fallback Handler';
+    }
+
+    // Initializer validation
+    if (assessment.details.initializer) {
+      if (CANONICAL_INITIALIZERS[assessment.details.initializer]) {
+        assessment.checks.initializerValidation.isValid = true;
+        assessment.checks.initializerValidation.canonicalName = CANONICAL_INITIALIZERS[assessment.details.initializer];
+      } else {
+        assessment.riskFactors.push('CRITICAL RISK: Non-canonical initializer detected');
+        assessment.checks.initializerValidation.warnings?.push('Unknown initializer - CRITICAL security risk');
+        assessment.overallRisk = 'critical';
+      }
+    } else {
+      // If we couldn't extract the initializer, it's still a warning but not critical
+      assessment.checks.initializerValidation.isValid = false;
+      if (!assessment.checks.initializerValidation.warnings?.some(w => w.includes('Unable to extract'))) {
+        assessment.checks.initializerValidation.warnings?.push('Initializer could not be extracted from creation transaction');
+      }
     }
 
     // Ownership validation
@@ -304,7 +381,9 @@ async function performSecurityAssessment(safeAddress: string, network: string): 
       assessment.checks.creationTransaction.isValid,
       assessment.checks.safeConfiguration.isValid,
       assessment.checks.ownershipValidation.isValid,
-      assessment.checks.moduleValidation.isValid
+      assessment.checks.moduleValidation.isValid,
+      assessment.checks.initializerValidation.isValid,
+      assessment.checks.fallbackHandlerValidation.isValid
     ];
     
     const passedChecks = checksPerformed.filter(check => check === true).length;
@@ -342,7 +421,9 @@ async function performSecurityAssessment(safeAddress: string, network: string): 
       assessment.checks.creationTransaction.isValid,
       assessment.checks.safeConfiguration.isValid,
       assessment.checks.ownershipValidation.isValid,
-      assessment.checks.moduleValidation.isValid
+      assessment.checks.moduleValidation.isValid,
+      assessment.checks.initializerValidation.isValid,
+      assessment.checks.fallbackHandlerValidation.isValid
     ];
     
     const finalPassedChecks = finalChecksPerformed.filter(check => check === true).length;
@@ -843,6 +924,16 @@ const Review = () => {
                       
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
+                          {getCheckIcon(assessment.checks.initializerValidation)}
+                          <span className="text-sm">Initializer</span>
+                        </div>
+                        <Badge variant="outline" className="text-xs">
+                          {assessment.checks.initializerValidation?.isValid ? 'Valid' : 'Issues'}
+                        </Badge>
+                      </div>
+                      
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
                           {getCheckIcon(assessment.checks.fallbackHandlerValidation)}
                           <span className="text-sm">Fallback Handler</span>
                         </div>
@@ -935,6 +1026,28 @@ const Review = () => {
                         {assessment.checks.mastercopyValidation?.canonicalName && (
                           <div className="text-xs text-green-600 mt-1">
                             {assessment.checks.mastercopyValidation.canonicalName}
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div>
+                        <span className="text-muted-foreground font-medium">Initializer:</span>
+                        <div className="font-mono text-xs mt-1">
+                          {assessment.details.initializer ? (
+                            <a 
+                              href={`${getExplorerUrl(assessment.network)}/address/${assessment.details.initializer}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                            >
+                              {truncateAddress(assessment.details.initializer)}
+                              <ExternalLink className="h-3 w-3" />
+                            </a>
+                          ) : "—"}
+                        </div>
+                        {assessment.checks.initializerValidation?.canonicalName && (
+                          <div className="text-xs text-green-600 mt-1">
+                            {assessment.checks.initializerValidation.canonicalName}
                           </div>
                         )}
                       </div>

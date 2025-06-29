@@ -20,6 +20,10 @@ import {
   Loader2,
   PlusCircle, 
   Settings, 
+  Shield,
+  ShieldAlert,
+  ShieldCheck,
+  ShieldX,
   SortAsc,
   SortDesc,
   ToggleLeft, 
@@ -89,6 +93,9 @@ interface Transaction {
   executionTxHash?: string;
   submissionDate?: string;
   result: any;
+  risk_level?: 'low' | 'medium' | 'high' | 'critical';
+  security_analysis?: any;
+  security_warnings?: string[];
 }
 
 interface TransactionFilters {
@@ -415,7 +422,10 @@ const Monitor = () => {
             is_executed,
             execution_tx_hash,
             submission_date,
-            scanned_at
+            scanned_at,
+            risk_level,
+            security_analysis,
+            security_warnings
           `, { count: 'exact' });
         
         // Apply safe address filter if selected
@@ -471,7 +481,10 @@ const Monitor = () => {
             nonce: item.nonce,
             isExecuted: item.is_executed,
             executionTxHash: item.execution_tx_hash,
-            submissionDate: item.submission_date
+            submissionDate: item.submission_date,
+            risk_level: item.risk_level || 'low',
+            security_analysis: item.security_analysis,
+            security_warnings: item.security_warnings
           };
         });
         
@@ -712,6 +725,51 @@ const Monitor = () => {
     return `${address.substring(0, 6)}...${address.substring(middleStartIndex, middleStartIndex + 6)}...${address.substring(address.length - 6)}`;
   };
 
+  // Get risk level badge with appropriate styling
+  const getRiskLevelBadge = (riskLevel: string, type: string) => {
+    const isSuspicious = type === 'suspicious';
+    
+    switch (riskLevel) {
+      case 'critical':
+        return (
+          <Badge variant="destructive" className="bg-red-600 text-white">
+            <ShieldX className="w-3 h-3 mr-1" />
+            Critical
+          </Badge>
+        );
+      case 'high':
+        return (
+          <Badge variant="destructive" className="bg-orange-600 text-white">
+            <ShieldAlert className="w-3 h-3 mr-1" />
+            High Risk
+          </Badge>
+        );
+      case 'medium':
+        return (
+          <Badge variant="secondary" className="bg-yellow-500 text-white">
+            <Shield className="w-3 h-3 mr-1" />
+            Medium Risk
+          </Badge>
+        );
+      case 'low':
+      default:
+        if (isSuspicious) {
+          return (
+            <Badge variant="outline" className="border-yellow-400 text-yellow-600">
+              <Shield className="w-3 h-3 mr-1" />
+              Suspicious
+            </Badge>
+          );
+        }
+        return (
+          <Badge variant="outline" className="border-green-400 text-green-600">
+            <ShieldCheck className="w-3 h-3 mr-1" />
+            Normal
+          </Badge>
+        );
+    }
+  };
+
   if (!user) {
     return (
       <div className="min-h-screen flex flex-col">
@@ -845,14 +903,10 @@ const Monitor = () => {
                   <p className="text-sm">{selectedTransaction.nonce !== undefined ? selectedTransaction.nonce : '—'}</p>
                 </div>
                 <div>
-                  <h3 className="text-sm font-medium text-muted-foreground mb-1">Type</h3>
-                  <p className="text-sm flex items-center">
-                    {selectedTransaction.type === 'suspicious' ? (
-                      <><AlertCircle className="text-destructive h-4 w-4 mr-1" /> Suspicious</>
-                    ) : (
-                      <>Normal</>
-                    )}
-                  </p>
+                  <h3 className="text-sm font-medium text-muted-foreground mb-1">Security Status</h3>
+                  <div className="text-sm">
+                    {getRiskLevelBadge(selectedTransaction.risk_level || 'low', selectedTransaction.type)}
+                  </div>
                 </div>
               </div>
               
@@ -918,6 +972,171 @@ const Monitor = () => {
                 </div>
               </div>
               
+              {/* Security Analysis Section */}
+              {(selectedTransaction.security_analysis || selectedTransaction.security_warnings) && (
+                <div className="space-y-4">
+                  <h3 className="text-sm font-medium border-b pb-2">Security Analysis</h3>
+                  
+                  {/* Security Warnings */}
+                  {selectedTransaction.security_warnings && selectedTransaction.security_warnings.length > 0 && (
+                    <div className="space-y-2">
+                      <h4 className="text-sm font-medium text-amber-600">Security Warnings</h4>
+                      <div className="space-y-1">
+                        {selectedTransaction.security_warnings.map((warning, index) => (
+                          <div key={index} className="flex items-center gap-2 text-sm">
+                            <AlertCircle className="h-4 w-4 text-amber-500 shrink-0" />
+                            <span>{warning}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Detailed Security Analysis */}
+                  {selectedTransaction.security_analysis?.details && (
+                    <div className="space-y-2">
+                      <h4 className="text-sm font-medium text-muted-foreground">Analysis Details</h4>
+                      <div className="space-y-2 max-h-48 overflow-y-auto">
+                        {selectedTransaction.security_analysis.details.map((detail, index) => (
+                          <div key={index} className={`p-3 rounded-lg border-l-4 ${
+                            detail.severity === 'critical' ? 'bg-red-50 border-l-red-500' :
+                            detail.severity === 'high' ? 'bg-orange-50 border-l-orange-500' :
+                            detail.severity === 'medium' ? 'bg-yellow-50 border-l-yellow-500' :
+                            'bg-blue-50 border-l-blue-500'
+                          }`}>
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <Badge variant="outline" className={`text-xs ${
+                                    detail.severity === 'critical' ? 'border-red-400 text-red-700' :
+                                    detail.severity === 'high' ? 'border-orange-400 text-orange-700' :
+                                    detail.severity === 'medium' ? 'border-yellow-400 text-yellow-700' :
+                                    'border-blue-400 text-blue-700'
+                                  }`}>
+                                    {detail.severity.toUpperCase()}
+                                  </Badge>
+                                  {detail.type && (
+                                    <span className="text-xs text-muted-foreground">
+                                      {detail.type.replace(/_/g, ' ')}
+                                    </span>
+                                  )}
+                                  {detail.priority === 'P0' && (
+                                    <Badge variant="destructive" className="text-xs">P0</Badge>
+                                  )}
+                                </div>
+                                <p className="text-sm">{detail.message}</p>
+                                
+                                {/* Additional detail fields */}
+                                {detail.gasToken && detail.gasToken !== '0x0000000000000000000000000000000000000000' && (
+                                  <div className="mt-2 text-xs text-muted-foreground">
+                                    <span className="font-medium">Gas Token:</span> {detail.gasToken}
+                                  </div>
+                                )}
+                                {detail.refundReceiver && detail.refundReceiver !== '0x0000000000000000000000000000000000000000' && (
+                                  <div className="mt-1 text-xs text-muted-foreground">
+                                    <span className="font-medium">Refund Receiver:</span> {detail.refundReceiver}
+                                  </div>
+                                )}
+                                {detail.toAddress && (
+                                  <div className="mt-1 text-xs text-muted-foreground">
+                                    <span className="font-medium">Target Address:</span> {detail.toAddress}
+                                  </div>
+                                )}
+                                {detail.valueEth && (
+                                  <div className="mt-1 text-xs text-muted-foreground">
+                                    <span className="font-medium">Value:</span> {detail.valueEth} ETH
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Hash Verification Results */}
+                  {selectedTransaction.security_analysis?.hashVerification && (
+                    <div className="space-y-2">
+                      <h4 className="text-sm font-medium text-muted-foreground">Hash Verification</h4>
+                      <div className={`p-3 rounded-lg ${
+                        selectedTransaction.security_analysis.hashVerification.verified 
+                          ? 'bg-green-50 border border-green-200' 
+                          : 'bg-red-50 border border-red-200'
+                      }`}>
+                        <div className="flex items-center gap-2 mb-2">
+                          {selectedTransaction.security_analysis.hashVerification.verified ? (
+                            <ShieldCheck className="h-4 w-4 text-green-600" />
+                          ) : (
+                            <ShieldX className="h-4 w-4 text-red-600" />
+                          )}
+                          <span className={`text-sm font-medium ${
+                            selectedTransaction.security_analysis.hashVerification.verified 
+                              ? 'text-green-700' 
+                              : 'text-red-700'
+                          }`}>
+                            {selectedTransaction.security_analysis.hashVerification.verified ? 'Verified' : 'Failed'}
+                          </span>
+                        </div>
+                        
+                        {selectedTransaction.security_analysis.hashVerification.calculatedHashes && (
+                          <div className="space-y-1 text-xs text-muted-foreground">
+                            <div>
+                              <span className="font-medium">Domain Hash:</span> {selectedTransaction.security_analysis.hashVerification.calculatedHashes.domainHash?.slice(0, 10)}...
+                            </div>
+                            <div>
+                              <span className="font-medium">Message Hash:</span> {selectedTransaction.security_analysis.hashVerification.calculatedHashes.messageHash?.slice(0, 10)}...
+                            </div>
+                            <div>
+                              <span className="font-medium">Safe Tx Hash:</span> {selectedTransaction.security_analysis.hashVerification.calculatedHashes.safeTxHash?.slice(0, 10)}...
+                            </div>
+                          </div>
+                        )}
+                        
+                        {selectedTransaction.security_analysis.hashVerification.error && (
+                          <p className="text-xs text-red-600 mt-2">
+                            {selectedTransaction.security_analysis.hashVerification.error}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Nonce Check Results */}
+                  {selectedTransaction.security_analysis?.nonceCheck && (
+                    <div className="space-y-2">
+                      <h4 className="text-sm font-medium text-muted-foreground">Nonce Sequence</h4>
+                      <div className={`p-3 rounded-lg ${
+                        selectedTransaction.security_analysis.nonceCheck.isRisky 
+                          ? 'bg-yellow-50 border border-yellow-200' 
+                          : 'bg-green-50 border border-green-200'
+                      }`}>
+                        <div className="flex items-center gap-2 mb-1">
+                          {selectedTransaction.security_analysis.nonceCheck.isRisky ? (
+                            <AlertCircle className="h-4 w-4 text-yellow-600" />
+                          ) : (
+                            <ShieldCheck className="h-4 w-4 text-green-600" />
+                          )}
+                          <span className={`text-sm ${
+                            selectedTransaction.security_analysis.nonceCheck.isRisky 
+                              ? 'text-yellow-700' 
+                              : 'text-green-700'
+                          }`}>
+                            {selectedTransaction.security_analysis.nonceCheck.message}
+                          </span>
+                        </div>
+                        
+                        {selectedTransaction.security_analysis.nonceCheck.gap && (
+                          <p className="text-xs text-muted-foreground">
+                            Gap detected: {selectedTransaction.security_analysis.nonceCheck.gap}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* External Links */}
               <div className="space-y-2">
                 <h3 className="text-sm font-medium mb-1">View Transaction</h3>
@@ -1429,11 +1648,7 @@ const Monitor = () => {
                               </TableCell>
                               <TableCell>{formatTimeAgo(tx.submissionDate ? new Date(tx.submissionDate).getTime() : new Date(tx.scanned_at).getTime())}</TableCell>
                               <TableCell>
-                                {tx.type === 'suspicious' ? (
-                                  <Badge variant="destructive">Suspicious</Badge>
-                                ) : (
-                                  <Badge variant="outline">Normal</Badge>
-                                )}
+                                {getRiskLevelBadge(tx.risk_level || 'low', tx.type)}
                               </TableCell>
                               <TableCell>
                                 <div className="flex gap-1.5">

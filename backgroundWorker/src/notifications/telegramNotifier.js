@@ -33,7 +33,7 @@ class TelegramNotifier {
       message += `*Status:* ${txInfo.isExecuted ? '✅ Executed' : '⏳ Awaiting execution'}\n\n`;
       message += `*View transaction:*\n`;
       message += `- [Safe App](${txInfo.safeAppLink})\n`;
-      message += `- [Safe Monitor](${txInfo.safeMonitorLink})\n`;
+      message += `- [Safe Monitor](${txInfo.multisigmonitorLink})\n`;
       
       if (txInfo.etherscanLink) {
         message += `- [Etherscan](${txInfo.etherscanLink})\n`;

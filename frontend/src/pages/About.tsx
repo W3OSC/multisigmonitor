@@ -11,9 +11,9 @@ const About = () => {
       <main className="flex-1 container py-12">
         <div className="max-w-4xl mx-auto space-y-12">
           <div className="text-center">
-            <h1 className="text-4xl font-bold mb-4">About safemonitor</h1>
+            <h1 className="text-4xl font-bold mb-4">About multisigmonitor</h1>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Protecting your multisignature vaults with advanced monitoring and security analysis
+              Protecting your multisignature wallets with advanced monitoring and security analysis
             </p>
           </div>
           
@@ -27,7 +27,7 @@ const About = () => {
               </CardHeader>
               <CardContent>
                 <p>
-                  safemonitor was created to provide enhanced security for Safe.global multisignature 
+                  multisigmonitor was created to provide enhanced security for Safe.global multisignature 
                   wallets. Our mission is to detect and alert users to suspicious activity before it 
                   becomes a problem, protecting digital assets and providing peace of mind.
                 </p>
@@ -120,12 +120,12 @@ const About = () => {
             </CardHeader>
             <CardContent>
               <p className="mb-4">
-                safemonitor is built on modern, reliable technology:
+                multisigmonitor is built on modern, reliable technology:
               </p>
               <ul className="list-disc list-inside space-y-2 text-muted-foreground">
                 <li>React.js and Tailwind CSS for a responsive, intuitive frontend experience</li>
                 <li>Supabase for secure authentication, database storage, and backend functionality</li>
-                <li>Safe Global API Kit for interacting with Safe multisignature vaults</li>
+                <li>Safe Global API Kit for interacting with multisignature wallets</li>
                 <li>Specialized security tools for transaction analysis and threat detection</li>
                 <li>Automated background jobs for continuous monitoring without manual intervention</li>
               </ul>
@@ -137,7 +137,7 @@ const About = () => {
       <footer className="border-t py-6 md:py-0">
         <div className="container flex flex-col md:flex-row items-center justify-between gap-4 md:h-16">
           <p className="text-sm text-muted-foreground">
-            &copy; {new Date().getFullYear()} safemonitor. All rights reserved.
+            &copy; {new Date().getFullYear()} multisigmonitor. All rights reserved.
           </p>
         </div>
       </footer>

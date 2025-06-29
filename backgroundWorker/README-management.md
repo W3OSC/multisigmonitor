@@ -4,7 +4,7 @@ This document describes the Safe management transaction monitoring feature in th
 
 ## Overview
 
-Safe multisig wallets allow for various management operations that change the configuration of the Safe itself, rather than just transferring assets. These operations include:
+multisig wallets allow for various management operations that change the configuration of the Safe itself, rather than just transferring assets. These operations include:
 
 - Adding or removing owners
 - Changing the threshold (required confirmations)
@@ -56,7 +56,7 @@ The system identifies management transactions by examining the decoded transacti
 
 ### Governance Oversight
 
-For DAOs and organizations using Safe multisigs for treasury management, monitoring management operations is critical. It ensures that no unauthorized changes to the Safe's configuration occur.
+For DAOs and organizations using multisigs for treasury management, monitoring management operations is critical. It ensures that no unauthorized changes to the Safe's configuration occur.
 
 ### Security Monitoring
 

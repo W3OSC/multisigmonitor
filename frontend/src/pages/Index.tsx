@@ -81,7 +81,7 @@ const Index = () => {
             </h1>
             
             <p className="max-w-[42rem] text-lg text-muted-foreground mb-8">
-              Monitor and review your multisignature vaults. Get notified about suspicious transactions and keep your assets secure.
+              Monitor and review your multisignature wallets. Get notified about suspicious transactions and keep your assets secure.
             </p>
             
             <div className="w-full max-w-md space-y-6 mb-12">
@@ -150,7 +150,7 @@ const Index = () => {
           <p className="text-sm text-muted-foreground">
           </p>
           <div className="flex items-center gap-4">
-            <a href="https://github.com/fredriksvantes/safemonitor/" className="text-sm text-muted-foreground hover:text-foreground">
+            <a href="https://github.com/fredrik0x/multisigmonitor/" className="text-sm text-muted-foreground hover:text-foreground">
               Contribute
             </a>
           </div>

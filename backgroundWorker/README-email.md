@@ -1,6 +1,6 @@
 # Setting Up Email Notifications
 
-This guide explains how to set up email notifications for Safe multisig transactions using Resend.
+This guide explains how to set up email notifications for multisig transactions using Resend.
 
 ## How It Works
 

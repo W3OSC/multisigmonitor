@@ -13,7 +13,7 @@
  * @param {string|number} txInfo.nonce Transaction nonce (optional)
  * @param {boolean} txInfo.isExecuted Whether the transaction has been executed
  * @param {string} txInfo.safeAppLink Link to view transaction in Safe App
- * @param {string} txInfo.safeMonitorLink Link to view transaction in Safe Monitor
+ * @param {string} txInfo.multisigmonitorLink Link to view transaction in Safe Monitor
  * @param {string} txInfo.etherscanLink Link to view transaction on Etherscan (optional)
  * @returns {string} HTML email content
  */
@@ -145,7 +145,7 @@ function generateTransactionEmailHtml(txInfo) {
       <div class="links">
         <p><strong>View this transaction:</strong></p>
         <a href="${txInfo.safeAppLink}" class="btn safe" target="_blank">Safe App</a>
-        <a href="${txInfo.safeMonitorLink}" class="btn monitor" target="_blank">Safe Monitor</a>
+        <a href="${txInfo.multisigmonitorLink}" class="btn monitor" target="_blank">Safe Monitor</a>
         ${txInfo.etherscanLink ? `<a href="${txInfo.etherscanLink}" class="btn etherscan" target="_blank">Etherscan</a>` : ''}
       </div>
     </div>
@@ -186,7 +186,7 @@ Transaction Hash: ${txInfo.hash}
 VIEW TRANSACTION:
 ----------------
 Safe App: ${txInfo.safeAppLink}
-Safe Monitor: ${txInfo.safeMonitorLink}
+Safe Monitor: ${txInfo.multisigmonitorLink}
 ${txInfo.etherscanLink ? `Etherscan: ${txInfo.etherscanLink}` : ''}
 
 You are receiving this email because you have set up notifications for this Safe address.

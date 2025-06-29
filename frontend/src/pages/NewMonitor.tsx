@@ -251,7 +251,7 @@ const NewMonitor = () => {
             <CardHeader>
               <CardTitle>Set Up New Monitor</CardTitle>
               <CardDescription>
-                Configure monitoring for a Safe multisignature vault
+                Configure monitoring for a multisignature wallet
               </CardDescription>
             </CardHeader>
             

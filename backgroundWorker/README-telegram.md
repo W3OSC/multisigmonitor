@@ -1,6 +1,6 @@
 # Setting Up Telegram Notifications
 
-This guide explains how to set up Telegram notifications for Safe multisig transactions.
+This guide explains how to set up Telegram notifications for multisig transactions.
 
 ## How It Works
 

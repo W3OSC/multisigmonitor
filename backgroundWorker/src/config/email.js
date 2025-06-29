@@ -3,7 +3,7 @@ require('dotenv').config();
 
 // Configure Resend for email sending
 let resend = null;
-const defaultFromEmail = process.env.DEFAULT_FROM_EMAIL || 'notifications@safemonitor.io';
+const defaultFromEmail = process.env.DEFAULT_FROM_EMAIL || 'notifications@multisigmonitor.io';
 
 const initializeEmailClient = () => {
   try {

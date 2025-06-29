@@ -24,7 +24,7 @@ export function Header() {
             onClick={() => setIsMenuOpen(false)}
           >
             <Shield className="h-6 w-6 text-jsr-purple" />
-            <span className="jsr-text-gradient">safemonitor</span>
+            <span className="jsr-text-gradient">multisigmonitor</span>
           </Link>
         </div>
 

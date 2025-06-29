@@ -13,7 +13,7 @@
  * @param {string|number} txInfo.nonce Transaction nonce (optional)
  * @param {boolean} txInfo.isExecuted Whether the transaction has been executed
  * @param {string} txInfo.safeAppLink Link to view transaction in Safe App
- * @param {string} txInfo.safeMonitorLink Link to view transaction in Safe Monitor
+ * @param {string} txInfo.multisigmonitorLink Link to view transaction in Safe Monitor
  * @param {string} txInfo.etherscanLink Link to view transaction on Etherscan (optional)
  * @returns {Object} Discord webhook payload
  */
@@ -97,7 +97,7 @@ function generateDiscordWebhook(txInfo) {
     type: 2,
     style: 5, // Link style
     label: 'View in Safe Monitor',
-    url: txInfo.safeMonitorLink,
+    url: txInfo.multisigmonitorLink,
   });
 
   // Add Etherscan button if available
@@ -222,7 +222,7 @@ function generateSlackWebhook(txInfo) {
           text: 'View in Safe Monitor',
           emoji: true
         },
-        url: txInfo.safeMonitorLink
+        url: txInfo.multisigmonitorLink
       }
     ]
   };
@@ -278,7 +278,7 @@ function generateGenericWebhook(txInfo, safeAddress, network) {
     },
     links: {
       safe_app: txInfo.safeAppLink,
-      safe_monitor: txInfo.safeMonitorLink
+      safe_monitor: txInfo.multisigmonitorLink
     },
     timestamp: new Date().toISOString()
   };

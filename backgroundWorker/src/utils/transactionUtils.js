@@ -43,31 +43,43 @@ function isManagementTransaction(transaction) {
 }
 
 /**
- * Function to detect suspicious transactions based on simple criteria
+ * Function to detect suspicious transactions using comprehensive security analysis
  * 
  * @param {Object} transaction The transaction object from the Safe API
  * @param {string} safeAddress The Safe address being monitored
  * @returns {boolean} True if the transaction is suspicious
  */
 function detectSuspiciousActivity(transaction, safeAddress) {
-  // This is a simple placeholder implementation
-  // In a real system, you'd have more sophisticated detection logic
-  
-  // Examples of suspicious activities to check for:
-  // 1. Transfers to known blacklisted addresses
-  // 2. Large value transfers
-  // 3. Unusual contract interactions
-  // 4. Transactions during unusual times
-  // 5. Rapid succession of multiple transactions
-  
-  // Check for multiple signers being removed at once
-  if (transaction.dataDecoded && 
-      transaction.dataDecoded.method === 'removeOwner' &&
-      transaction.dataDecoded.parameters) {
-    return true;
+  try {
+    const securityAnalysis = require('../services/securityAnalysisService');
+    const analysis = securityAnalysis.analyzeTransaction(transaction, safeAddress);
+    
+    // Log detailed analysis for monitoring purposes
+    if (analysis.warnings.length > 0) {
+      console.log(`Security analysis for transaction ${transaction.safeTxHash}:`);
+      console.log(`- Risk Level: ${analysis.riskLevel.toUpperCase()}`);
+      console.log(`- Warnings: ${analysis.warnings.join(', ')}`);
+      if (analysis.details.length > 0) {
+        console.log('- Details:');
+        analysis.details.forEach(detail => {
+          console.log(`  * [${detail.severity.toUpperCase()}] ${detail.message}`);
+        });
+      }
+    }
+    
+    return analysis.isSuspicious;
+  } catch (error) {
+    console.error('Error in security analysis:', error);
+    
+    // Fallback to basic detection if security analysis fails
+    if (transaction.dataDecoded && 
+        transaction.dataDecoded.method === 'removeOwner' &&
+        transaction.dataDecoded.parameters) {
+      return true;
+    }
+    
+    return false;
   }
-  
-  return false;
 }
 
 /**
@@ -77,13 +89,31 @@ function detectSuspiciousActivity(transaction, safeAddress) {
  * @returns {string} A human-readable description of the transaction
  */
 function createTransactionDescription(transaction) {
+  let description = '';
+  
+  // Base description
   if (transaction.dataDecoded) {
-    return `${transaction.dataDecoded.method} operation`;
+    description = `${transaction.dataDecoded.method} operation`;
   } else if (transaction.value && parseInt(transaction.value) > 0) {
-    return `Transfer of ${parseFloat(transaction.value) / 1e18} ETH`;
+    const ethValue = parseFloat(transaction.value) / 1e18;
+    description = `Transfer of ${ethValue} ETH`;
+  } else {
+    description = 'Unknown transaction';
   }
   
-  return 'Unknown transaction';
+  // Add security context if available
+  try {
+    const securityAnalysis = require('../services/securityAnalysisService');
+    const analysis = securityAnalysis.analyzeTransaction(transaction, '');
+    
+    if (analysis.warnings.length > 0) {
+      description += ` [${analysis.riskLevel.toUpperCase()} RISK: ${analysis.warnings.join(', ')}]`;
+    }
+  } catch (error) {
+    // Silently fail if security analysis is not available
+  }
+  
+  return description;
 }
 
 /**

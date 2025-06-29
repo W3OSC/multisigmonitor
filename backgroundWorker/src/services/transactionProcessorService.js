@@ -275,16 +275,20 @@ class TransactionProcessorService {
         // Update the existing transaction with new data
         console.log(`Updating existing transaction ${safeTxHash} with new data`);
         
-        // Determine if the transaction is suspicious
-        const isSuspicious = detectSuspiciousActivity(transaction, safeAddress);
+        // Perform security analysis
+        const securityAnalysis = require('./securityAnalysisService');
+        const analysis = securityAnalysis.analyzeTransaction(transaction, safeAddress);
+        
+        // Determine if the transaction is suspicious based on analysis
+        const isSuspicious = analysis.isSuspicious;
         const txType = isSuspicious ? 'suspicious' : 'normal';
         
         // Create a simplified description of the transaction
         const description = createTransactionDescription(transaction);
         
-        // Update the transaction in database
-        await databaseService.updateTransaction(existingTx.id, safeAddress, network, transaction, description, txType);
-        console.log(`Transaction ${safeTxHash} updated successfully`);
+        // Update the transaction in database with security analysis
+        await databaseService.updateTransaction(existingTx.id, safeAddress, network, transaction, description, txType, analysis);
+        console.log(`Transaction ${safeTxHash} updated successfully with security analysis`);
         
         // Continue to check for notifications
       } else {
@@ -295,17 +299,21 @@ class TransactionProcessorService {
       // This is a new transaction we haven't seen before
       console.log(`New transaction found for Safe ${safeAddress}: ${safeTxHash}`);
       
-      // Determine if the transaction is suspicious
-      const isSuspicious = detectSuspiciousActivity(transaction, safeAddress);
+      // Perform security analysis
+      const securityAnalysis = require('./securityAnalysisService');
+      const analysis = securityAnalysis.analyzeTransaction(transaction, safeAddress);
+      
+      // Determine if the transaction is suspicious based on analysis
+      const isSuspicious = analysis.isSuspicious;
       const txType = isSuspicious ? 'suspicious' : 'normal';
-      console.log(`Transaction ${safeTxHash} classified as ${txType}`);
+      console.log(`Transaction ${safeTxHash} classified as ${txType} with ${analysis.riskLevel} risk level`);
       
       // Create a simplified description of the transaction
       const description = createTransactionDescription(transaction);
       
-      // Save result to database
-      await databaseService.saveTransaction(safeAddress, network, transaction, description, txType);
-      console.log(`Transaction ${safeTxHash} saved successfully`);
+      // Save result to database with security analysis
+      await databaseService.saveTransaction(safeAddress, network, transaction, description, txType, analysis);
+      console.log(`Transaction ${safeTxHash} saved successfully with security analysis`);
     }
     
     // Transaction processing continues for all transactions...

@@ -59,6 +59,10 @@ export type Database = {
           confirmations_count: number | null
           trusted: boolean | null
           operation_type: number | null
+          // Security analysis columns
+          security_analysis: Json | null
+          risk_level: string | null
+          security_warnings: string[] | null
         }
         Insert: {
           id?: string
@@ -83,6 +87,10 @@ export type Database = {
           confirmations_count?: number | null
           trusted?: boolean | null
           operation_type?: number | null
+          // Security analysis columns
+          security_analysis?: Json | null
+          risk_level?: string | null
+          security_warnings?: string[] | null
         }
         Update: {
           id?: string
@@ -107,6 +115,10 @@ export type Database = {
           confirmations_count?: number | null
           trusted?: boolean | null
           operation_type?: number | null
+          // Security analysis columns
+          security_analysis?: Json | null
+          risk_level?: string | null
+          security_warnings?: string[] | null
         }
       }
     }

@@ -171,13 +171,14 @@ class DatabaseService {
    * @param {Object} transaction The transaction object
    * @param {string} description Human-readable description of the transaction
    * @param {string} type Type of transaction (normal or suspicious)
+   * @param {Object} securityAnalysis Optional security analysis result
    * @returns {Promise<void>}
    */
-  async saveTransaction(safeAddress, network, transaction, description, type) {
+  async saveTransaction(safeAddress, network, transaction, description, type, securityAnalysis = null) {
     const safeTxHash = transaction.safeTxHash;
     const timestamp = new Date().toISOString();
     
-    const { error } = await supabase.from('results').insert({
+    const insertData = {
       safe_address: safeAddress,
       network: network,
       // New optimized columns
@@ -205,7 +206,16 @@ class DatabaseService {
         type: type
       },
       scanned_at: timestamp
-    });
+    };
+
+    // Add security analysis data if provided
+    if (securityAnalysis) {
+      insertData.security_analysis = securityAnalysis;
+      insertData.risk_level = securityAnalysis.riskLevel;
+      insertData.security_warnings = securityAnalysis.warnings;
+    }
+    
+    const { error } = await supabase.from('results').insert(insertData);
     
     if (error) {
       console.error('DB error saving transaction:', error.message);
@@ -224,14 +234,15 @@ class DatabaseService {
    * @param {Object} transaction The updated transaction object
    * @param {string} description Human-readable description of the transaction
    * @param {string} type Type of transaction (normal or suspicious)
+   * @param {Object} securityAnalysis Optional security analysis result
    * @returns {Promise<void>}
    */
-  async updateTransaction(resultId, safeAddress, network, transaction, description, type) {
+  async updateTransaction(resultId, safeAddress, network, transaction, description, type, securityAnalysis = null) {
     const safeTxHash = transaction.safeTxHash;
     const timestamp = new Date().toISOString();
     
     try {
-      const { error } = await supabase.from('results').update({
+      const updateData = {
         // Update optimized columns
         transaction_hash: safeTxHash,
         safe_tx_hash: safeTxHash,
@@ -257,7 +268,16 @@ class DatabaseService {
           type: type
         },
         scanned_at: timestamp // Update the scanned_at field to track when it was last updated
-      }).eq('id', resultId);
+      };
+
+      // Add security analysis data if provided
+      if (securityAnalysis) {
+        updateData.security_analysis = securityAnalysis;
+        updateData.risk_level = securityAnalysis.riskLevel;
+        updateData.security_warnings = securityAnalysis.warnings;
+      }
+      
+      const { error } = await supabase.from('results').update(updateData).eq('id', resultId);
       
       if (error) {
         console.error('DB error updating transaction:', error.message);

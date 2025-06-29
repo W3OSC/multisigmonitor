@@ -76,6 +76,19 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='results' AND column_name='operation_type') THEN
         ALTER TABLE results ADD COLUMN operation_type integer;
     END IF;
+    
+    -- Add security analysis columns
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='results' AND column_name='security_analysis') THEN
+        ALTER TABLE results ADD COLUMN security_analysis jsonb;
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='results' AND column_name='risk_level') THEN
+        ALTER TABLE results ADD COLUMN risk_level text;
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='results' AND column_name='security_warnings') THEN
+        ALTER TABLE results ADD COLUMN security_warnings text[];
+    END IF;
 END $$;
 
 -- Step 2: Migrate existing data from JSON to columns
@@ -154,6 +167,13 @@ ON results (safe_tx_hash) WHERE safe_tx_hash IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_results_nonce 
 ON results (safe_address, network, nonce DESC);
 
+-- Security analysis indexes
+CREATE INDEX IF NOT EXISTS idx_results_risk_level 
+ON results (risk_level) WHERE risk_level IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_results_security_warnings 
+ON results USING GIN (security_warnings) WHERE security_warnings IS NOT NULL;
+
 -- Step 4: Add constraints for data integrity
 DO $$
 BEGIN
@@ -169,6 +189,13 @@ BEGIN
         ALTER TABLE results 
         ADD CONSTRAINT chk_operation_type 
         CHECK (operation_type IS NULL OR operation_type IN (0, 1, 2));
+    END IF;
+    
+    -- Add risk_level constraint if it doesn't exist
+    IF NOT EXISTS (SELECT 1 FROM information_schema.check_constraints WHERE constraint_name = 'chk_risk_level') THEN
+        ALTER TABLE results 
+        ADD CONSTRAINT chk_risk_level 
+        CHECK (risk_level IS NULL OR risk_level IN ('low', 'medium', 'high', 'critical'));
     END IF;
 END $$;
 

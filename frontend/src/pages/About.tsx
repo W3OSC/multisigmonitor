@@ -62,12 +62,12 @@ const About = () => {
                   </div>
                   <CardTitle>Continuous Monitoring</CardTitle>
                   <CardDescription>
-                    24/7 surveillance of your Safe vaults
+                    24/7 monitoring of your multisignature wallets
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <p className="text-sm text-muted-foreground">
-                    Our systems continuously check your monitored Safe vaults for new pending 
+                    Our systems continuously check your monitored multisignature wallets for new pending 
                     transactions and queue items, ensuring you never miss suspicious activity.
                   </p>
                 </CardContent>

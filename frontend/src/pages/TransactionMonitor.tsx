@@ -715,7 +715,7 @@ const TransactionMonitor = () => {
                 <div>
                   <CardTitle>Transaction History</CardTitle>
                   <CardDescription>
-                    View and manage transactions from your monitored Safe vaults
+                    View and manage transactions from your monitored multisignature wallets
                   </CardDescription>
                 </div>
                 

@@ -1073,7 +1073,7 @@ const Monitor = () => {
                   <div>
                     <CardTitle>Transaction History</CardTitle>
                     <CardDescription>
-                      View and manage transactions from your monitored Safe vaults
+                      View and manage transactions from your monitored multisignature wallets
                     </CardDescription>
                   </div>
                   
@@ -1551,7 +1551,7 @@ const Monitor = () => {
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                Get started by clicking "Add Monitor" to set up your first Safe vault monitoring.
+                Get started by clicking "Add Monitor" to set up your first multisignature wallet monitor.
               </p>
               <Button onClick={() => navigate("/monitor/new")} className="jsr-button">
                 <PlusCircle className="mr-2 h-5 w-5" />

@@ -70,6 +70,24 @@ const CANONICAL_MASTERCOPIES: { [key: string]: string } = {
   '0x76E2cFc1F5Fa8F6a5b3fC4c8F4788F0116861F9B': 'Safe: Master Copy (Legacy)'
 };
 
+const CANONICAL_INITIALIZERS: { [key: string]: string } = {
+  // Known Safe initializers
+  '0xBD89A1CE4DDe368FFAb0eC35506EcE0b1fFdc54': 'Safe: Initializer 1.4.1',
+  '0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67': 'Safe: Initializer 1.4.1 (Alt)',
+  '0xa6B71E26C5e0845f74c812102Ca7114b6a896AB2': 'Safe: Initializer 1.3.0',
+  '0x12302fE9c02ff50939BaAaaf415fc226C078613C': 'Safe: Initializer 1.3.0 (L2)',
+  '0x76E2cFc1F5Fa8F6a5b3fC4c8F4788F0116861F9B': 'Safe: Initializer 1.1.1',
+  '0x8942595A2dC5181Df0465AF0D7be08c8f23C93af': 'Safe: Initializer (Legacy)'
+};
+
+const CANONICAL_FALLBACK_HANDLERS: { [key: string]: string } = {
+  // Known Safe fallback handlers
+  '0xfd0732Dc9E303f09fCEf3a7388Ad10A83459Ec99': 'Safe: Fallback Handler 1.4.1',
+  '0x1AC114C2099aFAf5261731655Dc6c306bFcd4Dbd': 'Safe: Fallback Handler 1.3.0',
+  '0x2f870a80647BbC554F3a0EBD093f11B4d2a7492A': 'Safe: Fallback Handler (Compatibility)',
+  '0x0000000000000000000000000000000000000000': 'No Fallback Handler'
+};
+
 function getSafeApiUrl(network: string): string | null {
   const apiUrls: { [key: string]: string } = {
     'ethereum': 'https://safe-transaction-mainnet.safe.global',
@@ -99,7 +117,9 @@ async function performSecurityAssessment(safeAddress: string, network: string): 
       safeConfiguration: { isValid: false, warnings: [] },
       ownershipValidation: { isValid: false, warnings: [] },
       moduleValidation: { isValid: false, warnings: [] },
-      proxyValidation: { isValid: false, warnings: [] }
+      proxyValidation: { isValid: false, warnings: [] },
+      initializerValidation: { isValid: false, warnings: [] },
+      fallbackHandlerValidation: { isValid: false, warnings: [] }
     },
     details: {
       creator: null,
@@ -110,7 +130,9 @@ async function performSecurityAssessment(safeAddress: string, network: string): 
       threshold: null,
       modules: [],
       nonce: null,
-      creationTx: null
+      creationTx: null,
+      initializer: null,
+      fallbackHandler: null
     }
   };
 
@@ -153,6 +175,7 @@ async function performSecurityAssessment(safeAddress: string, network: string): 
     assessment.details.modules = safeInfo.modules || [];
     assessment.details.nonce = safeInfo.nonce;
     assessment.details.version = safeInfo.version;
+    assessment.details.fallbackHandler = safeInfo.fallbackHandler;
 
     // Try to get creation transaction information
     try {
@@ -189,6 +212,24 @@ async function performSecurityAssessment(safeAddress: string, network: string): 
     } else {
       assessment.riskFactors.push('Non-canonical mastercopy detected');
       assessment.checks.mastercopyValidation.warnings?.push('Unknown mastercopy implementation');
+    }
+
+    // Fallback Handler validation
+    if (assessment.details.fallbackHandler) {
+      if (CANONICAL_FALLBACK_HANDLERS[assessment.details.fallbackHandler]) {
+        assessment.checks.fallbackHandlerValidation.isValid = true;
+        assessment.checks.fallbackHandlerValidation.canonicalName = CANONICAL_FALLBACK_HANDLERS[assessment.details.fallbackHandler];
+      } else {
+        assessment.riskFactors.push('HIGH RISK: Non-canonical fallback handler detected');
+        assessment.checks.fallbackHandlerValidation.warnings?.push('Unknown fallback handler - potential security risk');
+        if (assessment.overallRisk !== 'critical') {
+          assessment.overallRisk = 'high';
+        }
+      }
+    } else {
+      // No fallback handler is actually safer in most cases
+      assessment.checks.fallbackHandlerValidation.isValid = true;
+      assessment.checks.fallbackHandlerValidation.canonicalName = 'No Fallback Handler';
     }
 
     // Ownership validation
@@ -351,6 +392,8 @@ interface SafeAssessment {
     ownershipValidation: any;
     moduleValidation: any;
     proxyValidation: any;
+    initializerValidation: any;
+    fallbackHandlerValidation: any;
   };
   details: {
     creator: string | null;
@@ -362,6 +405,8 @@ interface SafeAssessment {
     modules: string[];
     nonce: number | null;
     creationTx: string | null;
+    initializer: string | null;
+    fallbackHandler: string | null;
   };
 }
 
@@ -412,7 +457,9 @@ const Review = () => {
           safeConfiguration: { isValid: false, warnings: ['API unavailable'] },
           ownershipValidation: { isValid: false, warnings: ['API unavailable'] },
           moduleValidation: { isValid: false, warnings: ['API unavailable'] },
-          proxyValidation: { isValid: false, warnings: ['API unavailable'] }
+          proxyValidation: { isValid: false, warnings: ['API unavailable'] },
+          initializerValidation: { isValid: false, warnings: ['API unavailable'] },
+          fallbackHandlerValidation: { isValid: false, warnings: ['API unavailable'] }
         },
         details: {
           creator: null,
@@ -423,7 +470,9 @@ const Review = () => {
           threshold: null,
           modules: [],
           nonce: null,
-          creationTx: null
+          creationTx: null,
+          initializer: null,
+          fallbackHandler: null
         }
       });
     } finally {
@@ -794,6 +843,16 @@ const Review = () => {
                       
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
+                          {getCheckIcon(assessment.checks.fallbackHandlerValidation)}
+                          <span className="text-sm">Fallback Handler</span>
+                        </div>
+                        <Badge variant="outline" className="text-xs">
+                          {assessment.checks.fallbackHandlerValidation?.isValid ? 'Valid' : 'Issues'}
+                        </Badge>
+                      </div>
+                      
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
                           {getCheckIcon(assessment.checks.moduleValidation)}
                           <span className="text-sm">Module Configuration</span>
                         </div>
@@ -876,6 +935,28 @@ const Review = () => {
                         {assessment.checks.mastercopyValidation?.canonicalName && (
                           <div className="text-xs text-green-600 mt-1">
                             {assessment.checks.mastercopyValidation.canonicalName}
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div>
+                        <span className="text-muted-foreground font-medium">Fallback Handler:</span>
+                        <div className="font-mono text-xs mt-1">
+                          {assessment.details.fallbackHandler && assessment.details.fallbackHandler !== '0x0000000000000000000000000000000000000000' ? (
+                            <a 
+                              href={`${getExplorerUrl(assessment.network)}/address/${assessment.details.fallbackHandler}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                            >
+                              {truncateAddress(assessment.details.fallbackHandler)}
+                              <ExternalLink className="h-3 w-3" />
+                            </a>
+                          ) : "None"}
+                        </div>
+                        {assessment.checks.fallbackHandlerValidation?.canonicalName && (
+                          <div className="text-xs text-green-600 mt-1">
+                            {assessment.checks.fallbackHandlerValidation.canonicalName}
                           </div>
                         )}
                       </div>

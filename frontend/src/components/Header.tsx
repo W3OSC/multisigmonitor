@@ -43,31 +43,35 @@ export function Header() {
               )}
             </Button>
 
-            <div
-              className={cn(
-                "fixed inset-0 top-16 z-50 grid h-[calc(100vh-4rem)] grid-flow-row auto-rows-max overflow-auto bg-background/95 p-6 backdrop-blur-sm transition-all duration-300",
-                isMenuOpen ? "translate-y-0" : "-translate-y-full"
-              )}
-            >
-              <nav className="flex flex-col gap-4">
-                {user ? (
-                  <div className="px-4 py-2">
-                    <UserDropdownMenu />
-                  </div>
-                ) : (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setIsLoginDialogOpen(true)}
-                    className="flex items-center gap-1 mx-4"
-                  >
-                    <LogIn className="h-4 w-4" />
-                    <span>Login</span>
-                  </Button>
-                )}
-                <ThemeToggle />
-              </nav>
-            </div>
+            {isMenuOpen && (
+              <div className="fixed inset-0 top-16 z-50 bg-background/95 backdrop-blur-sm">
+                <div className="container mx-auto px-4 py-6">
+                  <nav className="flex flex-col gap-4">
+                    {user ? (
+                      <div className="flex justify-center">
+                        <UserDropdownMenu />
+                      </div>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setIsLoginDialogOpen(true);
+                          setIsMenuOpen(false);
+                        }}
+                        className="flex items-center gap-2 justify-center"
+                      >
+                        <LogIn className="h-4 w-4" />
+                        <span>Login</span>
+                      </Button>
+                    )}
+                    <div className="flex justify-center">
+                      <ThemeToggle />
+                    </div>
+                  </nav>
+                </div>
+              </div>
+            )}
           </>
         ) : (
           <div className="flex items-center justify-end flex-shrink-0">

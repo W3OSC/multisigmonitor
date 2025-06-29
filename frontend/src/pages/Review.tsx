@@ -798,10 +798,10 @@ const Review = () => {
               <CardHeader>
                 <CardTitle className="flex items-center">
                   <Loader2 className="mr-2 h-5 w-5 animate-spin text-jsr-blue" />
-                  Analyzing Multisignature Security
+                  Analyzing Multisig Wallet Security
                 </CardTitle>
                 <CardDescription>
-                  Performing comprehensive security checks including factory validation, mastercopy verification, 
+                  Performing security checks including factory validation, mastercopy verification, 
                   ownership analysis, and creation transaction review...
                 </CardDescription>
               </CardHeader>

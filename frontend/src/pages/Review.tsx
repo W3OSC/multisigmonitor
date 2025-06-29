@@ -1202,45 +1202,43 @@ const Review = () => {
               </Card>
 
               {/* Actions */}
-              <Card>
-                <CardFooter className="flex flex-col sm:flex-row gap-3 justify-between">
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      onClick={() => navigate("/")}
-                    >
-                      Back to Home
-                    </Button>
-                    
-                    <Button
-                      variant="outline"
-                      onClick={() => runSecurityAssessment(address, network)}
-                      disabled={loading}
-                    >
-                      Re-run Assessment
-                    </Button>
-                  </div>
+              <div className="flex flex-col sm:flex-row gap-3 justify-between p-6">
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => navigate("/")}
+                  >
+                    Back to Home
+                  </Button>
                   
-                  <div className="flex gap-2">
-                    {assessment.overallRisk === 'low' && (
-                      <Button
-                        className="jsr-button-alt"
-                        onClick={() => navigate(`/monitor/new?address=${address}&network=${network}`)}
-                      >
-                        Set Up Monitoring
-                      </Button>
-                    )}
-                    
+                  <Button
+                    variant="outline"
+                    onClick={() => runSecurityAssessment(address, network)}
+                    disabled={loading}
+                  >
+                    Re-run Assessment
+                  </Button>
+                </div>
+                
+                <div className="flex gap-2">
+                  {assessment.overallRisk === 'low' && (
                     <Button
-                      variant="outline"
-                      onClick={() => window.open(`https://app.safe.global/home?safe=${getSafeAppNetwork(network)}:${address}`, '_blank')}
+                      className="jsr-button-alt"
+                      onClick={() => navigate(`/monitor/new?address=${address}&network=${network}`)}
                     >
-                      <ExternalLink className="h-4 w-4 mr-2" />
-                      View in Safe App
+                      Set Up Monitoring
                     </Button>
-                  </div>
-                </CardFooter>
-              </Card>
+                  )}
+                  
+                  <Button
+                    variant="outline"
+                    onClick={() => window.open(`https://app.safe.global/home?safe=${getSafeAppNetwork(network)}:${address}`, '_blank')}
+                  >
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    View in Safe App
+                  </Button>
+                </div>
+              </div>
             </div>
           )}
         </div>

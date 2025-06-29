@@ -1203,7 +1203,7 @@ const Monitor = () => {
               className="jsr-button flex items-center gap-2"
             >
               <PlusCircle className="h-5 w-5" />
-              Add Monitor
+              Add Wallet
             </Button>
           </div>
         </div>
@@ -1779,11 +1779,11 @@ const Monitor = () => {
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                Get started by clicking "Add Monitor" to set up your first multisignature wallet monitor.
+                Get started by clicking "Add Wallet" to set up your first multisignature wallet monitor.
               </p>
               <Button onClick={() => navigate("/monitor/new")} className="jsr-button">
                 <PlusCircle className="mr-2 h-5 w-5" />
-                Add Monitor
+                Add Wallet
               </Button>
             </CardContent>
           </Card>

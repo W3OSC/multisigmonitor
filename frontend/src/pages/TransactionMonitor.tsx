@@ -664,7 +664,7 @@ const TransactionMonitor = () => {
             
             <CardContent className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                Please sign in to access your Safe transaction monitoring dashboard.
+                Please sign in to access your multisignature wallet dashboard.
               </p>
             </CardContent>
           </Card>
@@ -708,15 +708,15 @@ const TransactionMonitor = () => {
           <Card className="mb-8">
             <CardContent className="p-8">
               <div className="text-center">
-                <h2 className="text-xl font-semibold">No monitors set up</h2>
+                <h2 className="text-xl font-semibold">No wallets set up</h2>
                 <p className="text-muted-foreground mt-2">
-                  You need to add a Safe monitor to view transactions
+                  You need to add a multisignature wallet to view transactions
                 </p>
                 <Button 
                   className="mt-4" 
                   onClick={() => navigate("/monitor/new")}
                 >
-                  Add Monitor
+                  Add Wallet
                 </Button>
               </div>
             </CardContent>

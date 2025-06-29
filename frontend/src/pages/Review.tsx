@@ -72,7 +72,7 @@ const CANONICAL_MASTERCOPIES: { [key: string]: string } = {
 
 const CANONICAL_INITIALIZERS: { [key: string]: string } = {
   // Known Safe initializers
-  '0xBD89A1CE4DDe368FFAb0eC35506EcE0b1ffFdc54': 'Safe: Initializer 1.4.1',
+  '0xBD89A1CE4DDe368FFAb0eC35506eEcE0b1fFdc54': 'Safe: Initializer 1.4.1',
   '0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67': 'Safe: Initializer 1.4.1 (Alt)',
   '0xa6B71E26C5e0845f74c812102Ca7114b6a896AB2': 'Safe: Initializer 1.3.0',
   '0x12302fE9c02ff50939BaAaaf415fc226C078613C': 'Safe: Initializer 1.3.0 (L2)',

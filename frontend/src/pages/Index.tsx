@@ -24,7 +24,19 @@ const Index = () => {
   
   useEffect(() => {
     if (user) {
-      navigate("/monitor");
+      // Check if there's a stored redirect URL from before authentication
+      const storedRedirectUrl = sessionStorage.getItem('redirectAfterLogin');
+      
+      if (storedRedirectUrl) {
+        // Clear the stored URL and navigate to it
+        sessionStorage.removeItem('redirectAfterLogin');
+        // Extract just the pathname and search from the stored URL
+        const url = new URL(storedRedirectUrl);
+        navigate(url.pathname + url.search);
+      } else {
+        // Default behavior - go to monitor dashboard
+        navigate("/monitor");
+      }
     }
   }, [user, navigate]);
 

@@ -37,11 +37,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
         setSession(session);
         setUser(session?.user ?? null);
         setLoading(false);
-        
-        // Clear stored redirect URL after successful login
-        if (session?.user) {
-          sessionStorage.removeItem('redirectAfterLogin');
-        }
       }
     );
 

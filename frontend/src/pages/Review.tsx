@@ -192,15 +192,68 @@ async function performSecurityAssessment(safeAddress: string, network: string): 
     }
 
     // Ownership validation
-    if (assessment.details.owners.length > 0 && assessment.details.threshold) {
-        assessment.checks.ownershipValidation.isValid = true;
-      
-      if (assessment.details.threshold === 1 && assessment.details.owners.length > 1) {
-        assessment.riskFactors.push('Low threshold detected - single signature required');
-      }
-    } else {
-      assessment.riskFactors.push('Invalid ownership configuration');
+    console.log('Validating ownership structure:', { owners: assessment.details.owners, threshold: assessment.details.threshold });
+    
+    const owners = assessment.details.owners || [];
+    const threshold = assessment.details.threshold;
+    let ownershipIsValid = true;
+    
+    // Critical checks
+    if (owners.length === 0) {
+      assessment.riskFactors.push('CRITICAL: Safe has no owners!');
+      assessment.overallRisk = 'critical';
+      ownershipIsValid = false;
     }
+
+    if (!threshold || threshold === 0) {
+      assessment.riskFactors.push('CRITICAL: Safe has zero threshold!');
+      assessment.overallRisk = 'critical';
+      ownershipIsValid = false;
+    }
+
+    if (threshold && threshold > owners.length) {
+      assessment.riskFactors.push('CRITICAL: Threshold exceeds number of owners!');
+      assessment.overallRisk = 'critical';
+      ownershipIsValid = false;
+    }
+
+    // Check for duplicate owners
+    const uniqueOwners = new Set(owners.map(owner => owner.toLowerCase()));
+    if (uniqueOwners.size !== owners.length) {
+      assessment.riskFactors.push('CRITICAL: Duplicate owners detected!');
+      assessment.overallRisk = 'critical';
+      ownershipIsValid = false;
+    }
+
+    // Check for zero address owners
+    const hasZeroAddress = owners.some(owner => 
+      owner.toLowerCase() === '0x0000000000000000000000000000000000000000'
+    );
+    if (hasZeroAddress) {
+      assessment.riskFactors.push('CRITICAL: Zero address is an owner!');
+      assessment.overallRisk = 'critical';
+      ownershipIsValid = false;
+    }
+
+    // High risk checks
+    if (owners.length === 1 && threshold === 1) {
+      assessment.riskFactors.push('HIGH RISK: Single-owner Safe with 1-of-1 threshold');
+      if (assessment.overallRisk !== 'critical') {
+        assessment.overallRisk = 'high';
+      }
+      ownershipIsValid = false;
+    }
+
+    // Medium risk checks
+    if (threshold === 1 && owners.length > 1) {
+      assessment.riskFactors.push('MEDIUM RISK: Low threshold detected - single signature required');
+      if (assessment.overallRisk !== 'critical' && assessment.overallRisk !== 'high') {
+        assessment.overallRisk = 'medium';
+      }
+      ownershipIsValid = false;
+    }
+
+    assessment.checks.ownershipValidation.isValid = ownershipIsValid;
 
     // Calculate final risk and score based on actual check results
     const checksPerformed = [
@@ -699,7 +752,7 @@ const Review = () => {
                   </CardHeader>
                   <CardContent className="space-y-3">
                     <div className="space-y-3">
-                      <div className="flex items-center justify-between">
+                      {/* <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           {getCheckIcon(assessment.checks.addressValidation)}
                           <span className="text-sm">Address Validation</span>
@@ -707,7 +760,7 @@ const Review = () => {
                         <Badge variant="outline" className="text-xs">
                           {assessment.checks.addressValidation?.isValid ? 'Valid' : 'Invalid'}
                         </Badge>
-                      </div>
+                      </div> */}
                       
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
@@ -715,7 +768,7 @@ const Review = () => {
                           <span className="text-sm">Proxy Factory</span>
                         </div>
                         <Badge variant="outline" className="text-xs">
-                          {assessment.checks.factoryValidation?.isCanonical ? 'Canonical' : 'Unknown'}
+                          {assessment.checks.factoryValidation?.isCanonical ? 'Valid' : 'Issues'}
                         </Badge>
                       </div>
                       
@@ -725,7 +778,7 @@ const Review = () => {
                           <span className="text-sm">Mastercopy</span>
                         </div>
                         <Badge variant="outline" className="text-xs">
-                          {assessment.checks.mastercopyValidation?.isCanonical ? 'Canonical' : 'Unknown'}
+                          {assessment.checks.mastercopyValidation?.isCanonical ? 'Valid' : 'Issues'}
                         </Badge>
                       </div>
                       
@@ -745,17 +798,7 @@ const Review = () => {
                           <span className="text-sm">Module Configuration</span>
                         </div>
                         <Badge variant="outline" className="text-xs">
-                          {assessment.checks.moduleValidation?.isValid ? 'Valid' : 'Issues'}
-                        </Badge>
-                      </div>
-                      
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          {getCheckIcon(assessment.checks.creationTransaction)}
-                          <span className="text-sm">Creation Transaction</span>
-                        </div>
-                        <Badge variant="outline" className="text-xs">
-                          {assessment.checks.creationTransaction?.isValid ? 'Verified' : 'Unverified'}
+                          {assessment.checks.moduleValidation?.isValid ? 'Valid' : 'Unknown'}
                         </Badge>
                       </div>
                     </div>

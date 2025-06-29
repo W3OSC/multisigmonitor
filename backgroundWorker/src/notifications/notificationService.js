@@ -80,7 +80,7 @@ class NotificationService {
    */
   generateTransactionLinks(safeAddress, network, safeTxHash, isExecuted, transactionHash) {
     const safeAppLink = `https://app.safe.global/transactions/tx?safe=${network}:${safeAddress}&id=multisig_${safeAddress}_${safeTxHash}`;
-    const multisigmonitorLink = `https://multisigmonitor.io/monitor/${safeTxHash}`;
+    const multisigmonitorLink = `https://multisigmonitor.com/monitor/${safeTxHash}`;
     const etherscanLink = isExecuted 
       ? `https://${network === 'ethereum' ? '' : network + '.'}etherscan.io/tx/${transactionHash || safeTxHash}`
       : null;

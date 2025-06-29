@@ -27,7 +27,7 @@ try {
   console.error('❌ Error initializing Resend client:', err.message);
 }
 
-const defaultFromEmail = process.env.DEFAULT_FROM_EMAIL || 'notifications@multisigmonitor.io';
+const defaultFromEmail = process.env.DEFAULT_FROM_EMAIL || 'notifications@multisigmonitor.com';
 console.log(`📧 Default from email configured as: ${defaultFromEmail}`);
 
 // Define Safe API version
@@ -456,7 +456,7 @@ async function checkTransactions() {
                                 
                                 // Generate links
                                 const safeAppLink = `https://app.safe.global/transactions/tx?safe=${network}:${safe_address}&id=multisig_${safe_address}_${safeTxHash}`;
-                                const multisigmonitorLink = `https://multisigmonitor.io/monitor/${safeTxHash}`;
+                                const multisigmonitorLink = `https://multisigmonitor.com/monitor/${safeTxHash}`;
                                 const etherscanLink = transaction.isExecuted 
                                   ? `https://${network === 'ethereum' ? '' : network + '.'}etherscan.io/tx/${transaction.transactionHash || safeTxHash}`
                                   : null;
@@ -521,7 +521,7 @@ async function checkTransactions() {
                                 
                                 // Generate links
                                 const safeAppLink = `https://app.safe.global/transactions/tx?safe=${network}:${safe_address}&id=multisig_${safe_address}_${safeTxHash}`;
-                                const multisigmonitorLink = `https://multisigmonitor.io/monitor/${safeTxHash}`;
+                                const multisigmonitorLink = `https://multisigmonitor.com/monitor/${safeTxHash}`;
                                 const etherscanLink = transaction.isExecuted 
                                   ? `https://${network === 'ethereum' ? '' : network + '.'}etherscan.io/tx/${transaction.transactionHash || safeTxHash}`
                                   : null;
@@ -589,7 +589,7 @@ async function checkTransactions() {
                                 
                                 // Create message with markdown formatting
                                 const safeAppLink = `https://app.safe.global/transactions/tx?safe=${network}:${safe_address}&id=multisig_${safe_address}_${safeTxHash}`;
-                                const multisigmonitorLink = `https://multisigmonitor.io/monitor/${safeTxHash}`;
+                                const multisigmonitorLink = `https://multisigmonitor.com/monitor/${safeTxHash}`;
                                 const etherscanLink = transaction.isExecuted 
                                   ? `https://${network === 'ethereum' ? '' : network + '.'}etherscan.io/tx/${transaction.transactionHash || safeTxHash}`
                                   : null;
@@ -887,7 +887,7 @@ async function checkTransactions() {
                             
                             // Generate links
                             const safeAppLink = `https://app.safe.global/transactions/tx?safe=${network}:${safe_address}&id=multisig_${safe_address}_${safeTxHash}`;
-                            const multisigmonitorLink = `https://multisigmonitor.io/monitor/${safeTxHash}`;
+                            const multisigmonitorLink = `https://multisigmonitor.com/monitor/${safeTxHash}`;
                             const etherscanLink = transaction.isExecuted 
                               ? `https://${network === 'ethereum' ? '' : network + '.'}etherscan.io/tx/${transaction.transactionHash || safeTxHash}`
                               : null;
@@ -946,7 +946,7 @@ async function checkTransactions() {
                             
                             // Generate links
                             const safeAppLink = `https://app.safe.global/transactions/tx?safe=${network}:${safe_address}&id=multisig_${safe_address}_${safeTxHash}`;
-                            const multisigmonitorLink = `https://multisigmonitor.io/monitor/${safeTxHash}`;
+                            const multisigmonitorLink = `https://multisigmonitor.com/monitor/${safeTxHash}`;
                             const etherscanLink = transaction.isExecuted 
                               ? `https://${network === 'ethereum' ? '' : network + '.'}etherscan.io/tx/${transaction.transactionHash || safeTxHash}`
                               : null;
@@ -1017,7 +1017,7 @@ async function checkTransactions() {
                             
                             // Create message with markdown formatting
                             const safeAppLink = `https://app.safe.global/transactions/tx?safe=${network}:${safe_address}&id=multisig_${safe_address}_${safeTxHash}`;
-                            const multisigmonitorLink = `https://multisigmonitor.io/monitor/${safeTxHash}`;
+                            const multisigmonitorLink = `https://multisigmonitor.com/monitor/${safeTxHash}`;
                             const etherscanLink = transaction.isExecuted 
                               ? `https://${network === 'ethereum' ? '' : network + '.'}etherscan.io/tx/${transaction.transactionHash || safeTxHash}`
                               : null;

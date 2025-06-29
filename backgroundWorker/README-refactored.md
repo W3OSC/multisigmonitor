@@ -77,7 +77,7 @@ The service will start and run the transaction check immediately, then schedule 
 The following environment variables are used:
 
 - `RESEND_API_KEY`: API key for the Resend email service
-- `DEFAULT_FROM_EMAIL`: Default sender email address (default: notifications@multisigmonitor.io)
+- `DEFAULT_FROM_EMAIL`: Default sender email address (default: notifications@multisigmonitor.com)
 - Supabase credentials (managed by the supabase.js file)
 
 ## Future Improvements

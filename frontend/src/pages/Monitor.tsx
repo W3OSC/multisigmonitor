@@ -725,6 +725,19 @@ const Monitor = () => {
     return `${address.substring(0, 6)}...${address.substring(middleStartIndex, middleStartIndex + 6)}...${address.substring(address.length - 6)}`;
   };
 
+  // Map network names to Safe App network identifiers
+  const getSafeAppNetwork = (network: string) => {
+    const networkMap: { [key: string]: string } = {
+      'ethereum': 'eth',
+      'sepolia': 'sep',
+      'polygon': 'matic',
+      'arbitrum': 'arb1',
+      'optimism': 'oeth',
+      'base': 'base'
+    };
+    return networkMap[network.toLowerCase()] || network;
+  };
+
   // Get risk level badge with appropriate styling
   const getRiskLevelBadge = (riskLevel: string, type: string) => {
     const isSuspicious = type === 'suspicious';
@@ -862,7 +875,7 @@ const Monitor = () => {
                   <h3 className="text-sm font-medium text-muted-foreground mb-1">Safe</h3>
                   <p className="text-sm font-mono">
                     <a 
-                      href={`https://app.safe.global/home?safe=${selectedTransaction.network}:${selectedTransaction.safe_address}`}
+                      href={`https://app.safe.global/home?safe=${getSafeAppNetwork(selectedTransaction.network)}:${selectedTransaction.safe_address}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-blue-500 hover:text-blue-600"
@@ -928,7 +941,7 @@ const Monitor = () => {
                     <p className="text-sm font-mono break-all">
                       {selectedTransaction.result.transaction_data?.safeTxHash ? (
                         <a 
-                          href={`https://app.safe.global/transactions/tx?safe=${selectedTransaction.network}:${selectedTransaction.safe_address}&id=multisig_${selectedTransaction.safe_address}_${selectedTransaction.safeTxHash}`}
+                          href={`https://app.safe.global/transactions/tx?safe=${getSafeAppNetwork(selectedTransaction.network)}:${selectedTransaction.safe_address}&id=multisig_${selectedTransaction.safe_address}_${selectedTransaction.safeTxHash}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-blue-500 hover:text-blue-600"
@@ -1142,7 +1155,7 @@ const Monitor = () => {
                 <h3 className="text-sm font-medium mb-1">View Transaction</h3>
                 <div className="flex flex-wrap gap-2">
                   <a 
-                    href={`https://app.safe.global/transactions/tx?safe=${selectedTransaction.network}:${selectedTransaction.safe_address}&id=multisig_${selectedTransaction.safe_address}_${selectedTransaction.safeTxHash}`}
+                    href={`https://app.safe.global/transactions/tx?safe=${getSafeAppNetwork(selectedTransaction.network)}:${selectedTransaction.safe_address}&id=multisig_${selectedTransaction.safe_address}_${selectedTransaction.safeTxHash}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1 text-blue-500 hover:text-blue-600 text-sm"
@@ -1653,7 +1666,7 @@ const Monitor = () => {
                               <TableCell>
                                 <div className="flex gap-1.5">
                                   <a 
-                                    href={`https://app.safe.global/transactions/tx?safe=${tx.network}:${tx.safe_address}&id=multisig_${tx.safe_address}_${tx.safeTxHash}`} 
+                                    href={`https://app.safe.global/transactions/tx?safe=${getSafeAppNetwork(tx.network)}:${tx.safe_address}&id=multisig_${tx.safe_address}_${tx.safeTxHash}`} 
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     onClick={(e) => e.stopPropagation()}

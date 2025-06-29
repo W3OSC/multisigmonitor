@@ -204,6 +204,32 @@ const Review = () => {
     return `${addr.substring(0, 6)}...${addr.substring(addr.length - 4)}`;
   };
 
+  // Map network names to Safe App network identifiers
+  const getSafeAppNetwork = (network: string) => {
+    const networkMap: { [key: string]: string } = {
+      'ethereum': 'eth',
+      'sepolia': 'sep',
+      'polygon': 'matic',
+      'arbitrum': 'arb1',
+      'optimism': 'oeth',
+      'base': 'base'
+    };
+    return networkMap[network.toLowerCase()] || network;
+  };
+
+  // Get correct explorer URL based on network
+  const getExplorerUrl = (network: string) => {
+    const explorerMap: { [key: string]: string } = {
+      'ethereum': 'https://etherscan.io',
+      'sepolia': 'https://sepolia.etherscan.io',
+      'polygon': 'https://polygonscan.com',
+      'arbitrum': 'https://arbiscan.io',
+      'optimism': 'https://optimistic.etherscan.io',
+      'base': 'https://basescan.org'
+    };
+    return explorerMap[network.toLowerCase()] || 'https://etherscan.io';
+  };
+
   return (
     <div className="min-h-screen flex flex-col">
       <HeaderWithLoginDialog />
@@ -504,7 +530,7 @@ const Review = () => {
                         <div className="font-mono text-xs mt-1">
                           {assessment.details.creator ? (
                             <a 
-                              href={`https://etherscan.io/address/${assessment.details.creator}`}
+                              href={`${getExplorerUrl(assessment.network)}/address/${assessment.details.creator}`}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="text-blue-600 hover:text-blue-800 flex items-center gap-1"
@@ -521,7 +547,7 @@ const Review = () => {
                         <div className="font-mono text-xs mt-1">
                           {assessment.details.factory ? (
                             <a 
-                              href={`https://etherscan.io/address/${assessment.details.factory}`}
+                              href={`${getExplorerUrl(assessment.network)}/address/${assessment.details.factory}`}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="text-blue-600 hover:text-blue-800 flex items-center gap-1"
@@ -545,7 +571,7 @@ const Review = () => {
                         <div className="font-mono text-xs mt-1">
                           {assessment.details.mastercopy ? (
                             <a 
-                              href={`https://etherscan.io/address/${assessment.details.mastercopy}`}
+                              href={`${getExplorerUrl(assessment.network)}/address/${assessment.details.mastercopy}`}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="text-blue-600 hover:text-blue-800 flex items-center gap-1"
@@ -567,7 +593,7 @@ const Review = () => {
                         <div className="font-mono text-xs mt-1">
                           {assessment.details.creationTx ? (
                             <a 
-                              href={`https://etherscan.io/tx/${assessment.details.creationTx}`}
+                              href={`${getExplorerUrl(assessment.network)}/tx/${assessment.details.creationTx}`}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="text-blue-600 hover:text-blue-800 flex items-center gap-1"
@@ -615,7 +641,7 @@ const Review = () => {
                     
                     <Button
                       variant="outline"
-                      onClick={() => window.open(`https://app.safe.global/home?safe=${network}:${address}`, '_blank')}
+                      onClick={() => window.open(`https://app.safe.global/home?safe=${getSafeAppNetwork(network)}:${address}`, '_blank')}
                     >
                       <ExternalLink className="h-4 w-4 mr-2" />
                       View in Safe App

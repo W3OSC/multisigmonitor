@@ -499,14 +499,27 @@ const TransactionMonitor = () => {
     return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
   };
 
+  // Map network names to Safe App network identifiers
+  const getSafeAppNetwork = (network: string) => {
+    const networkMap: { [key: string]: string } = {
+      'ethereum': 'eth',
+      'sepolia': 'sep',
+      'polygon': 'matic',
+      'arbitrum': 'arb1',
+      'optimism': 'oeth',
+      'base': 'base'
+    };
+    return networkMap[network.toLowerCase()] || network;
+  };
+
   // Generate Safe transaction URL
   const getSafeTxUrl = (transaction: Transaction) => {
-    return `https://app.safe.global/transactions/tx?safe=${transaction.network}:${transaction.safe_address}&id=multisig_${transaction.safe_address}_${transaction.safeTxHash}`;
+    return `https://app.safe.global/transactions/tx?safe=${getSafeAppNetwork(transaction.network)}:${transaction.safe_address}&id=multisig_${transaction.safe_address}_${transaction.safeTxHash}`;
   };
 
   // Generate Safe home URL
   const getSafeHomeUrl = (transaction: Transaction) => {
-    return `https://app.safe.global/home?safe=${transaction.network}:${transaction.safe_address}`;
+    return `https://app.safe.global/home?safe=${getSafeAppNetwork(transaction.network)}:${transaction.safe_address}`;
   };
 
   // Generate Etherscan transaction URL

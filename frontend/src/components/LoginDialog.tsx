@@ -22,7 +22,7 @@ export function LoginDialog({ isOpen, onClose }: LoginDialogProps) {
       setIsLoading(true);
       // Preserve the current URL including any parameters
       const currentPath = window.location.pathname + window.location.search;
-      const redirectTo = window.location.origin + "/monitor";
+      const redirectTo = window.location.origin;
       
       await supabase.auth.signInWithOAuth({
         provider,

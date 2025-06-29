@@ -20,9 +20,11 @@ export function LoginDialog({ isOpen, onClose }: LoginDialogProps) {
   const handleLogin = async (provider: 'github' | 'google') => {
     try {
       setIsLoading(true);
-      // Preserve the current URL including any parameters
-      const currentPath = window.location.pathname + window.location.search;
-      const redirectTo = window.location.origin;
+      // Check if there's a stored redirect URL from NewMonitor or other pages
+      const storedRedirectUrl = sessionStorage.getItem('redirectAfterLogin');
+      
+      // Use stored redirect URL if available, otherwise use current full URL
+      const redirectTo = storedRedirectUrl || window.location.href;
       
       await supabase.auth.signInWithOAuth({
         provider,

@@ -61,6 +61,20 @@ const NewMonitor = () => {
   }, [location.search]);
 
   const handleLogin = () => {
+    // Construct the current URL with parameters to redirect back after login
+    const currentUrl = new URL(window.location.href);
+    
+    // Update URL params with current form values if they exist
+    if (address) {
+      currentUrl.searchParams.set('address', address);
+    }
+    if (network) {
+      currentUrl.searchParams.set('network', network);
+    }
+    
+    // Store the redirect URL for after login
+    sessionStorage.setItem('redirectAfterLogin', currentUrl.toString());
+    
     setIsLoginDialogOpen(true);
   };
 

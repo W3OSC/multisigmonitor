@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import axios from "axios";
 import { HeaderWithLoginDialog } from "@/components/Header";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -10,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Select,
   SelectContent,
@@ -73,6 +75,8 @@ const MonitorConfig = () => {
   const [address, setAddress] = useState("");
   const [alias, setAlias] = useState("");
   const [network, setNetwork] = useState("");
+  const [isValidSafe, setIsValidSafe] = useState<boolean | null>(null);
+  const [isCheckingSafe, setIsCheckingSafe] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [notifications, setNotifications] = useState<NotificationConfig[]>([]);
   const [alertType, setAlertType] = useState<string>("all");
@@ -88,6 +92,69 @@ const MonitorConfig = () => {
     const fromNewMonitor = searchParams.get('newSetup') === 'true';
     setIsNewMonitor(fromNewMonitor);
   }, [searchParams]);
+
+  // Check if an address is a supported multisignature wallet on the specified network
+  const checkIsSafe = async (address: string, network: string) => {
+    if (!address || !address.match(/^0x[a-fA-F0-9]{40}$/)) {
+      setIsValidSafe(null);
+      return;
+    }
+    
+    setIsCheckingSafe(true);
+    setIsValidSafe(null);
+    
+    try {
+      // Network-specific API URLs for Multisignature Transaction Service
+      const txServiceUrl = (() => {
+        switch(network.toLowerCase()) {
+          case 'ethereum': return 'https://safe-transaction-mainnet.safe.global';
+          case 'sepolia': return 'https://safe-transaction-sepolia.safe.global';
+          case 'polygon': return 'https://safe-transaction-polygon.safe.global';
+          case 'arbitrum': return 'https://safe-transaction-arbitrum.safe.global';
+          case 'optimism': return 'https://safe-transaction-optimism.safe.global';
+          case 'base': return 'https://safe-transaction-base.safe.global';
+          case 'gnosis': return 'https://safe-transaction-gnosis-chain.safe.global';
+          case 'goerli': return 'https://safe-transaction-goerli.safe.global';
+          case 'sepolia': return 'https://safe-transaction-sepolia.safe.global';
+          default: return 'https://safe-transaction-mainnet.safe.global';
+        }
+      })();
+      
+      // Call the Safe Info API to check if this is a valid Safe
+      const response = await axios.get(`${txServiceUrl}/api/v1/safes/${address}`);
+      
+      // If we get a successful response, it's a valid Safe
+      setIsValidSafe(true);
+    } catch (error) {
+      // If we get a 404, the address isn't a Safe
+      if (axios.isAxiosError(error) && error.response?.status === 404) {
+        setIsValidSafe(false);
+      } else {
+        // For other errors, we can't determine validity
+        console.error('Error checking multisignature wallet:', error);
+        setIsValidSafe(null);
+      }
+    } finally {
+      setIsCheckingSafe(false);
+    }
+  };
+
+  // Validate the multisignature wallet when address or network changes, with debounce
+  useEffect(() => {
+    // Only validate when editing existing monitors (not for new monitor setup)
+    if (isNewMonitor) return;
+    
+    if (!address || !address.match(/^0x[a-fA-F0-9]{40}$/)) {
+      setIsValidSafe(null);
+      return;
+    }
+    
+    const timer = setTimeout(() => {
+      checkIsSafe(address, network);
+    }, 500); // 500ms debounce
+    
+    return () => clearTimeout(timer);
+  }, [address, network, isNewMonitor]);
 
   // Function to fetch monitor data
   async function fetchMonitor() {
@@ -402,8 +469,10 @@ const MonitorConfig = () => {
   };
 
   const isFormValid = () => {
-    // Address and network are always required
-    const baseValid = address.match(/^0x[a-fA-F0-9]{40}$/) && network;
+    // Address must be a valid ETH address and confirmed as a supported multisignature wallet (when editing existing monitors)
+    const addressValid = address.match(/^0x[a-fA-F0-9]{40}$/);
+    const safeValid = isNewMonitor || isValidSafe === true; // Skip Safe validation for new monitors
+    const baseValid = addressValid && network && safeValid;
     
     // If notifications are enabled, check that at least one method is enabled and its required fields are filled
     if (notificationsEnabled) {
@@ -439,9 +508,20 @@ const MonitorConfig = () => {
     e.preventDefault();
     
     if (!isFormValid()) {
+      // Provide more specific error message based on what's invalid
+      let errorMessage = "Please fill out all required fields";
+      
+      if (!address.match(/^0x[a-fA-F0-9]{40}$/)) {
+        errorMessage = "Please provide a valid Ethereum address";
+      } else if (!isNewMonitor && isValidSafe === false) {
+        errorMessage = "The address must be a supported multisignature wallet on the selected network";
+      } else if (notificationsEnabled) {
+        errorMessage = "Please fill out all required fields for enabled notification methods";
+      }
+      
       toast({
         title: "Invalid Form",
-        description: "Please fill out all required fields for enabled notification methods",
+        description: errorMessage,
         variant: "destructive",
       });
       return;
@@ -686,6 +766,29 @@ const MonitorConfig = () => {
                       label="Multisignature Address"
                       placeholder="0x..."
                     />
+                    
+                    {address && address.match(/^0x[a-fA-F0-9]{40}$/) && (
+                      <div className="mt-2">
+                        {isCheckingSafe ? (
+                          <div className="flex items-center text-muted-foreground text-sm">
+                            <Loader2 className="animate-spin h-3 w-3 mr-1" />
+                            Checking if this is a supported multisignature wallet...
+                          </div>
+                        ) : isValidSafe === true ? (
+                          <Alert className="py-2 bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-900">
+                            <AlertDescription className="text-green-600 dark:text-green-400 text-sm flex items-center">
+                              ✓ Supported multisignature wallet address confirmed on {SUPPORTED_NETWORKS.find(n => n.id === network)?.name}
+                            </AlertDescription>
+                          </Alert>
+                        ) : isValidSafe === false ? (
+                          <Alert className="py-2 bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-900">
+                            <AlertDescription className="text-red-600 dark:text-red-400 text-sm flex items-center">
+                              ✗ This address is not a supported multisignature wallet on {SUPPORTED_NETWORKS.find(n => n.id === network)?.name}
+                            </AlertDescription>
+                          </Alert>
+                        ) : null}
+                      </div>
+                    )}
                     
                     <div className="space-y-2">
                       <Label htmlFor="alias">Alias (Optional)</Label>

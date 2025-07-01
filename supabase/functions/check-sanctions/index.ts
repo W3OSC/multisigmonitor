@@ -1,46 +1,13 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
-import { ethers } from "npm:ethers";
-const API_KEY = Deno.env.get("INFURA_API_KEY");
-const INFURA_URL = "https://sepolia.infura.io/v3/" + API_KEY;
-const safeSetupEvent = {
-  anonymous: false,
-  inputs: [
-    {
-      indexed: true,
-      name: "initiator",
-      type: "address"
-    },
-    {
-      indexed: false,
-      name: "owners",
-      type: "address[]"
-    },
-    {
-      indexed: false,
-      name: "threshold",
-      type: "uint256"
-    },
-    {
-      indexed: false,
-      name: "initializer",
-      type: "address"
-    },
-    {
-      indexed: false,
-      name: "fallbackHandler",
-      type: "address"
-    }
-  ],
-  name: "SafeSetup",
-  type: "event"
-};
+const API_KEY = Deno.env.get("CHAINALYSIS_API_KEY");
+const CHAINALYSIS_BASE = "https://public.chainalysis.com/api/v1/address";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS"
 };
 serve(async (req)=>{
-  // Handle preflight CORS
+  // Handle preflight
   if (req.method === "OPTIONS") {
     return new Response(null, {
       status: 204,
@@ -48,10 +15,10 @@ serve(async (req)=>{
     });
   }
   try {
-    const { txhash } = await req.json();
-    if (!txhash || typeof txhash !== "string") {
+    const { address } = await req.json();
+    if (!address || typeof address !== "string") {
       return new Response(JSON.stringify({
-        error: "Missing or invalid 'txhash'"
+        error: "Missing or invalid 'address'"
       }), {
         status: 400,
         headers: {
@@ -60,33 +27,20 @@ serve(async (req)=>{
         }
       });
     }
-    const provider = new ethers.JsonRpcProvider(INFURA_URL);
-    const receipt = await provider.getTransactionReceipt(txhash);
-    const iface = new ethers.Interface([
-      safeSetupEvent
-    ]);
-    for (const log of receipt.logs){
-      try {
-        const parsed = iface.parseLog(log);
-        if (parsed.name === "SafeSetup") {
-          return new Response(JSON.stringify({
-            initializer: parsed.args.initializer
-          }), {
-            status: 200,
-            headers: {
-              ...corsHeaders,
-              "Content-Type": "application/json"
-            }
-          });
-        }
-      } catch  {
-        continue;
+    const url = `${CHAINALYSIS_BASE}/${encodeURIComponent(address)}`;
+    const chainalysisRes = await fetch(url, {
+      method: "GET",
+      headers: {
+        "X-API-Key": API_KEY,
+        "Accept": "application/json"
       }
-    }
+    });
+    const result = await chainalysisRes.json();
     return new Response(JSON.stringify({
-      error: "SafeSetup event not found"
+      sanctioned: result.identifications.length > 0,
+      data: result.identifications
     }), {
-      status: 404,
+      status: 200,
       headers: {
         ...corsHeaders,
         "Content-Type": "application/json"

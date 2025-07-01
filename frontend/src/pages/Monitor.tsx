@@ -1453,7 +1453,7 @@ const Monitor = () => {
                         <span className="text-muted-foreground">Last checked:</span>
                         <span>{formatTimeAgo(monitor.lastChecked)}</span>
                       </div>
-                      <div className="flex justify-between">
+                      {/* <div className="flex justify-between">
                         <span className="text-muted-foreground">Alerts:</span>
                         <span className="flex items-center">
                           {(monitor.alertCount || 0) > 0 && (
@@ -1461,7 +1461,7 @@ const Monitor = () => {
                           )}
                           {monitor.alertCount || 0}
                         </span>
-                      </div>
+                      </div> */}
                     </div>
                     
                     <Button 

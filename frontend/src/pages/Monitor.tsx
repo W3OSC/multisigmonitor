@@ -1116,7 +1116,7 @@ const Monitor = () => {
                       ) : "—"}
                     </p>
                   </div>
-                  <div>
+                  {/* <div>
                     <h3 className="text-sm font-medium text-muted-foreground mb-1">Safe Transaction Hash</h3>
                     <p className="text-sm font-mono break-all">
                       {selectedTransaction.result.transaction_data?.safeTxHash ? (
@@ -1130,7 +1130,7 @@ const Monitor = () => {
                         </a>
                       ) : "—"}
                     </p>
-                  </div>
+                  </div> */}
                   <div>
                     <h3 className="text-sm font-medium text-muted-foreground mb-1">Execution Transaction Hash</h3>
                     <p className="text-sm font-mono break-all">
@@ -1862,7 +1862,7 @@ const Monitor = () => {
                             }}
                           >
                             <div className="flex items-center">
-                              Type
+                              Security Status
                               {sortField === 'type' && (
                                 sortDirection === 'asc' ? 
                                 <ArrowUpAZ className="ml-1 h-3.5 w-3.5" /> : 

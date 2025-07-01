@@ -184,6 +184,13 @@ async function getMultisigInfo(txHash: string, network: string): Promise<{
   creator?: string;
   proxy?: string;
   proxyFactory?: string;
+  initiator?: string;
+  owners?: string[];
+  threshold?: string;
+  guard?: string | null;
+  fallbackHandlerRuntime?: string | null;
+  modules?: string[];
+  version?: string;
   error?: string;
 }> {
   try {
@@ -213,6 +220,13 @@ async function getMultisigInfo(txHash: string, network: string): Promise<{
       creator: data.creator,
       proxy: data.proxy,
       proxyFactory: data.proxyFactory,
+      initiator: data.initiator,
+      owners: data.owners,
+      threshold: data.threshold,
+      guard: data.guard,
+      fallbackHandlerRuntime: data.fallbackHandlerRuntime,
+      modules: data.modules,
+      version: data.version,
       error: undefined
     };
   } catch (error) {
@@ -556,6 +570,66 @@ async function performSecurityAssessment(safeAddress: string, network: string): 
             if (multisigInfoResult.fallbackHandler.toLowerCase() !== assessment.details.fallbackHandler.toLowerCase()) {
               hasDiscrepancies = true;
               discrepancies.push(`Fallback handler mismatch: Safe API reports ${assessment.details.fallbackHandler}, blockchain reports ${multisigInfoResult.fallbackHandler}`);
+            }
+          }
+          
+          // Compare proxy address (Safe address should match the proxy)
+          if (multisigInfoResult.proxy && assessment.safeAddress) {
+            if (multisigInfoResult.proxy.toLowerCase() !== assessment.safeAddress.toLowerCase()) {
+              hasDiscrepancies = true;
+              discrepancies.push(`Proxy address mismatch: Expected ${assessment.safeAddress}, blockchain reports ${multisigInfoResult.proxy}`);
+            }
+          }
+          
+          // Compare owners
+          if (multisigInfoResult.owners && assessment.details.owners) {
+            const blockchainOwners = multisigInfoResult.owners.map(owner => owner.toLowerCase()).sort();
+            const apiOwners = assessment.details.owners.map(owner => owner.toLowerCase()).sort();
+            
+            if (blockchainOwners.length !== apiOwners.length || 
+                !blockchainOwners.every((owner, index) => owner === apiOwners[index])) {
+              hasDiscrepancies = true;
+              discrepancies.push(`Owners mismatch: Safe API reports [${assessment.details.owners.join(', ')}], blockchain reports [${multisigInfoResult.owners.join(', ')}]`);
+            }
+          }
+          
+          // Compare threshold
+          if (multisigInfoResult.threshold && assessment.details.threshold) {
+            const blockchainThreshold = parseInt(multisigInfoResult.threshold);
+            if (blockchainThreshold !== assessment.details.threshold) {
+              hasDiscrepancies = true;
+              discrepancies.push(`Threshold mismatch: Safe API reports ${assessment.details.threshold}, blockchain reports ${blockchainThreshold}`);
+            }
+          }
+          
+          // Compare guard
+          if (multisigInfoResult.guard !== undefined && assessment.details.guard !== undefined) {
+            const blockchainGuard = multisigInfoResult.guard || '0x0000000000000000000000000000000000000000';
+            const apiGuard = assessment.details.guard || '0x0000000000000000000000000000000000000000';
+            
+            if (blockchainGuard.toLowerCase() !== apiGuard.toLowerCase()) {
+              hasDiscrepancies = true;
+              discrepancies.push(`Guard mismatch: Safe API reports ${apiGuard}, blockchain reports ${blockchainGuard}`);
+            }
+          }
+          
+          // Compare modules
+          if (multisigInfoResult.modules && assessment.details.modules) {
+            const blockchainModules = multisigInfoResult.modules.map(module => module.toLowerCase()).sort();
+            const apiModules = assessment.details.modules.map(module => module.toLowerCase()).sort();
+            
+            if (blockchainModules.length !== apiModules.length || 
+                !blockchainModules.every((module, index) => module === apiModules[index])) {
+              hasDiscrepancies = true;
+              discrepancies.push(`Modules mismatch: Safe API reports [${assessment.details.modules.join(', ')}], blockchain reports [${multisigInfoResult.modules.join(', ')}]`);
+            }
+          }
+          
+          // Compare version
+          if (multisigInfoResult.version && assessment.details.version) {
+            if (multisigInfoResult.version !== assessment.details.version) {
+              hasDiscrepancies = true;
+              discrepancies.push(`Version mismatch: Safe API reports ${assessment.details.version}, blockchain reports ${multisigInfoResult.version}`);
             }
           }
           

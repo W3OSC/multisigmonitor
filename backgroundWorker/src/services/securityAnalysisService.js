@@ -244,9 +244,9 @@ class SecurityAnalysisService {
     analysis.callType = {
       isCall: operation === 0,
       isDelegateCall: operation === 1,
-      isTrustedDelegate: operation === 1 && !!trustedAddress,
+      isTrustedDelegate: operation === 1 && !!TRUSTED_DELEGATE_CALL_ADDRESSES[toAddress],
       contractAddress: toAddress,
-      contractName: trustedAddress || null
+      contractName: TRUSTED_DELEGATE_CALL_ADDRESSES[toAddress] || null
     };
   }
 

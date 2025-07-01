@@ -177,6 +177,52 @@ async function checkSanctions(address: string): Promise<{
   }
 }
 
+async function getMultisigInfo(txHash: string, network: string): Promise<{
+  masterCopy?: string;
+  initializer?: string;
+  fallbackHandler?: string;
+  creator?: string;
+  proxy?: string;
+  proxyFactory?: string;
+  error?: string;
+}> {
+  try {
+    const response = await fetch('https://jgqotbhokyuasepuhzxy.supabase.co/functions/v1/multisig-info', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        txhash: txHash,
+        network: network
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      return {
+        error: `Failed to fetch multisig info: ${response.status} ${errorText}`
+      };
+    }
+
+    const data = await response.json();
+    return {
+      masterCopy: data.masterCopy,
+      initializer: data.initializer,
+      fallbackHandler: data.fallbackHandler,
+      creator: data.creator,
+      proxy: data.proxy,
+      proxyFactory: data.proxyFactory,
+      error: undefined
+    };
+  } catch (error) {
+    console.error('Error calling multisig-info function:', error);
+    return {
+      error: `Network error: ${error.message}`
+    };
+  }
+}
+
 async function performSecurityAssessment(safeAddress: string, network: string): Promise<SafeAssessment> {
   const assessment: SafeAssessment = {
     safeAddress,
@@ -196,7 +242,8 @@ async function performSecurityAssessment(safeAddress: string, network: string): 
       proxyValidation: { isValid: false, warnings: [] },
       initializerValidation: { isValid: false, warnings: [] },
       fallbackHandlerValidation: { isValid: false, warnings: [] },
-      sanctionsValidation: { isValid: false, warnings: [] }
+      sanctionsValidation: { isValid: false, warnings: [] },
+      multisigInfoValidation: { isValid: false, warnings: [] }
     },
     details: {
       creator: null,
@@ -210,7 +257,9 @@ async function performSecurityAssessment(safeAddress: string, network: string): 
       creationTx: null,
       initializer: null,
       fallbackHandler: null,
-      sanctionsData: []
+      guard: null,
+      sanctionsData: [],
+      multisigInfoData: null
     }
   };
 
@@ -258,6 +307,7 @@ async function performSecurityAssessment(safeAddress: string, network: string): 
     assessment.details.nonce = safeInfo.nonce;
     assessment.details.version = safeInfo.version;
     assessment.details.fallbackHandler = safeInfo.fallbackHandler;
+    assessment.details.guard = safeInfo.guard;
 
     // Try to get creation transaction information
     try {
@@ -453,6 +503,88 @@ async function performSecurityAssessment(safeAddress: string, network: string): 
       assessment.checks.sanctionsValidation.warnings?.push('No creator address available for sanctions check');
     }
 
+    // Multisig Info Cross-Validation - CRITICAL SECURITY CHECK
+    if (assessment.details.creationTx) {
+      try {
+        const multisigInfoResult = await getMultisigInfo(assessment.details.creationTx, network);
+        
+        if (multisigInfoResult.error) {
+          console.warn('Could not fetch multisig info:', multisigInfoResult.error);
+          assessment.checks.multisigInfoValidation.warnings?.push(`Unable to fetch multisig info: ${multisigInfoResult.error}`);
+          assessment.checks.multisigInfoValidation.isValid = false;
+        } else {
+          assessment.details.multisigInfoData = multisigInfoResult;
+          
+          // Compare Safe API data with multisig-info endpoint data
+          let hasDiscrepancies = false;
+          const discrepancies: string[] = [];
+          
+          // Compare mastercopy
+          if (multisigInfoResult.masterCopy && assessment.details.mastercopy) {
+            if (multisigInfoResult.masterCopy.toLowerCase() !== assessment.details.mastercopy.toLowerCase()) {
+              hasDiscrepancies = true;
+              discrepancies.push(`Mastercopy mismatch: Safe API reports ${assessment.details.mastercopy}, blockchain reports ${multisigInfoResult.masterCopy}`);
+            }
+          }
+          
+          // Compare creator
+          if (multisigInfoResult.creator && assessment.details.creator) {
+            if (multisigInfoResult.creator.toLowerCase() !== assessment.details.creator.toLowerCase()) {
+              hasDiscrepancies = true;
+              discrepancies.push(`Creator mismatch: Safe API reports ${assessment.details.creator}, blockchain reports ${multisigInfoResult.creator}`);
+            }
+          }
+          
+          // Compare proxy factory
+          if (multisigInfoResult.proxyFactory && assessment.details.factory) {
+            if (multisigInfoResult.proxyFactory.toLowerCase() !== assessment.details.factory.toLowerCase()) {
+              hasDiscrepancies = true;
+              discrepancies.push(`Proxy factory mismatch: Safe API reports ${assessment.details.factory}, blockchain reports ${multisigInfoResult.proxyFactory}`);
+            }
+          }
+          
+          // Compare initializer
+          if (multisigInfoResult.initializer && assessment.details.initializer) {
+            if (multisigInfoResult.initializer.toLowerCase() !== assessment.details.initializer.toLowerCase()) {
+              hasDiscrepancies = true;
+              discrepancies.push(`Initializer mismatch: Safe API reports ${assessment.details.initializer}, blockchain reports ${multisigInfoResult.initializer}`);
+            }
+          }
+          
+          // Compare fallback handler
+          if (multisigInfoResult.fallbackHandler && assessment.details.fallbackHandler) {
+            if (multisigInfoResult.fallbackHandler.toLowerCase() !== assessment.details.fallbackHandler.toLowerCase()) {
+              hasDiscrepancies = true;
+              discrepancies.push(`Fallback handler mismatch: Safe API reports ${assessment.details.fallbackHandler}, blockchain reports ${multisigInfoResult.fallbackHandler}`);
+            }
+          }
+          
+          if (hasDiscrepancies) {
+            assessment.riskFactors.push('CRITICAL SECURITY ALERT: Data discrepancies detected between Safe API and blockchain!');
+            // Add each specific discrepancy as a separate risk factor for visibility
+            discrepancies.forEach(discrepancy => {
+              assessment.riskFactors.push(`⚠️ ${discrepancy}`);
+            });
+            assessment.checks.multisigInfoValidation.isValid = false;
+            assessment.checks.multisigInfoValidation.warnings = discrepancies;
+            assessment.overallRisk = 'critical';
+            console.error('CRITICAL: Multisig info discrepancies detected:', discrepancies);
+          } else {
+            assessment.checks.multisigInfoValidation.isValid = true;
+            assessment.checks.multisigInfoValidation.canonicalName = 'Data Verified';
+          }
+        }
+      } catch (error) {
+        console.warn('Error fetching multisig info:', error);
+        assessment.checks.multisigInfoValidation.warnings?.push('Failed to verify multisig info from blockchain');
+        assessment.checks.multisigInfoValidation.isValid = false;
+      }
+    } else {
+      // No creation transaction available to check
+      assessment.checks.multisigInfoValidation.isValid = false;
+      assessment.checks.multisigInfoValidation.warnings?.push('No creation transaction available for cross-validation');
+    }
+
     // Calculate final risk and score based on actual check results
     const checksPerformed = [
       assessment.checks.addressValidation.isValid,
@@ -505,7 +637,8 @@ async function performSecurityAssessment(safeAddress: string, network: string): 
       assessment.checks.moduleValidation.isValid,
       assessment.checks.initializerValidation.isValid,
       assessment.checks.fallbackHandlerValidation.isValid,
-      assessment.checks.sanctionsValidation.isValid
+      assessment.checks.sanctionsValidation.isValid,
+      assessment.checks.multisigInfoValidation.isValid
     ];
     
     const finalPassedChecks = finalChecksPerformed.filter(check => check === true).length;
@@ -558,6 +691,7 @@ interface SafeAssessment {
     initializerValidation: any;
     fallbackHandlerValidation: any;
     sanctionsValidation: any;
+    multisigInfoValidation: any;
   };
   details: {
     creator: string | null;
@@ -571,7 +705,9 @@ interface SafeAssessment {
     creationTx: string | null;
     initializer: string | null;
     fallbackHandler: string | null;
+    guard: string | null;
     sanctionsData: any[];
+    multisigInfoData: any;
   };
 }
 
@@ -625,7 +761,8 @@ const Review = () => {
           proxyValidation: { isValid: false, warnings: ['API unavailable'] },
           initializerValidation: { isValid: false, warnings: ['API unavailable'] },
           fallbackHandlerValidation: { isValid: false, warnings: ['API unavailable'] },
-          sanctionsValidation: { isValid: false, warnings: ['API unavailable'] }
+          sanctionsValidation: { isValid: false, warnings: ['API unavailable'] },
+          multisigInfoValidation: { isValid: false, warnings: ['API unavailable'] }
         },
         details: {
           creator: null,
@@ -639,7 +776,9 @@ const Review = () => {
           creationTx: null,
           initializer: null,
           fallbackHandler: null,
-          sanctionsData: []
+          guard: null,
+          sanctionsData: [],
+          multisigInfoData: null
         }
       });
     } finally {
@@ -938,6 +1077,11 @@ const Review = () => {
                         <span className="text-muted-foreground">Modules:</span>
                         <div>{assessment.details.modules.length || "None"}</div>
                       </div>
+                      <div>
+                        <span className="text-muted-foreground">Guard:</span>
+                        <div>{assessment.details.guard && assessment.details.guard !== '0x0000000000000000000000000000000000000000' ? 
+                          truncateAddress(assessment.details.guard) : "None"}</div>
+                      </div>
                     </div>
                     
                     {assessment.details.owners.length > 0 && (
@@ -1045,6 +1189,16 @@ const Review = () => {
                         </div>
                         <Badge variant="outline" className="text-xs">
                           {assessment.checks.moduleValidation?.isValid ? 'Clear' : 'Unknown'}
+                        </Badge>
+                      </div>
+                      
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          {getCheckIcon(assessment.checks.multisigInfoValidation)}
+                          <span className="text-sm">Data Cross-Validation</span>
+                        </div>
+                        <Badge variant="outline" className="text-xs">
+                          {assessment.checks.multisigInfoValidation?.isValid ? 'Verified' : 'Issues'}
                         </Badge>
                       </div>
                     </div>

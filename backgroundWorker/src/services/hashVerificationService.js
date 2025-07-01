@@ -33,7 +33,8 @@ class HashVerificationService {
       let domainSeparatorTypehash = DOMAIN_SEPARATOR_TYPEHASH;
       let domainData;
 
-      // Versions <= 1.2.0 use legacy domain separator without chainId
+      // Safe multisig versions <= 1.2.0 use a legacy (i.e. without chainId) DOMAIN_SEPARATOR_TYPEHASH value.
+      // Starting with version 1.3.0, the chainId field was introduced
       if (this.compareVersions(cleanVersion, '1.2.0') <= 0) {
         domainSeparatorTypehash = DOMAIN_SEPARATOR_TYPEHASH_OLD;
         domainData = ethers.AbiCoder.defaultAbiCoder().encode(

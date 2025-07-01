@@ -11,6 +11,7 @@ import {
   AlertCircle,
   ArrowDownAZ,
   ArrowUpAZ,
+  CheckCircle,
   ChevronLeft,
   ChevronRight,
   ExternalLink,
@@ -224,7 +225,21 @@ const TransactionMonitor = () => {
     try {
       const { data, error } = await supabase
         .from('results')
-        .select('id, safe_address, network, scanned_at, result')
+        .select(`
+          id, 
+          safe_address, 
+          network, 
+          scanned_at, 
+          result,
+          security_analysis,
+          risk_level,
+          security_warnings,
+          hash_verification,
+          nonce_check,
+          calldata_decoded,
+          call_type,
+          gas_params
+        `)
         .eq('id', transactionId)
         .single();
       
@@ -346,7 +361,8 @@ const TransactionMonitor = () => {
             nonce: item.nonce,
             isExecuted: item.is_executed,
             executionTxHash: item.execution_tx_hash,
-            submissionDate: item.submission_date
+            submissionDate: item.submission_date,
+            result: null // Add placeholder for result property
           };
         });
         
@@ -937,7 +953,7 @@ const TransactionMonitor = () => {
                           onClick={() => handleSortChange('type')}
                         >
                           <div className="flex items-center">
-                            Type
+                            Severity
                             {sortField === 'type' && (
                               sortDirection === 'asc' ? 
                               <ArrowUpAZ className="ml-1 h-3.5 w-3.5" /> : 
@@ -1298,6 +1314,164 @@ const TransactionMonitor = () => {
                 )}
               </div>
               
+              {/* Security Analysis */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-medium border-b pb-2">Security Analysis</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <h3 className="text-sm font-medium text-muted-foreground mb-1">Call Type</h3>
+                    <p className="text-sm">
+                      {selectedTransaction.result.transaction_data?.operation === 0 ? (
+                        <Badge variant="outline">Call</Badge>
+                      ) : selectedTransaction.result.transaction_data?.operation === 1 ? (
+                        <div className="flex items-center gap-2">
+                          <Badge variant="destructive">Delegate Call</Badge>
+                          {selectedTransaction.result.transaction_data?.to && (
+                            <Link 
+                              to={getEtherscanAddressUrl(selectedTransaction, selectedTransaction.result.transaction_data.to)} 
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-500 hover:text-blue-600"
+                            >
+                              <ExternalLink className="h-3 w-3" />
+                            </Link>
+                          )}
+                        </div>
+                      ) : (
+                        <Badge variant="secondary">Contract Creation</Badge>
+                      )}
+                    </p>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-medium text-muted-foreground mb-1">Risk Level</h3>
+                    <p className="text-sm">
+                      {selectedTransaction.type === 'suspicious' ? (
+                        <Badge variant="destructive">High Risk</Badge>
+                      ) : (
+                        <Badge variant="outline">Low Risk</Badge>
+                      )}
+                    </p>
+                  </div>
+                </div>
+                
+                {/* Gas Parameters Security Check */}
+                <div className="mt-4">
+                  <h4 className="text-sm font-medium text-muted-foreground mb-2">Gas Parameters</h4>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-xs">
+                    <div>
+                      <span className="text-muted-foreground">safeTxGas:</span>
+                      <span className={`ml-1 ${selectedTransaction.result.transaction_data?.safeTxGas !== "0" ? 'text-orange-600' : 'text-green-600'}`}>
+                        {selectedTransaction.result.transaction_data?.safeTxGas || "0"}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">baseGas:</span>
+                      <span className={`ml-1 ${selectedTransaction.result.transaction_data?.baseGas !== "0" ? 'text-orange-600' : 'text-green-600'}`}>
+                        {selectedTransaction.result.transaction_data?.baseGas || "0"}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">gasPrice:</span>
+                      <span className={`ml-1 ${selectedTransaction.result.transaction_data?.gasPrice !== "0" ? 'text-orange-600' : 'text-green-600'}`}>
+                        {selectedTransaction.result.transaction_data?.gasPrice || "0"}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">gasToken:</span>
+                      <span className={`ml-1 ${selectedTransaction.result.transaction_data?.gasToken !== "0x0000000000000000000000000000000000000000" ? 'text-orange-600' : 'text-green-600'}`}>
+                        {selectedTransaction.result.transaction_data?.gasToken === "0x0000000000000000000000000000000000000000" ? "0x0" : "Custom"}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">refundReceiver:</span>
+                      <span className={`ml-1 ${selectedTransaction.result.transaction_data?.refundReceiver !== "0x0000000000000000000000000000000000000000" ? 'text-orange-600' : 'text-green-600'}`}>
+                        {selectedTransaction.result.transaction_data?.refundReceiver === "0x0000000000000000000000000000000000000000" ? "0x0" : "Custom"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Hash Verification */}
+                <div className="mt-4">
+                  <h4 className="text-sm font-medium text-muted-foreground mb-2">Hash Verification</h4>
+                  <div className="space-y-3 text-xs">
+                    <div className="grid grid-cols-1 gap-3">
+                      <div className="bg-muted/50 p-3 rounded">
+                        <div className="font-medium mb-1">Domain Hash:</div>
+                        <div className="font-mono text-xs break-all text-green-600">
+                          {selectedTransaction.result.security_analysis?.hashVerification?.calculatedHashes?.domainHash || 
+                           selectedTransaction.result.hash_verification?.calculatedHashes?.domainHash || 
+                           "Not calculated"}
+                        </div>
+                      </div>
+                      <div className="bg-muted/50 p-3 rounded">
+                        <div className="font-medium mb-1">Message Hash:</div>
+                        <div className="font-mono text-xs break-all text-green-600">
+                          {selectedTransaction.result.security_analysis?.hashVerification?.calculatedHashes?.messageHash || 
+                           selectedTransaction.result.hash_verification?.calculatedHashes?.messageHash || 
+                           "Not calculated"}
+                        </div>
+                      </div>
+                      <div className="bg-muted/50 p-3 rounded">
+                        <div className="font-medium mb-1">Safe Transaction Hash:</div>
+                        <div className="space-y-1">
+                          <div>
+                            <span className="text-muted-foreground">Calculated:</span>
+                            <div className="font-mono text-xs break-all text-blue-600">
+                              {selectedTransaction.result.security_analysis?.hashVerification?.calculatedHashes?.safeTxHash || 
+                               selectedTransaction.result.hash_verification?.calculatedHashes?.safeTxHash || 
+                               "Not calculated"}
+                            </div>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">API Response:</span>
+                            <div className="font-mono text-xs break-all text-blue-600">
+                              {selectedTransaction.result.transaction_data?.safeTxHash || "Not available"}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Hash Verification Status */}
+                      <div className="mt-2">
+                        {selectedTransaction.result.security_analysis?.hashVerification?.verified === false || 
+                         selectedTransaction.result.hash_verification?.verified === false ? (
+                          <div className="bg-red-50 border border-red-200 p-3 rounded">
+                            <div className="text-red-600 font-medium flex items-center gap-2">
+                              <AlertCircle className="h-4 w-4" />
+                              CRITICAL: Hash verification failed
+                            </div>
+                            <div className="text-red-600 text-xs mt-1">
+                              The calculated Safe transaction hash does not match the API response. This could indicate transaction tampering or manipulation.
+                            </div>
+                          </div>
+                        ) : selectedTransaction.result.security_analysis?.hashVerification?.verified === true || 
+                               selectedTransaction.result.hash_verification?.verified === true ? (
+                          <div className="bg-green-50 border border-green-200 p-3 rounded">
+                            <div className="text-green-600 font-medium flex items-center gap-2">
+                              <CheckCircle className="h-4 w-4" />
+                              Hash verification passed
+                            </div>
+                            <div className="text-green-600 text-xs mt-1">
+                              The calculated Safe transaction hash matches the API response.
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="bg-yellow-50 border border-yellow-200 p-3 rounded">
+                            <div className="text-yellow-600 font-medium">
+                              Hash verification not performed
+                            </div>
+                            <div className="text-yellow-600 text-xs mt-1">
+                              Hash verification requires Safe version and chain ID information.
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               {/* Gas Information */}
               <div className="space-y-4">
                 <h3 className="text-sm font-medium border-b pb-2">Gas Information</h3>

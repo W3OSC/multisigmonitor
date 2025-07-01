@@ -123,7 +123,7 @@ class SecurityAnalysisService {
   }
 
   /**
-   * Check for gas token attacks
+   * Check for gas token attacks and gas parameter validation
    * 
    * @param {Object} transaction - The Safe transaction object
    * @param {Object} analysis - The analysis object to update
@@ -132,6 +132,33 @@ class SecurityAnalysisService {
     const gasPrice = transaction.gasPrice || "0";
     const gasToken = transaction.gasToken || ZERO_ADDRESS;
     const refundReceiver = transaction.refundReceiver || ZERO_ADDRESS;
+    const safeTxGas = transaction.safeTxGas || "0";
+    const baseGas = transaction.baseGas || "0";
+
+    // CRITICAL: Check if safeTxGas, baseGas, gasPrice, gasToken, refundReceiver should be 0
+    // For most legitimate transactions, these should be 0
+    const hasNonZeroGasParams = (
+      gasPrice !== "0" || 
+      gasToken !== ZERO_ADDRESS || 
+      refundReceiver !== ZERO_ADDRESS ||
+      safeTxGas !== "0" ||
+      baseGas !== "0"
+    );
+
+    if (hasNonZeroGasParams) {
+      analysis.warnings.push('Non-Zero Gas Parameters');
+      analysis.details.push({
+        type: 'non_zero_gas_params',
+        severity: 'high',
+        message: 'Transaction has non-zero gas parameters. This could indicate gas manipulation or refund attacks.',
+        safeTxGas,
+        baseGas,
+        gasPrice,
+        gasToken,
+        refundReceiver,
+        priority: 'P1'
+      });
+    }
 
     // High risk: Custom gas token + custom refund receiver
     if (gasToken !== ZERO_ADDRESS && refundReceiver !== ZERO_ADDRESS) {
@@ -195,10 +222,11 @@ class SecurityAnalysisService {
         analysis.warnings.push('Untrusted Delegate Call');
         analysis.details.push({
           type: 'untrusted_delegate_call',
-          severity: 'high',
-          message: `Transaction includes an untrusted delegate call to address ${toAddress}. This may lead to unexpected behavior or vulnerabilities.`,
+          severity: 'critical',
+          message: `CRITICAL: Transaction includes an untrusted delegate call to address ${toAddress}. This may lead to unexpected behavior or complete Safe compromise.`,
           toAddress,
-          operation
+          operation,
+          priority: 'P0'
         });
       } else {
         // Even trusted delegate calls should be noted
@@ -211,6 +239,15 @@ class SecurityAnalysisService {
         });
       }
     }
+
+    // Store call type information for frontend display
+    analysis.callType = {
+      isCall: operation === 0,
+      isDelegateCall: operation === 1,
+      isTrustedDelegate: operation === 1 && !!trustedAddress,
+      contractAddress: toAddress,
+      contractName: trustedAddress || null
+    };
   }
 
   /**

@@ -213,6 +213,17 @@ class DatabaseService {
       insertData.security_analysis = securityAnalysis;
       insertData.risk_level = securityAnalysis.riskLevel;
       insertData.security_warnings = securityAnalysis.warnings;
+      insertData.hash_verification = securityAnalysis.hashVerification;
+      insertData.nonce_check = securityAnalysis.nonceCheck;
+      insertData.calldata_decoded = securityAnalysis.calldata;
+      insertData.call_type = securityAnalysis.callType;
+      insertData.gas_params = {
+        safeTxGas: transaction.safeTxGas || "0",
+        baseGas: transaction.baseGas || "0",
+        gasPrice: transaction.gasPrice || "0",
+        gasToken: transaction.gasToken || "0x0000000000000000000000000000000000000000",
+        refundReceiver: transaction.refundReceiver || "0x0000000000000000000000000000000000000000"
+      };
     }
     
     const { error } = await supabase.from('results').insert(insertData);
@@ -275,6 +286,17 @@ class DatabaseService {
         updateData.security_analysis = securityAnalysis;
         updateData.risk_level = securityAnalysis.riskLevel;
         updateData.security_warnings = securityAnalysis.warnings;
+        updateData.hash_verification = securityAnalysis.hashVerification;
+        updateData.nonce_check = securityAnalysis.nonceCheck;
+        updateData.calldata_decoded = securityAnalysis.calldata;
+        updateData.call_type = securityAnalysis.callType;
+        updateData.gas_params = {
+          safeTxGas: transaction.safeTxGas || "0",
+          baseGas: transaction.baseGas || "0",
+          gasPrice: transaction.gasPrice || "0",
+          gasToken: transaction.gasToken || "0x0000000000000000000000000000000000000000",
+          refundReceiver: transaction.refundReceiver || "0x0000000000000000000000000000000000000000"
+        };
       }
       
       const { error } = await supabase.from('results').update(updateData).eq('id', resultId);

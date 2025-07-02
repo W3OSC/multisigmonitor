@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { HeaderWithLoginDialog } from "@/components/Header";
+import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { AddressInput } from "@/components/AddressInput";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,6 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useToast } from "@/hooks/use-toast";
 
 const CANONICAL_PROXY_FACTORIES: { [key: string]: string } = {
   // Mainnet Safe Proxy Factories
@@ -99,6 +101,20 @@ function getSafeApiUrl(network: string): string | null {
   };
   
   return apiUrls[network.toLowerCase()] || null;
+}
+
+function getBackendNetworkName(network: string): string {
+  // Map frontend network names to backend expected names for Infura.io endpoints
+  const networkMap: { [key: string]: string } = {
+    'ethereum': 'mainnet',
+    'sepolia': 'sepolia',
+    'polygon': 'polygon-mainnet',
+    'arbitrum': 'arbitrum-mainnet',
+    'optimism': 'optimism-mainnet',
+    'base': 'base-mainnet'
+  };
+  
+  return networkMap[network.toLowerCase()] || network;
 }
 
 async function getInitializerFromTransaction(txHash: string): Promise<{
@@ -237,6 +253,7 @@ async function getMultisigInfo(txHash: string, network: string): Promise<{
   error?: string;
 }> {
   try {
+    network = getBackendNetworkName(network);
     const response = await fetch('https://jgqotbhokyuasepuhzxy.supabase.co/functions/v1/multisig-info', {
       method: 'POST',
       headers: {
@@ -627,7 +644,7 @@ async function performSecurityAssessment(safeAddress: string, network: string): 
     // Multisig Info Cross-Validation - CRITICAL SECURITY CHECK
     if (assessment.details.creationTx) {
       try {
-        const multisigInfoResult = await getMultisigInfo(assessment.details.creationTx, network);
+        const multisigInfoResult = await getMultisigInfo(assessment.details.creationTx, getBackendNetworkName(network));
         
         if (multisigInfoResult.error) {
           console.warn('Could not fetch multisig info:', multisigInfoResult.error);
@@ -895,10 +912,71 @@ interface SafeAssessment {
 const Review = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { toast } = useToast();
   const [address, setAddress] = useState("");
   const [network, setNetwork] = useState("ethereum");
   const [loading, setLoading] = useState(false);
   const [assessment, setAssessment] = useState<SafeAssessment | null>(null);
+  const [safeExists, setSafeExists] = useState<boolean | null>(null);
+  const [isValidatingSafe, setIsValidatingSafe] = useState(false);
+
+  // Validate Safe exists when address or network changes
+  useEffect(() => {
+    if (address && address.match(/^0x[a-fA-F0-9]{40}$/) && network) {
+      validateSafeExists(address, network);
+    } else {
+      setSafeExists(null);
+    }
+  }, [address, network]);
+
+  const validateSafeExists = async (safeAddress: string, selectedNetwork: string) => {
+    setIsValidatingSafe(true);
+    setSafeExists(null);
+
+    try {
+      const safeApiUrl = getSafeApiUrl(selectedNetwork);
+      if (!safeApiUrl) {
+        setSafeExists(false);
+        toast({
+          title: "Unsupported Network",
+          description: "This network is not supported for Safe validation",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const response = await fetch(`${safeApiUrl}/api/v1/safes/${safeAddress}/`);
+      
+      if (response.ok) {
+        setSafeExists(true);
+      } else if (response.status === 404) {
+        setSafeExists(false);
+        toast({
+          title: "Safe Not Found",
+          description: "No Safe wallet found at this address on the selected network",
+          variant: "destructive",
+        });
+      } else {
+        setSafeExists(false);
+        toast({
+          title: "Validation Error",
+          description: "Unable to validate Safe existence. Please try again.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error validating Safe:', error);
+      setSafeExists(false);
+      toast({
+        title: "Network Error",
+        description: "Unable to connect to Safe API for validation",
+        variant: "destructive",
+      });
+    } finally {
+      setIsValidatingSafe(false);
+    }
+  };
 
   useEffect(() => {
     const searchParams = new URLSearchParams(location.search);
@@ -1092,16 +1170,26 @@ const Review = () => {
               </Select>
             </div>
             
-            <div className="md:col-span-3">
+            <div className="md:col-span-3 flex flex-col sm:flex-row gap-3">
               <Button 
                 type="submit" 
-                disabled={loading || !address.match(/^0x[a-fA-F0-9]{40}$/)}
-                className="jsr-button w-full md:w-auto"
+                disabled={loading || !address.match(/^0x[a-fA-F0-9]{40}$/) || isValidatingSafe || safeExists === false}
+                className="jsr-button w-full sm:w-auto"
               >
                 {loading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Analyzing Multisig Wallet...
+                  </>
+                ) : isValidatingSafe ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Validating Safe...
+                  </>
+                ) : safeExists === false ? (
+                  <>
+                    <AlertTriangle className="mr-2 h-4 w-4" />
+                    Safe Not Found
                   </>
                 ) : (
                   <>
@@ -1110,6 +1198,28 @@ const Review = () => {
                   </>
                 )}
               </Button>
+              
+              {assessment && (
+                <>
+                  {assessment.overallRisk === 'low' && (
+                    <Button
+                      className="jsr-button-alt w-full sm:w-auto"
+                      onClick={() => navigate(`/monitor/new?address=${address}&network=${network}`)}
+                    >
+                      <span className="hidden sm:inline">Set Up Monitoring</span>
+                      <span className="sm:hidden">Monitor</span>
+                    </Button>
+                  )}
+                  
+                  <Button
+                    variant="outline"
+                    onClick={() => window.open(`https://app.safe.global/home?safe=${getSafeAppNetwork(network)}:${address}`, '_blank')}
+                  >
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    View in Safe App
+                  </Button>
+                </>
+              )}
             </div>
           </form>
           
@@ -1541,45 +1651,6 @@ const Review = () => {
                 </CardContent>
               </Card>
 
-              {/* Actions */}
-              <div className="flex flex-col sm:flex-row gap-3 justify-between p-6">
-                <div className="flex gap-2">
-                  {/* <Button
-                    variant="outline"
-                    onClick={() => navigate("/")}
-                  >
-                    Back to Home
-                  </Button> */}
-                  
-                  <Button
-                    variant="outline"
-                    onClick={() => runSecurityAssessment(address, network)}
-                    disabled={loading}
-                  >
-                    Re-run Assessment
-                  </Button>
-                </div>
-                
-                <div className="flex gap-2">
-                  {assessment.overallRisk === 'low' && (
-                  <Button
-                    className="jsr-button-alt w-full sm:w-auto"
-                    onClick={() => navigate(`/monitor/new?address=${address}&network=${network}`)}
-                  >
-                    <span className="hidden sm:inline">Set Up Monitoring</span>
-                    <span className="sm:hidden">Monitor</span>
-                  </Button>
-                  )}
-                  
-                  <Button
-                    variant="outline"
-                    onClick={() => window.open(`https://app.safe.global/home?safe=${getSafeAppNetwork(network)}:${address}`, '_blank')}
-                  >
-                    <ExternalLink className="h-4 w-4 mr-2" />
-                    View in Safe App
-                  </Button>
-                </div>
-              </div>
             </div>
           )}
         </div>

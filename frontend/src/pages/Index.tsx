@@ -5,7 +5,7 @@ import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { HeaderWithLoginDialog } from "@/components/Header";
 import { AddressInput } from "@/components/AddressInput";
-import { AlertCircle, Shield, Eye, Network } from "lucide-react";
+import { AlertCircle, Shield, Eye, Network, Loader2, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   Select,
@@ -18,9 +18,82 @@ import {
 const Index = () => {
   const [address, setAddress] = useState("");
   const [network, setNetwork] = useState("ethereum");
+  const [safeExists, setSafeExists] = useState<boolean | null>(null);
+  const [isValidatingSafe, setIsValidatingSafe] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user } = useAuth();
+
+  // Safe API URL function
+  const getSafeApiUrl = (network: string): string | null => {
+    const apiUrls: { [key: string]: string } = {
+      'ethereum': 'https://safe-transaction-mainnet.safe.global',
+      'sepolia': 'https://safe-transaction-sepolia.safe.global',
+      'polygon': 'https://safe-transaction-polygon.safe.global',
+      'arbitrum': 'https://safe-transaction-arbitrum.safe.global',
+      'optimism': 'https://safe-transaction-optimism.safe.global',
+      'base': 'https://safe-transaction-base.safe.global'
+    };
+    
+    return apiUrls[network.toLowerCase()] || null;
+  };
+
+  // Validate Safe exists when address or network changes
+  useEffect(() => {
+    if (address && address.match(/^0x[a-fA-F0-9]{40}$/) && network) {
+      validateSafeExists(address, network);
+    } else {
+      setSafeExists(null);
+    }
+  }, [address, network]);
+
+  const validateSafeExists = async (safeAddress: string, selectedNetwork: string) => {
+    setIsValidatingSafe(true);
+    setSafeExists(null);
+
+    try {
+      const safeApiUrl = getSafeApiUrl(selectedNetwork);
+      if (!safeApiUrl) {
+        setSafeExists(false);
+        toast({
+          title: "Unsupported Network",
+          description: "This network is not supported for Safe validation",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const response = await fetch(`${safeApiUrl}/api/v1/safes/${safeAddress}/`);
+      
+      if (response.ok) {
+        setSafeExists(true);
+      } else if (response.status === 404) {
+        setSafeExists(false);
+        toast({
+          title: "Safe Not Found",
+          description: "No Safe wallet found at this address on the selected network",
+          variant: "destructive",
+        });
+      } else {
+        setSafeExists(false);
+        toast({
+          title: "Validation Error",
+          description: "Unable to validate Safe existence. Please try again.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error validating Safe:', error);
+      setSafeExists(false);
+      toast({
+        title: "Network Error",
+        description: "Unable to connect to Safe API for validation",
+        variant: "destructive",
+      });
+    } finally {
+      setIsValidatingSafe(false);
+    }
+  };
   
   useEffect(() => {
     if (user) {
@@ -160,20 +233,32 @@ const Index = () => {
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <Button 
                   onClick={handleReview}
-                  disabled={!address}
+                  disabled={!address || isValidatingSafe || safeExists === false}
                   className="jsr-button group flex items-center gap-2"
                 >
-                  <AlertCircle className="h-5 w-5 group-hover:animate-pulse" />
-                  Security Review
+                  {isValidatingSafe ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : safeExists === false ? (
+                    <AlertTriangle className="h-5 w-5" />
+                  ) : (
+                    <AlertCircle className="h-5 w-5 group-hover:animate-pulse" />
+                  )}
+                  {isValidatingSafe ? "Validating..." : safeExists === false ? "Safe Not Found" : "Security Review"}
                 </Button>
                 
                 <Button 
                   onClick={handleMonitor}
-                  disabled={!address}
+                  disabled={!address || isValidatingSafe || safeExists === false}
                   className="jsr-button-alt group flex items-center gap-2"
                 >
-                  <Eye className="h-5 w-5 group-hover:animate-pulse" />
-                  Set Up Monitor
+                  {isValidatingSafe ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : safeExists === false ? (
+                    <AlertTriangle className="h-5 w-5" />
+                  ) : (
+                    <Eye className="h-5 w-5 group-hover:animate-pulse" />
+                  )}
+                  {isValidatingSafe ? "Validating..." : safeExists === false ? "Safe Not Found" : "Set Up Monitor"}
                 </Button>
               </div>
               

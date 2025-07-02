@@ -101,8 +101,8 @@ interface Transaction {
 interface TransactionFilters {
   safe: string | null;
   network: string | null;
-  type: string | null;
-  transactionType: string | null;
+  state: string | null;
+  securityStatus: string | null;
 }
 
 type SortField = 'safe' | 'network' | 'nonce' | 'type' | 'scanned_at';
@@ -130,8 +130,8 @@ const Monitor = () => {
   const [filters, setFilters] = useState<TransactionFilters>({
     safe: null,
     network: null,
-    type: null,
-    transactionType: null
+    state: null,
+    securityStatus: null
   });
   
   // Sorting state
@@ -468,9 +468,18 @@ const Monitor = () => {
           query = query.eq('network', filters.network);
         }
         
-        // Apply transaction type filter if selected
-        if (filters.type) {
-          query = query.eq('transaction_type', filters.type);
+        // Apply state filter if selected
+        if (filters.state) {
+          if (filters.state === 'executed') {
+            query = query.eq('is_executed', true);
+          } else if (filters.state === 'proposed') {
+            query = query.eq('is_executed', false);
+          }
+        }
+        
+        // Apply security status filter if selected
+        if (filters.securityStatus) {
+          query = query.eq('risk_level', filters.securityStatus);
         }
         
         // Get all results before we do further client-side filtering/sorting
@@ -771,14 +780,14 @@ const Monitor = () => {
         return (
           <Badge variant="destructive" className="bg-orange-600 text-white">
             <ShieldAlert className="w-3 h-3 mr-1" />
-            High Risk
+            High
           </Badge>
         );
       case 'medium':
         return (
           <Badge variant="secondary" className="bg-yellow-500 text-white">
             <Shield className="w-3 h-3 mr-1" />
-            Medium Risk
+            Medium
           </Badge>
         );
       case 'low':
@@ -794,7 +803,7 @@ const Monitor = () => {
         return (
           <Badge variant="outline" className="border-green-400 text-green-600">
             <ShieldCheck className="w-3 h-3 mr-1" />
-            Normal
+            No Risk Detected
           </Badge>
         );
     }
@@ -965,7 +974,7 @@ const Monitor = () => {
                   </p>
                 </div>
                 <div>
-                  <h3 className="text-sm font-medium text-muted-foreground mb-1">Security Status</h3>
+                  <h3 className="text-sm font-medium text-muted-foreground mb-1">Security Risk</h3>
                   <div className="text-sm">
                     {getRiskLevelBadge(
                       selectedTransaction.result.risk_level || 
@@ -1562,8 +1571,8 @@ const Monitor = () => {
                           setFilters({
                             safe: null,
                             network: null,
-                            type: null,
-                            transactionType: null
+                            state: null,
+                            securityStatus: null
                           });
                           setCurrentPage(1);
                         } else {
@@ -1623,35 +1632,38 @@ const Monitor = () => {
                     </Select>
                     
                     <Select 
-                      value={filters.type || "all"} 
+                      value={filters.state || "all"} 
                       onValueChange={(value) => {
-                        setFilters(prev => ({ ...prev, type: value === "all" ? null : value }));
+                        setFilters(prev => ({ ...prev, state: value === "all" ? null : value }));
                         setCurrentPage(1);
                       }}
                     >
                       <SelectTrigger className="h-8 text-xs min-w-[140px] w-fit">
-                        <SelectValue placeholder="Transaction Type" />
+                        <SelectValue placeholder="State" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">All Types</SelectItem>
-                        <SelectItem value="suspicious">Suspicious</SelectItem>
-                        <SelectItem value="normal">Normal</SelectItem>
+                        <SelectItem value="all">All States</SelectItem>
+                        <SelectItem value="executed">Executed</SelectItem>
+                        <SelectItem value="proposed">Proposed</SelectItem>
                       </SelectContent>
                     </Select>
                     
                     <Select 
-                      value={filters.transactionType || "all"} 
+                      value={filters.securityStatus || "all"} 
                       onValueChange={(value) => {
-                        setFilters(prev => ({ ...prev, transactionType: value === "all" ? null : value }));
+                        setFilters(prev => ({ ...prev, securityStatus: value === "all" ? null : value }));
                         setCurrentPage(1);
                       }}
                     >
                       <SelectTrigger className="h-8 text-xs min-w-[160px] w-fit">
-                        <SelectValue placeholder="Transaction Method" />
+                        <SelectValue placeholder="Security Risk" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">All Methods</SelectItem>
-                        {/* Transaction method filter temporarily disabled - requires full JSON data */}
+                        <SelectItem value="all">All Security Risks</SelectItem>
+                        <SelectItem value="low">No Risk Detected</SelectItem>
+                        <SelectItem value="medium">Medium Risk</SelectItem>
+                        <SelectItem value="high">High Risk</SelectItem>
+                        <SelectItem value="critical">Critical Risk</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -1659,52 +1671,39 @@ const Monitor = () => {
                 
                 {/* Pagination controls above the table */}
                 {totalItems > 0 && (
-                  <div className="flex items-center justify-between pb-4">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4">
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <span>Showing {transactions.length} of {totalItems} results</span>
                     </div>
                     
-                    <div className="flex items-center gap-1">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setCurrentPage(1)}
-                        disabled={currentPage === 1}
-                      >
-                        First
-                      </Button>
+                    <div className="flex items-center gap-2">
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                         disabled={currentPage === 1}
+                        className="h-8 px-2"
                       >
                         <ChevronLeft className="h-4 w-4" />
                       </Button>
-                      <div className="flex items-center gap-1 text-sm px-2">
-                        <span>Page {currentPage} of {totalPages}</span>
+                      <div className="flex items-center gap-1 text-sm px-3 py-1 bg-muted rounded-md">
+                        <span>{currentPage} of {totalPages}</span>
                       </div>
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
                         disabled={currentPage === totalPages}
+                        className="h-8 px-2"
                       >
                         <ChevronRight className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setCurrentPage(totalPages)}
-                        disabled={currentPage === totalPages}
-                      >
-                        Last
                       </Button>
                     </div>
                   </div>
                 )}
                 
-                <div>
+                {/* Desktop Table View */}
+                <div className="hidden lg:block">
                   <div className="rounded-md border">
                     <Table>
                       <TableHeader>
@@ -1712,10 +1711,10 @@ const Monitor = () => {
                           <TableHead 
                             className="cursor-pointer"
                             onClick={() => {
-                              if (sortField === 'type') {
+                              if (sortField === 'safe') {
                                 setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
                               } else {
-                                setSortField('type');
+                                setSortField('safe');
                                 setSortDirection('asc');
                               }
                               setCurrentPage(1);
@@ -1723,7 +1722,7 @@ const Monitor = () => {
                           >
                             <div className="flex items-center">
                               Wallet
-                              {sortField === 'type' && (
+                              {sortField === 'safe' && (
                                 sortDirection === 'asc' ? 
                                 <ArrowUpAZ className="ml-1 h-3.5 w-3.5" /> : 
                                 <ArrowDownAZ className="ml-1 h-3.5 w-3.5" />
@@ -1895,67 +1894,146 @@ const Monitor = () => {
                     </Table>
                   </div>
                 </div>
-                
-                <div className="flex items-center justify-between pt-4">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Select
-                      value={itemsPerPage.toString()}
-                      onValueChange={(value) => {
-                        setItemsPerPage(parseInt(value));
-                        setCurrentPage(1);
-                      }}
-                    >
-                      <SelectTrigger className="h-8 w-[70px]">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="10">10</SelectItem>
-                        <SelectItem value="25">25</SelectItem>
-                        <SelectItem value="50">50</SelectItem>
-                        <SelectItem value="100">100</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <span>per page</span>
-                  </div>
-                  
-                  <div className="flex items-center gap-1">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setCurrentPage(1)}
-                      disabled={currentPage === 1}
-                    >
-                      First
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                      disabled={currentPage === 1}
-                    >
-                      <ChevronLeft className="h-4 w-4" />
-                    </Button>
-                    <div className="flex items-center gap-1 text-sm px-2">
-                      <span>Page {currentPage} of {totalPages}</span>
+
+                {/* Mobile Card View */}
+                <div className="lg:hidden space-y-4">
+                  {isLoadingTransactions ? (
+                    <div className="flex items-center justify-center py-12">
+                      <Loader2 className="h-6 w-6 animate-spin" />
                     </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                      disabled={currentPage === totalPages}
-                    >
-                      <ChevronRight className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setCurrentPage(totalPages)}
-                      disabled={currentPage === totalPages}
-                    >
-                      Last
-                    </Button>
-                  </div>
+                  ) : transactions.length > 0 ? (
+                    transactions.map((tx) => (
+                      <Card key={tx.id} className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => {
+                        fetchTransactionDetails(tx.id);
+                      }}>
+                        <CardContent className="p-4">
+                          <div className="space-y-3">
+                            {/* Header with wallet and network */}
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium text-sm">
+                                  {monitors.find(m => 
+                                    m.safe_address === tx.safe_address && 
+                                    m.network === tx.network
+                                  )?.alias || truncateAddress(tx.safe_address)}
+                                </span>
+                                <Badge variant="outline" className="text-xs">
+                                  {tx.network.charAt(0).toUpperCase() + tx.network.slice(1)}
+                                </Badge>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {tx.nonce !== undefined && (
+                                  <span className="text-xs text-muted-foreground">#{tx.nonce}</span>
+                                )}
+                                <Badge variant={tx.isExecuted ? "default" : "secondary"} className={`text-xs ${tx.isExecuted ? "bg-green-600" : ""}`}>
+                                  {tx.isExecuted ? 'Executed' : 'Proposed'}
+                                </Badge>
+                              </div>
+                            </div>
+
+                            {/* Transaction description */}
+                            <div className="text-sm text-muted-foreground">
+                              {tx.description.replace(/\s*\[.*?RISK:.*?\].*$/, '')}
+                            </div>
+
+                            {/* Security status and time */}
+                            <div className="flex items-center justify-between">
+                              <div>
+                                {getRiskLevelBadge(tx.risk_level || 'low', tx.type)}
+                              </div>
+                              <span className="text-xs text-muted-foreground">
+                                {formatTimeAgo(tx.submissionDate ? new Date(tx.submissionDate).getTime() : new Date(tx.scanned_at).getTime())}
+                              </span>
+                            </div>
+
+                            {/* Action buttons */}
+                            <div className="flex gap-2 pt-2">
+                              <a 
+                                href={`https://app.safe.global/transactions/tx?safe=${getSafeAppNetwork(tx.network)}:${tx.safe_address}&id=multisig_${tx.safe_address}_${tx.safeTxHash}`} 
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="flex-1"
+                              >
+                                <Button variant="outline" size="sm" className="w-full text-xs">
+                                  View in Safe
+                                </Button>
+                              </a>
+                              
+                              {tx.isExecuted && (
+                                <a 
+                                  href={getEtherscanTxUrl(tx)} 
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="flex-1"
+                                >
+                                  <Button variant="outline" size="sm" className="w-full text-xs">
+                                    Etherscan
+                                  </Button>
+                                </a>
+                              )}
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))
+                  ) : (
+                    <div className="text-center py-12 text-muted-foreground">
+                      No transactions found with the current filters
+                    </div>
+                  )}
                 </div>
+                
+                {/* Bottom pagination and items per page */}
+                {totalItems > 0 && (
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-4 border-t">
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Select
+                        value={itemsPerPage.toString()}
+                        onValueChange={(value) => {
+                          setItemsPerPage(parseInt(value));
+                          setCurrentPage(1);
+                        }}
+                      >
+                        <SelectTrigger className="h-8 w-[70px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="10">10</SelectItem>
+                          <SelectItem value="25">25</SelectItem>
+                          <SelectItem value="50">50</SelectItem>
+                          <SelectItem value="100">100</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <span>per page</span>
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                        disabled={currentPage === 1}
+                        className="h-8 px-2"
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </Button>
+                      <div className="flex items-center gap-1 text-sm px-3 py-1 bg-muted rounded-md">
+                        <span>{currentPage} of {totalPages}</span>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                        disabled={currentPage === totalPages}
+                        className="h-8 px-2"
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>

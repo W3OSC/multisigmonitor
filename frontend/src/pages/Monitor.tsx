@@ -1593,7 +1593,7 @@ const Monitor = () => {
                         <SelectValue placeholder="Filter by Safe" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">All Multisigs</SelectItem>
+                        <SelectItem value="all">All Wallets</SelectItem>
                         {monitors.map(monitor => (
                           <SelectItem key={monitor.id} value={monitor.id}>
                             {monitor.alias || truncateAddress(monitor.safe_address)}
@@ -1722,7 +1722,7 @@ const Monitor = () => {
                             }}
                           >
                             <div className="flex items-center">
-                              Severity
+                              Wallet
                               {sortField === 'type' && (
                                 sortDirection === 'asc' ? 
                                 <ArrowUpAZ className="ml-1 h-3.5 w-3.5" /> : 

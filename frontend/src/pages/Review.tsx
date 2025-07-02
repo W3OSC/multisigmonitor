@@ -177,6 +177,49 @@ async function checkSanctions(address: string): Promise<{
   }
 }
 
+async function checkMultipleSanctions(addresses: string[]): Promise<{
+  results: { [address: string]: { sanctioned: boolean; data?: any[]; error?: string } };
+  overallSanctioned: boolean;
+  sanctionedAddresses: string[];
+  errors: string[];
+}> {
+  const results: { [address: string]: { sanctioned: boolean; data?: any[]; error?: string } } = {};
+  const sanctionedAddresses: string[] = [];
+  const errors: string[] = [];
+
+  // Check each address individually
+  for (const address of addresses) {
+    if (!address || address === '0x0000000000000000000000000000000000000000') {
+      continue; // Skip invalid or zero addresses
+    }
+
+    try {
+      const result = await checkSanctions(address);
+      results[address] = result;
+
+      if (result.error) {
+        errors.push(`${address}: ${result.error}`);
+      } else if (result.sanctioned) {
+        sanctionedAddresses.push(address);
+      }
+
+      // Add a small delay between requests to avoid rate limiting
+      await new Promise(resolve => setTimeout(resolve, 100));
+    } catch (error) {
+      const errorMsg = `${address}: ${error.message}`;
+      results[address] = { sanctioned: false, error: errorMsg };
+      errors.push(errorMsg);
+    }
+  }
+
+  return {
+    results,
+    overallSanctioned: sanctionedAddresses.length > 0,
+    sanctionedAddresses,
+    errors
+  };
+}
+
 async function getMultisigInfo(txHash: string, network: string): Promise<{
   masterCopy?: string;
   initializer?: string;
@@ -484,37 +527,101 @@ async function performSecurityAssessment(safeAddress: string, network: string): 
 
     assessment.checks.ownershipValidation.isValid = ownershipIsValid;
 
-    // Sanctions validation for creator address
-    if (assessment.details.creator) {
-      try {
-        const sanctionsResult = await checkSanctions(assessment.details.creator);
-        
-        if (sanctionsResult.error) {
-          console.warn('Could not check sanctions:', sanctionsResult.error);
-          assessment.checks.sanctionsValidation.warnings?.push(`Unable to check sanctions: ${sanctionsResult.error}`);
-          assessment.checks.sanctionsValidation.isValid = false;
-        } else {
-          assessment.details.sanctionsData = sanctionsResult.data || [];
-          
-          if (sanctionsResult.sanctioned) {
-            assessment.riskFactors.push('CRITICAL RISK: Safe creator is on sanctions list!');
-            assessment.checks.sanctionsValidation.isValid = false;
-            assessment.checks.sanctionsValidation.warnings?.push('Creator address found on sanctions list');
-            assessment.overallRisk = 'critical';
-          } else {
-            assessment.checks.sanctionsValidation.isValid = true;
-            assessment.checks.sanctionsValidation.canonicalName = 'Creator Clear';
-          }
-        }
-      } catch (error) {
-        console.warn('Error checking sanctions:', error);
-        assessment.checks.sanctionsValidation.warnings?.push('Failed to verify sanctions status');
-        assessment.checks.sanctionsValidation.isValid = false;
+    // Enhanced Sanctions validation - Check Safe address, creator, and all owners
+    try {
+      const addressesToCheck: string[] = [];
+      
+      // Add Safe address itself
+      addressesToCheck.push(assessment.safeAddress);
+      
+      // Add creator address if available
+      if (assessment.details.creator) {
+        addressesToCheck.push(assessment.details.creator);
       }
-    } else {
-      // No creator address available to check
+      
+      // Add all owner addresses
+      if (assessment.details.owners && assessment.details.owners.length > 0) {
+        addressesToCheck.push(...assessment.details.owners);
+      }
+      
+      // Remove duplicates and filter out invalid addresses
+      const uniqueAddresses = [...new Set(addressesToCheck)].filter(addr => 
+        addr && addr !== '0x0000000000000000000000000000000000000000'
+      );
+      
+      if (uniqueAddresses.length > 0) {
+        console.log('Checking sanctions for addresses:', uniqueAddresses);
+        const sanctionsResult = await checkMultipleSanctions(uniqueAddresses);
+        
+        // Store all results for detailed display
+        assessment.details.sanctionsData = [];
+        
+        // Process results
+        let hasSanctionedAddresses = false;
+        const sanctionedDetails: string[] = [];
+        
+        if (sanctionsResult.errors.length > 0) {
+          console.warn('Sanctions check errors:', sanctionsResult.errors);
+          assessment.checks.sanctionsValidation.warnings?.push(`Some sanctions checks failed: ${sanctionsResult.errors.join('; ')}`);
+        }
+        
+        if (sanctionsResult.overallSanctioned) {
+          hasSanctionedAddresses = true;
+          
+          // Check each type of address for sanctions
+          sanctionsResult.sanctionedAddresses.forEach(sanctionedAddr => {
+            const result = sanctionsResult.results[sanctionedAddr];
+            
+            if (sanctionedAddr.toLowerCase() === assessment.safeAddress.toLowerCase()) {
+              assessment.riskFactors.push('CRITICAL RISK: Safe wallet address is on sanctions list!');
+              sanctionedDetails.push(`Safe wallet (${sanctionedAddr}): ${result.data?.[0]?.name || 'Sanctioned'}`);
+            } else if (assessment.details.creator && sanctionedAddr.toLowerCase() === assessment.details.creator.toLowerCase()) {
+              assessment.riskFactors.push('CRITICAL RISK: Safe creator is on sanctions list!');
+              sanctionedDetails.push(`Creator (${sanctionedAddr}): ${result.data?.[0]?.name || 'Sanctioned'}`);
+            } else if (assessment.details.owners.some(owner => owner.toLowerCase() === sanctionedAddr.toLowerCase())) {
+              assessment.riskFactors.push('CRITICAL RISK: Safe owner is on sanctions list!');
+              sanctionedDetails.push(`Owner (${sanctionedAddr}): ${result.data?.[0]?.name || 'Sanctioned'}`);
+            }
+            
+            // Add to sanctions data for display
+            if (result.data) {
+              assessment.details.sanctionsData.push(...result.data);
+            }
+          });
+          
+          assessment.checks.sanctionsValidation.isValid = false;
+          assessment.checks.sanctionsValidation.warnings?.push(`Sanctioned addresses found: ${sanctionedDetails.join('; ')}`);
+          assessment.overallRisk = 'critical';
+        } else {
+          // All addresses are clear
+          assessment.checks.sanctionsValidation.isValid = true;
+          const checkedCount = uniqueAddresses.length;
+          const ownerCount = assessment.details.owners.length;
+          const hasCreator = !!assessment.details.creator;
+          
+          let clearMessage = `All addresses clear (Safe`;
+          if (hasCreator) clearMessage += `, creator`;
+          if (ownerCount > 0) clearMessage += `, ${ownerCount} owner${ownerCount > 1 ? 's' : ''}`;
+          clearMessage += `)`;
+          
+          assessment.checks.sanctionsValidation.canonicalName = clearMessage;
+        }
+        
+        // Add summary to warnings if there were any issues but not complete failures
+        if (sanctionsResult.errors.length > 0 && !hasSanctionedAddresses) {
+          assessment.checks.sanctionsValidation.isValid = false;
+        }
+        
+      } else {
+        // No addresses available to check
+        assessment.checks.sanctionsValidation.isValid = false;
+        assessment.checks.sanctionsValidation.warnings?.push('No addresses available for sanctions check');
+      }
+      
+    } catch (error) {
+      console.warn('Error during enhanced sanctions check:', error);
+      assessment.checks.sanctionsValidation.warnings?.push('Failed to verify sanctions status');
       assessment.checks.sanctionsValidation.isValid = false;
-      assessment.checks.sanctionsValidation.warnings?.push('No creator address available for sanctions check');
     }
 
     // Multisig Info Cross-Validation - CRITICAL SECURITY CHECK
@@ -1308,12 +1415,17 @@ const Review = () => {
                         </div>
                         {assessment.checks.sanctionsValidation?.isValid && (
                           <div className="text-xs text-green-600 mt-1">
-                            Creator Clear - No Sanctions
+                            {assessment.checks.sanctionsValidation.canonicalName || 'All addresses clear - No Sanctions'}
                           </div>
                         )}
                         {assessment.checks.sanctionsValidation?.isValid === false && assessment.details.sanctionsData?.length > 0 && (
                           <div className="text-xs text-red-600 mt-1">
-                            {assessment.details.sanctionsData[0]?.name || 'Sanctioned Address'}
+                            {assessment.details.sanctionsData[0]?.name || 'Sanctioned Address Detected'}
+                          </div>
+                        )}
+                        {assessment.checks.sanctionsValidation?.warnings && assessment.checks.sanctionsValidation.warnings.length > 0 && (
+                          <div className="text-xs text-amber-600 mt-1">
+                            {assessment.checks.sanctionsValidation.warnings[0]}
                           </div>
                         )}
                       </div>

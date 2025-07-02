@@ -599,7 +599,7 @@ async function performSecurityAssessment(safeAddress: string, network: string): 
           const ownerCount = assessment.details.owners.length;
           const hasCreator = !!assessment.details.creator;
           
-          let clearMessage = `All addresses clear (Safe`;
+          let clearMessage = `All addresses clear from sanctions (Safe`;
           if (hasCreator) clearMessage += `, creator`;
           if (ownerCount > 0) clearMessage += `, ${ownerCount} owner${ownerCount > 1 ? 's' : ''}`;
           clearMessage += `)`;

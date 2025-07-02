@@ -3,7 +3,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
 import { Shield, Menu, X, LogIn, LogOut } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { LoginDialog } from "@/components/LoginDialog";
@@ -13,9 +13,33 @@ export function Header() {
   const isMobile = useIsMobile();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { user, isLoginDialogOpen, setIsLoginDialogOpen, signOut } = useAuth();
+  const headerRef = useRef<HTMLElement>(null);
+
+  // Close mobile menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        isMenuOpen && 
+        isMobile && 
+        headerRef.current && 
+        !headerRef.current.contains(event.target as Node)
+      ) {
+        setIsMenuOpen(false);
+      }
+    };
+
+    if (isMenuOpen && isMobile) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [isMenuOpen, isMobile]);
 
   return (
-    <header className={cn(
+    <header 
+      ref={headerRef}
+      className={cn(
       "sticky top-0 z-50 w-full border-b bg-background/80 backdrop-blur-sm transition-all duration-300",
       isMenuOpen && isMobile ? "pb-6" : ""
     )}>

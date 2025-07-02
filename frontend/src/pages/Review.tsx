@@ -117,42 +117,6 @@ function getBackendNetworkName(network: string): string {
   return networkMap[network.toLowerCase()] || network;
 }
 
-async function getInitializerFromTransaction(txHash: string): Promise<{
-  initializer: string | null;
-  error?: string;
-}> {
-  try {
-    const response = await fetch('https://jgqotbhokyuasepuhzxy.supabase.co/functions/v1/get-initializer', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        txhash: txHash
-      })
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      return {
-        initializer: null,
-        error: `Failed to fetch initializer: ${response.status} ${errorText}`
-      };
-    }
-
-    const data = await response.json();
-    return {
-      initializer: data.initializer || null,
-      error: data.error || undefined
-    };
-  } catch (error) {
-    console.error('Error calling get-initializer function:', error);
-    return {
-      initializer: null,
-      error: `Network error: ${error.message}`
-    };
-  }
-}
 
 async function checkSanctions(address: string): Promise<{
   sanctioned: boolean;
@@ -395,17 +359,17 @@ async function performSecurityAssessment(safeAddress: string, network: string): 
         // Mark creation transaction as verified if we found it
         assessment.checks.creationTransaction.isValid = true;
 
-        // Extract initializer from creation transaction
+        // Extract initializer from creation transaction using multisig-info endpoint
         if (creationInfo.transactionHash) {
           try {
-            const initializerData = await getInitializerFromTransaction(creationInfo.transactionHash);
+            const multisigInfoResult = await getMultisigInfo(creationInfo.transactionHash, getBackendNetworkName(network));
             
-            if (initializerData.error) {
-              console.warn('Could not extract initializer:', initializerData.error);
-              assessment.checks.initializerValidation.warnings?.push(`Unable to extract initializer: ${initializerData.error}`);
+            if (multisigInfoResult.error) {
+              console.warn('Could not extract initializer:', multisigInfoResult.error);
+              assessment.checks.initializerValidation.warnings?.push(`Unable to extract initializer: ${multisigInfoResult.error}`);
             } else {
-              // Set the initializer
-              assessment.details.initializer = initializerData.initializer;
+              // Set the initializer from multisig info
+              assessment.details.initializer = multisigInfoResult.initializer;
             }
           } catch (error) {
             console.warn('Error extracting initializer from transaction:', error);

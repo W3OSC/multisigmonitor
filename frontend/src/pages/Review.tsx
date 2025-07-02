@@ -1544,12 +1544,12 @@ const Review = () => {
               {/* Actions */}
               <div className="flex flex-col sm:flex-row gap-3 justify-between p-6">
                 <div className="flex gap-2">
-                  <Button
+                  {/* <Button
                     variant="outline"
                     onClick={() => navigate("/")}
                   >
                     Back to Home
-                  </Button>
+                  </Button> */}
                   
                   <Button
                     variant="outline"
@@ -1562,12 +1562,13 @@ const Review = () => {
                 
                 <div className="flex gap-2">
                   {assessment.overallRisk === 'low' && (
-                    <Button
-                      className="jsr-button-alt"
-                      onClick={() => navigate(`/monitor/new?address=${address}&network=${network}`)}
-                    >
-                      Set Up Monitoring
-                    </Button>
+                  <Button
+                    className="jsr-button-alt w-full sm:w-auto"
+                    onClick={() => navigate(`/monitor/new?address=${address}&network=${network}`)}
+                  >
+                    <span className="hidden sm:inline">Set Up Monitoring</span>
+                    <span className="sm:hidden">Monitor</span>
+                  </Button>
                   )}
                   
                   <Button

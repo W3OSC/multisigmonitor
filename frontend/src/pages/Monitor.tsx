@@ -940,6 +940,327 @@ const Monitor = () => {
                 )}
               </div>
 
+              {/* Security Analysis Section - Moved to top */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">Security Analysis</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Gas Parameters Analysis */}
+                  <div className="space-y-3">
+                    <h4 className="text-sm font-medium text-muted-foreground">Gas Parameters Assessment</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className={`p-3 rounded-lg border ${
+                        selectedTransaction.result.transaction_data?.safeTxGas !== "0" ? 
+                        'bg-orange-50 border-orange-200' : 'bg-green-50 border-green-200'
+                      }`}>
+                        <div className="flex items-center gap-2 mb-1">
+                          {selectedTransaction.result.transaction_data?.safeTxGas !== "0" ? (
+                            <AlertCircle className="h-4 w-4 text-orange-600" />
+                          ) : (
+                            <ShieldCheck className="h-4 w-4 text-green-600" />
+                          )}
+                          <span className={`text-sm font-medium ${
+                            selectedTransaction.result.transaction_data?.safeTxGas !== "0" ? 
+                            'text-orange-700' : 'text-green-700'
+                          }`}>
+                            Safe Tx Gas: {selectedTransaction.result.transaction_data?.safeTxGas || "0"}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {selectedTransaction.result.transaction_data?.safeTxGas !== "0" ? 
+                            "Custom gas limit set - verify this is intentional" : 
+                            "Using default gas estimation"}
+                        </p>
+                      </div>
+                      
+                      <div className={`p-3 rounded-lg border ${
+                        selectedTransaction.result.transaction_data?.gasToken !== "0x0000000000000000000000000000000000000000" ? 
+                        'bg-orange-50 border-orange-200' : 'bg-green-50 border-green-200'
+                      }`}>
+                        <div className="flex items-center gap-2 mb-1">
+                          {selectedTransaction.result.transaction_data?.gasToken !== "0x0000000000000000000000000000000000000000" ? (
+                            <AlertCircle className="h-4 w-4 text-orange-600" />
+                          ) : (
+                            <ShieldCheck className="h-4 w-4 text-green-600" />
+                          )}
+                          <span className={`text-sm font-medium ${
+                            selectedTransaction.result.transaction_data?.gasToken !== "0x0000000000000000000000000000000000000000" ? 
+                            'text-orange-700' : 'text-green-700'
+                          }`}>
+                            Gas Token
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {selectedTransaction.result.transaction_data?.gasToken !== "0x0000000000000000000000000000000000000000" ? 
+                            "Custom gas token specified - verify token legitimacy" : 
+                            "Using native ETH for gas"}
+                        </p>
+                      </div>
+                      
+                      <div className={`p-3 rounded-lg border sm:col-span-2 ${
+                        selectedTransaction.result.transaction_data?.refundReceiver !== "0x0000000000000000000000000000000000000000" ? 
+                        'bg-orange-50 border-orange-200' : 'bg-green-50 border-green-200'
+                      }`}>
+                        <div className="flex items-center gap-2 mb-1">
+                          {selectedTransaction.result.transaction_data?.refundReceiver !== "0x0000000000000000000000000000000000000000" ? (
+                            <AlertCircle className="h-4 w-4 text-orange-600" />
+                          ) : (
+                            <ShieldCheck className="h-4 w-4 text-green-600" />
+                          )}
+                          <span className={`text-sm font-medium ${
+                            selectedTransaction.result.transaction_data?.refundReceiver !== "0x0000000000000000000000000000000000000000" ? 
+                            'text-orange-700' : 'text-green-700'
+                          }`}>
+                            Refund Receiver
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {selectedTransaction.result.transaction_data?.refundReceiver !== "0x0000000000000000000000000000000000000000" ? 
+                            "Custom refund receiver set - verify this address is trusted" : 
+                            "No custom refund receiver"}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Operation Type Analysis */}
+                  <div className="space-y-3">
+                    <h4 className="text-sm font-medium text-muted-foreground">Operation Type Assessment</h4>
+                    <div className={`p-3 rounded-lg border ${
+                      selectedTransaction.result.transaction_data?.operation === 1 ? 
+                      'bg-red-50 border-red-200' : 
+                      selectedTransaction.result.transaction_data?.operation === 2 ? 
+                      'bg-yellow-50 border-yellow-200' : 
+                      'bg-green-50 border-green-200'
+                    }`}>
+                      <div className="flex items-center gap-2 mb-2">
+                        {selectedTransaction.result.transaction_data?.operation === 1 ? (
+                          <ShieldX className="h-4 w-4 text-red-600" />
+                        ) : selectedTransaction.result.transaction_data?.operation === 2 ? (
+                          <AlertCircle className="h-4 w-4 text-yellow-600" />
+                        ) : (
+                          <ShieldCheck className="h-4 w-4 text-green-600" />
+                        )}
+                        <span className={`text-sm font-medium ${
+                          selectedTransaction.result.transaction_data?.operation === 1 ? 
+                          'text-red-700' : 
+                          selectedTransaction.result.transaction_data?.operation === 2 ? 
+                          'text-yellow-700' : 
+                          'text-green-700'
+                        }`}>
+                          {selectedTransaction.result.transaction_data?.operation === 0 ? 'Call Operation' :
+                           selectedTransaction.result.transaction_data?.operation === 1 ? 'Delegate Call Operation' :
+                           selectedTransaction.result.transaction_data?.operation === 2 ? 'Contract Creation' :
+                           'Unknown Operation'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {selectedTransaction.result.transaction_data?.operation === 0 ? 
+                          "Standard call operation - lowest risk level" :
+                         selectedTransaction.result.transaction_data?.operation === 1 ? 
+                          "⚠️ DELEGATE CALL - High risk! This allows the target contract to execute code in the Safe's context with full access to storage and funds. Verify the target contract is absolutely trusted." :
+                         selectedTransaction.result.transaction_data?.operation === 2 ? 
+                          "Contract creation operation - verify the bytecode being deployed" :
+                          "Unknown operation type - exercise extreme caution"}
+                      </p>
+                      {selectedTransaction.result.transaction_data?.operation === 1 && selectedTransaction.result.transaction_data?.to && (
+                        <div className="mt-2 p-2 bg-red-100 rounded border border-red-300">
+                          <p className="text-xs font-medium text-red-800">Target Contract:</p>
+                          <p className="text-xs font-mono text-red-700 break-all">
+                            {selectedTransaction.result.transaction_data.to}
+                          </p>
+                          <p className="text-xs text-red-600 mt-1">
+                            ⚠️ Ensure this contract is verified and audited before approving
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {(selectedTransaction.security_analysis || selectedTransaction.security_warnings) && (
+                    <>
+                      {/* Security Warnings */}
+                      {selectedTransaction.security_warnings && selectedTransaction.security_warnings.length > 0 && (
+                        <div className="space-y-3">
+                          <h4 className="text-sm font-medium text-amber-600">Security Warnings</h4>
+                          <div className="space-y-2">
+                            {selectedTransaction.security_warnings.map((warning, index) => (
+                              <div key={index} className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                                <AlertCircle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+                                <span className="text-sm">{warning}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Detailed Security Analysis */}
+                      {selectedTransaction.security_analysis?.details && (
+                        <div className="space-y-3">
+                          <h4 className="text-sm font-medium text-muted-foreground">Analysis Details</h4>
+                          <div className="space-y-3 max-h-64 overflow-y-auto">
+                            {selectedTransaction.security_analysis.details.map((detail, index) => (
+                              <div key={index} className={`p-3 rounded-lg border-l-4 ${
+                                detail.severity === 'critical' ? 'bg-red-50 border-l-red-500' :
+                                detail.severity === 'high' ? 'bg-orange-50 border-l-orange-500' :
+                                detail.severity === 'medium' ? 'bg-yellow-50 border-l-yellow-500' :
+                                'bg-blue-50 border-l-blue-500'
+                              }`}>
+                                <div className="space-y-2">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <Badge variant="outline" className={`text-xs ${
+                                      detail.severity === 'critical' ? 'border-red-400 text-red-700' :
+                                      detail.severity === 'high' ? 'border-orange-400 text-orange-700' :
+                                      detail.severity === 'medium' ? 'border-yellow-400 text-yellow-700' :
+                                      'border-blue-400 text-blue-700'
+                                    }`}>
+                                      {detail.severity.toUpperCase()}
+                                    </Badge>
+                                    {detail.type && (
+                                      <span className="text-xs text-muted-foreground">
+                                        {detail.type.replace(/_/g, ' ')}
+                                      </span>
+                                    )}
+                                    {detail.priority === 'P0' && (
+                                      <Badge variant="destructive" className="text-xs">P0</Badge>
+                                    )}
+                                  </div>
+                                  <p className="text-sm">{detail.message}</p>
+                                  
+                                  {/* Additional detail fields */}
+                                  <div className="space-y-1 text-xs text-muted-foreground">
+                                    {detail.gasToken && detail.gasToken !== '0x0000000000000000000000000000000000000000' && (
+                                      <div><span className="font-medium">Gas Token:</span> {detail.gasToken}</div>
+                                    )}
+                                    {detail.refundReceiver && detail.refundReceiver !== '0x0000000000000000000000000000000000000000' && (
+                                      <div><span className="font-medium">Refund Receiver:</span> {detail.refundReceiver}</div>
+                                    )}
+                                    {detail.toAddress && (
+                                      <div><span className="font-medium">Target Address:</span> {detail.toAddress}</div>
+                                    )}
+                                    {detail.valueEth && (
+                                      <div><span className="font-medium">Value:</span> {detail.valueEth} ETH</div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Hash Verification Results */}
+                      {selectedTransaction.security_analysis?.hashVerification && (
+                        <div className="space-y-3">
+                          <h4 className="text-sm font-medium text-muted-foreground">Hash Verification</h4>
+                          <div className="space-y-3">
+                            <div className="grid grid-cols-1 gap-3">
+                              <div className="bg-muted/50 p-3 rounded-lg">
+                                <div className="text-xs font-medium mb-2">Domain Hash:</div>
+                                <div className="font-mono text-xs break-all text-green-600">
+                                  {selectedTransaction.security_analysis.hashVerification.calculatedHashes?.domainHash || "Not calculated"}
+                                </div>
+                              </div>
+                              <div className="bg-muted/50 p-3 rounded-lg">
+                                <div className="text-xs font-medium mb-2">Message Hash:</div>
+                                <div className="font-mono text-xs break-all text-green-600">
+                                  {selectedTransaction.security_analysis.hashVerification.calculatedHashes?.messageHash || "Not calculated"}
+                                </div>
+                              </div>
+                              <div className="bg-muted/50 p-3 rounded-lg">
+                                <div className="text-xs font-medium mb-2">Safe Transaction Hash:</div>
+                                <div className="space-y-2">
+                                  <div>
+                                    <span className="text-xs text-muted-foreground">Calculated:</span>
+                                    <div className="font-mono text-xs break-all text-blue-600 mt-1">
+                                      {selectedTransaction.security_analysis.hashVerification.calculatedHashes?.safeTxHash || "Not calculated"}
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <span className="text-xs text-muted-foreground">API Response:</span>
+                                    <div className="font-mono text-xs break-all text-blue-600 mt-1">
+                                      {selectedTransaction.result.transaction_data?.safeTxHash || "Not available"}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                              
+                              {/* Hash Verification Status */}
+                              <div>
+                                {selectedTransaction.security_analysis.hashVerification.verified === false ? (
+                                  <div className="bg-red-50 border border-red-200 p-3 rounded-lg">
+                                    <div className="text-red-600 font-medium flex items-center gap-2">
+                                      <AlertCircle className="h-4 w-4" />
+                                      CRITICAL: Hash verification failed
+                                    </div>
+                                    <div className="text-red-600 text-xs mt-1">
+                                      The calculated Safe transaction hash does not match the API response. This could indicate transaction tampering or manipulation.
+                                    </div>
+                                  </div>
+                                ) : selectedTransaction.security_analysis.hashVerification.verified === true ? (
+                                  <div className="bg-green-50 border border-green-200 p-3 rounded-lg">
+                                    <div className="text-green-600 font-medium flex items-center gap-2">
+                                      <ShieldCheck className="h-4 w-4" />
+                                      Hash verification passed
+                                    </div>
+                                    <div className="text-green-600 text-xs mt-1">
+                                      The calculated Safe transaction hash matches the API response.
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="bg-yellow-50 border border-yellow-200 p-3 rounded-lg">
+                                    <div className="text-yellow-600 font-medium">
+                                      Hash verification not performed
+                                    </div>
+                                    <div className="text-yellow-600 text-xs mt-1">
+                                      Hash verification requires Safe version and chain ID information.
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Nonce Check Results */}
+                      {selectedTransaction.security_analysis?.nonceCheck && (
+                        <div className="space-y-3">
+                          <h4 className="text-sm font-medium text-muted-foreground">Nonce Sequence</h4>
+                          <div className={`p-3 rounded-lg ${
+                            selectedTransaction.security_analysis.nonceCheck.isRisky 
+                              ? 'bg-yellow-50 border border-yellow-200' 
+                              : 'bg-green-50 border border-green-200'
+                          }`}>
+                            <div className="flex items-center gap-2 mb-1">
+                              {selectedTransaction.security_analysis.nonceCheck.isRisky ? (
+                                <AlertCircle className="h-4 w-4 text-yellow-600" />
+                              ) : (
+                                <ShieldCheck className="h-4 w-4 text-green-600" />
+                              )}
+                              <span className={`text-sm ${
+                                selectedTransaction.security_analysis.nonceCheck.isRisky 
+                                  ? 'text-yellow-700' 
+                                  : 'text-green-700'
+                              }`}>
+                                {selectedTransaction.security_analysis.nonceCheck.message}
+                              </span>
+                            </div>
+                            
+                            {selectedTransaction.security_analysis.nonceCheck.gap && (
+                              <p className="text-xs text-muted-foreground">
+                                Gap detected: {selectedTransaction.security_analysis.nonceCheck.gap}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+
               {/* Basic Transaction Information */}
               <Card>
                 <CardHeader className="pb-3">
@@ -1026,193 +1347,6 @@ const Monitor = () => {
                   </div>
                 </CardContent>
               </Card>
-
-              {/* Security Analysis Section */}
-              {(selectedTransaction.security_analysis || selectedTransaction.security_warnings) && (
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-base">Security Analysis</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {/* Security Warnings */}
-                    {selectedTransaction.security_warnings && selectedTransaction.security_warnings.length > 0 && (
-                      <div className="space-y-3">
-                        <h4 className="text-sm font-medium text-amber-600">Security Warnings</h4>
-                        <div className="space-y-2">
-                          {selectedTransaction.security_warnings.map((warning, index) => (
-                            <div key={index} className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                              <AlertCircle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
-                              <span className="text-sm">{warning}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* Detailed Security Analysis */}
-                    {selectedTransaction.security_analysis?.details && (
-                      <div className="space-y-3">
-                        <h4 className="text-sm font-medium text-muted-foreground">Analysis Details</h4>
-                        <div className="space-y-3 max-h-64 overflow-y-auto">
-                          {selectedTransaction.security_analysis.details.map((detail, index) => (
-                            <div key={index} className={`p-3 rounded-lg border-l-4 ${
-                              detail.severity === 'critical' ? 'bg-red-50 border-l-red-500' :
-                              detail.severity === 'high' ? 'bg-orange-50 border-l-orange-500' :
-                              detail.severity === 'medium' ? 'bg-yellow-50 border-l-yellow-500' :
-                              'bg-blue-50 border-l-blue-500'
-                            }`}>
-                              <div className="space-y-2">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <Badge variant="outline" className={`text-xs ${
-                                    detail.severity === 'critical' ? 'border-red-400 text-red-700' :
-                                    detail.severity === 'high' ? 'border-orange-400 text-orange-700' :
-                                    detail.severity === 'medium' ? 'border-yellow-400 text-yellow-700' :
-                                    'border-blue-400 text-blue-700'
-                                  }`}>
-                                    {detail.severity.toUpperCase()}
-                                  </Badge>
-                                  {detail.type && (
-                                    <span className="text-xs text-muted-foreground">
-                                      {detail.type.replace(/_/g, ' ')}
-                                    </span>
-                                  )}
-                                  {detail.priority === 'P0' && (
-                                    <Badge variant="destructive" className="text-xs">P0</Badge>
-                                  )}
-                                </div>
-                                <p className="text-sm">{detail.message}</p>
-                                
-                                {/* Additional detail fields */}
-                                <div className="space-y-1 text-xs text-muted-foreground">
-                                  {detail.gasToken && detail.gasToken !== '0x0000000000000000000000000000000000000000' && (
-                                    <div><span className="font-medium">Gas Token:</span> {detail.gasToken}</div>
-                                  )}
-                                  {detail.refundReceiver && detail.refundReceiver !== '0x0000000000000000000000000000000000000000' && (
-                                    <div><span className="font-medium">Refund Receiver:</span> {detail.refundReceiver}</div>
-                                  )}
-                                  {detail.toAddress && (
-                                    <div><span className="font-medium">Target Address:</span> {detail.toAddress}</div>
-                                  )}
-                                  {detail.valueEth && (
-                                    <div><span className="font-medium">Value:</span> {detail.valueEth} ETH</div>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* Hash Verification Results */}
-                    {selectedTransaction.security_analysis?.hashVerification && (
-                      <div className="space-y-3">
-                        <h4 className="text-sm font-medium text-muted-foreground">Hash Verification</h4>
-                        <div className="space-y-3">
-                          <div className="grid grid-cols-1 gap-3">
-                            <div className="bg-muted/50 p-3 rounded-lg">
-                              <div className="text-xs font-medium mb-2">Domain Hash:</div>
-                              <div className="font-mono text-xs break-all text-green-600">
-                                {selectedTransaction.security_analysis.hashVerification.calculatedHashes?.domainHash || "Not calculated"}
-                              </div>
-                            </div>
-                            <div className="bg-muted/50 p-3 rounded-lg">
-                              <div className="text-xs font-medium mb-2">Message Hash:</div>
-                              <div className="font-mono text-xs break-all text-green-600">
-                                {selectedTransaction.security_analysis.hashVerification.calculatedHashes?.messageHash || "Not calculated"}
-                              </div>
-                            </div>
-                            <div className="bg-muted/50 p-3 rounded-lg">
-                              <div className="text-xs font-medium mb-2">Safe Transaction Hash:</div>
-                              <div className="space-y-2">
-                                <div>
-                                  <span className="text-xs text-muted-foreground">Calculated:</span>
-                                  <div className="font-mono text-xs break-all text-blue-600 mt-1">
-                                    {selectedTransaction.security_analysis.hashVerification.calculatedHashes?.safeTxHash || "Not calculated"}
-                                  </div>
-                                </div>
-                                <div>
-                                  <span className="text-xs text-muted-foreground">API Response:</span>
-                                  <div className="font-mono text-xs break-all text-blue-600 mt-1">
-                                    {selectedTransaction.result.transaction_data?.safeTxHash || "Not available"}
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                            
-                            {/* Hash Verification Status */}
-                            <div>
-                              {selectedTransaction.security_analysis.hashVerification.verified === false ? (
-                                <div className="bg-red-50 border border-red-200 p-3 rounded-lg">
-                                  <div className="text-red-600 font-medium flex items-center gap-2">
-                                    <AlertCircle className="h-4 w-4" />
-                                    CRITICAL: Hash verification failed
-                                  </div>
-                                  <div className="text-red-600 text-xs mt-1">
-                                    The calculated Safe transaction hash does not match the API response. This could indicate transaction tampering or manipulation.
-                                  </div>
-                                </div>
-                              ) : selectedTransaction.security_analysis.hashVerification.verified === true ? (
-                                <div className="bg-green-50 border border-green-200 p-3 rounded-lg">
-                                  <div className="text-green-600 font-medium flex items-center gap-2">
-                                    <ShieldCheck className="h-4 w-4" />
-                                    Hash verification passed
-                                  </div>
-                                  <div className="text-green-600 text-xs mt-1">
-                                    The calculated Safe transaction hash matches the API response.
-                                  </div>
-                                </div>
-                              ) : (
-                                <div className="bg-yellow-50 border border-yellow-200 p-3 rounded-lg">
-                                  <div className="text-yellow-600 font-medium">
-                                    Hash verification not performed
-                                  </div>
-                                  <div className="text-yellow-600 text-xs mt-1">
-                                    Hash verification requires Safe version and chain ID information.
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* Nonce Check Results */}
-                    {selectedTransaction.security_analysis?.nonceCheck && (
-                      <div className="space-y-3">
-                        <h4 className="text-sm font-medium text-muted-foreground">Nonce Sequence</h4>
-                        <div className={`p-3 rounded-lg ${
-                          selectedTransaction.security_analysis.nonceCheck.isRisky 
-                            ? 'bg-yellow-50 border border-yellow-200' 
-                            : 'bg-green-50 border border-green-200'
-                        }`}>
-                          <div className="flex items-center gap-2 mb-1">
-                            {selectedTransaction.security_analysis.nonceCheck.isRisky ? (
-                              <AlertCircle className="h-4 w-4 text-yellow-600" />
-                            ) : (
-                              <ShieldCheck className="h-4 w-4 text-green-600" />
-                            )}
-                            <span className={`text-sm ${
-                              selectedTransaction.security_analysis.nonceCheck.isRisky 
-                                ? 'text-yellow-700' 
-                                : 'text-green-700'
-                            }`}>
-                              {selectedTransaction.security_analysis.nonceCheck.message}
-                            </span>
-                          </div>
-                          
-                          {selectedTransaction.security_analysis.nonceCheck.gap && (
-                            <p className="text-xs text-muted-foreground">
-                              Gap detected: {selectedTransaction.security_analysis.nonceCheck.gap}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              )}
 
               {/* Gas Parameters */}
               <Card>

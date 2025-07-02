@@ -147,6 +147,9 @@ const Monitor = () => {
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [detailModalOpen, setDetailModalOpen] = useState(false);
   
+  // Filter visibility state
+  const [showFilters, setShowFilters] = useState(false);
+  
   // Get txHash from URL parameter
   const { txHash } = params;
   
@@ -1551,16 +1554,22 @@ const Monitor = () => {
                       variant="outline"
                       size="sm"
                       className={`h-8 gap-1 ${
-                        Object.values(filters).some(v => v !== null) ? 'bg-primary/10' : ''
+                        Object.values(filters).some(v => v !== null) || showFilters ? 'bg-primary/10' : ''
                       }`}
                       onClick={() => {
-                        setFilters({
-                          safe: null,
-                          network: null,
-                          type: null,
-                          transactionType: null
-                        });
-                        setCurrentPage(1);
+                        if (Object.values(filters).some(v => v !== null)) {
+                          // If filters are active, reset them
+                          setFilters({
+                            safe: null,
+                            network: null,
+                            type: null,
+                            transactionType: null
+                          });
+                          setCurrentPage(1);
+                        } else {
+                          // Toggle filter visibility
+                          setShowFilters(!showFilters);
+                        }
                       }}
                     >
                       <Filter className="h-3.5 w-3.5" />
@@ -1571,80 +1580,82 @@ const Monitor = () => {
               </CardHeader>
               
               <CardContent className="space-y-4">
-                <div className="flex flex-wrap gap-3 pb-4">
-                  <Select 
-                    value={filters.safe || "all"} 
-                    onValueChange={(value) => {
-                      setFilters(prev => ({ ...prev, safe: value === "all" ? null : value }));
-                      setCurrentPage(1);
-                    }}
-                  >
-                    <SelectTrigger className="h-8 text-xs min-w-[140px] w-fit">
-                      <SelectValue placeholder="Filter by Safe" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Multisigs</SelectItem>
-                      {monitors.map(monitor => (
-                        <SelectItem key={monitor.id} value={monitor.id}>
-                          {monitor.alias || truncateAddress(monitor.safe_address)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  
-                  <Select 
-                    value={filters.network || "all"} 
-                    onValueChange={(value) => {
-                      setFilters(prev => ({ ...prev, network: value === "all" ? null : value }));
-                      setCurrentPage(1);
-                    }}
-                  >
-                    <SelectTrigger className="h-8 text-xs min-w-[140px] w-fit">
-                      <SelectValue placeholder="Network" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Networks</SelectItem>
-                      {Array.from(new Set(monitors.map(m => m.network))).sort().map(network => (
-                        <SelectItem key={network} value={network}>
-                          {network}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  
-                  <Select 
-                    value={filters.type || "all"} 
-                    onValueChange={(value) => {
-                      setFilters(prev => ({ ...prev, type: value === "all" ? null : value }));
-                      setCurrentPage(1);
-                    }}
-                  >
-                    <SelectTrigger className="h-8 text-xs min-w-[140px] w-fit">
-                      <SelectValue placeholder="Transaction Type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Types</SelectItem>
-                      <SelectItem value="suspicious">Suspicious</SelectItem>
-                      <SelectItem value="normal">Normal</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  
-                  <Select 
-                    value={filters.transactionType || "all"} 
-                    onValueChange={(value) => {
-                      setFilters(prev => ({ ...prev, transactionType: value === "all" ? null : value }));
-                      setCurrentPage(1);
-                    }}
-                  >
-                    <SelectTrigger className="h-8 text-xs min-w-[160px] w-fit">
-                      <SelectValue placeholder="Transaction Method" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Methods</SelectItem>
-                      {/* Transaction method filter temporarily disabled - requires full JSON data */}
-                    </SelectContent>
-                  </Select>
-                </div>
+                {showFilters && (
+                  <div className="flex flex-wrap gap-3 pb-4">
+                    <Select 
+                      value={filters.safe || "all"} 
+                      onValueChange={(value) => {
+                        setFilters(prev => ({ ...prev, safe: value === "all" ? null : value }));
+                        setCurrentPage(1);
+                      }}
+                    >
+                      <SelectTrigger className="h-8 text-xs min-w-[140px] w-fit">
+                        <SelectValue placeholder="Filter by Safe" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Multisigs</SelectItem>
+                        {monitors.map(monitor => (
+                          <SelectItem key={monitor.id} value={monitor.id}>
+                            {monitor.alias || truncateAddress(monitor.safe_address)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    
+                    <Select 
+                      value={filters.network || "all"} 
+                      onValueChange={(value) => {
+                        setFilters(prev => ({ ...prev, network: value === "all" ? null : value }));
+                        setCurrentPage(1);
+                      }}
+                    >
+                      <SelectTrigger className="h-8 text-xs min-w-[140px] w-fit">
+                        <SelectValue placeholder="Network" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Networks</SelectItem>
+                        {Array.from(new Set(monitors.map(m => m.network))).sort().map(network => (
+                          <SelectItem key={network} value={network}>
+                            {network}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    
+                    <Select 
+                      value={filters.type || "all"} 
+                      onValueChange={(value) => {
+                        setFilters(prev => ({ ...prev, type: value === "all" ? null : value }));
+                        setCurrentPage(1);
+                      }}
+                    >
+                      <SelectTrigger className="h-8 text-xs min-w-[140px] w-fit">
+                        <SelectValue placeholder="Transaction Type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Types</SelectItem>
+                        <SelectItem value="suspicious">Suspicious</SelectItem>
+                        <SelectItem value="normal">Normal</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    
+                    <Select 
+                      value={filters.transactionType || "all"} 
+                      onValueChange={(value) => {
+                        setFilters(prev => ({ ...prev, transactionType: value === "all" ? null : value }));
+                        setCurrentPage(1);
+                      }}
+                    >
+                      <SelectTrigger className="h-8 text-xs min-w-[160px] w-fit">
+                        <SelectValue placeholder="Transaction Method" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Methods</SelectItem>
+                        {/* Transaction method filter temporarily disabled - requires full JSON data */}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
                 
                 {/* Pagination controls above the table */}
                 {totalItems > 0 && (

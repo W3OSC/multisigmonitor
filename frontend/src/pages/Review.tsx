@@ -1176,7 +1176,8 @@ const Review = () => {
                   )}
                   
                   <Button
-                    variant="outline"
+                    className="jsr-button-alt w-full sm:w-auto"
+                    // variant="outline"
                     onClick={() => window.open(`https://app.safe.global/home?safe=${getSafeAppNetwork(network)}:${address}`, '_blank')}
                   >
                     <ExternalLink className="h-4 w-4 mr-2" />

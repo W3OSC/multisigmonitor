@@ -287,6 +287,25 @@ const NewMonitor = () => {
             <form onSubmit={handleSubmit}>
               <CardContent className="space-y-6">
                 <div className="space-y-2">
+                  <Label htmlFor="network">Network</Label>
+                  <Select
+                    value={network}
+                    onValueChange={setNetwork}
+                  >
+                    <SelectTrigger id="network">
+                      <SelectValue placeholder="Select network" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SUPPORTED_NETWORKS.map((net) => (
+                        <SelectItem key={net.id} value={net.id}>
+                          {net.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="space-y-2">
                   <AddressInput
                     value={address}
                     onChange={setAddress}
@@ -326,25 +345,6 @@ const NewMonitor = () => {
                     onChange={(e) => setAlias(e.target.value)}
                     placeholder="My Treasury Multisignature Wallet"
                   />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="network">Network</Label>
-                  <Select
-                    value={network}
-                    onValueChange={setNetwork}
-                  >
-                    <SelectTrigger id="network">
-                      <SelectValue placeholder="Select network" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {SUPPORTED_NETWORKS.map((net) => (
-                        <SelectItem key={net.id} value={net.id}>
-                          {net.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
                 </div>
               </CardContent>
               

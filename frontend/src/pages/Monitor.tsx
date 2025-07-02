@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import { HeaderWithLoginDialog } from "@/components/Header";
 import { useAuth } from "@/context/AuthContext";
@@ -147,27 +147,43 @@ const Monitor = () => {
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [detailModalOpen, setDetailModalOpen] = useState(false);
   
+  // Track if we're handling a direct transaction link
+  const isDirectTransactionLink = useRef(false);
+  
   // Filter visibility state
   const [showFilters, setShowFilters] = useState(false);
   
   // Get txHash from URL parameter
   const { txHash } = params;
   
-  // Update URL when transaction modal opens/closes
+  
+  // Update URL when transaction modal opens/closes (but not when loading from URL)
   useEffect(() => {
-    if (selectedTransaction && detailModalOpen) {
-      // Update URL with transaction hash when modal opens
+    // Don't modify URL if we have a transaction hash from URL (direct link)
+    if (txHash) return;
+    
+    // Don't modify URL if we're currently loading a transaction from a direct link
+    if (isLoadingDirectTransaction) return;
+    
+    if (selectedTransaction && detailModalOpen && !isDirectTransactionLink.current) {
+      // Only update URL with transaction hash when modal opens from clicking a transaction in the list
+      // Don't update if this is from a direct transaction link
       navigate(`/monitor/${selectedTransaction.transaction_hash}`, { replace: true });
-    } else if (!detailModalOpen && txHash) {
-      // Remove transaction hash from URL when modal closes
+    } else if (!detailModalOpen && selectedTransaction && !isDirectTransactionLink.current) {
+      // Remove transaction hash from URL when modal closes from list click
       navigate(`/monitor`, { replace: true });
     }
-  }, [detailModalOpen, selectedTransaction, navigate, txHash]);
+  }, [detailModalOpen, selectedTransaction, navigate, txHash, isLoadingDirectTransaction]);
   
   // Load transaction by hash from URL parameter
   useEffect(() => {
-    // Only proceed if there's a transaction hash in the URL and we're not already showing a modal
-    if (!txHash || !user || monitors.length === 0 || isLoadingDirectTransaction || detailModalOpen) return;
+    // Only proceed if there's a transaction hash in the URL and user is authenticated
+    if (!txHash || !user || isLoadingDirectTransaction || detailModalOpen) {
+      return;
+    }
+    
+    // Mark that we're handling a direct transaction link
+    isDirectTransactionLink.current = true;
     
     const fetchTransactionByHash = async () => {
       setIsLoadingDirectTransaction(true);
@@ -176,7 +192,17 @@ const Monitor = () => {
         // Get the transaction from the database (detail view - includes full JSON)
         const { data, error } = await supabase
           .from('results')
-          .select('id, safe_address, network, scanned_at, result')
+          .select(`
+            id, 
+            safe_address, 
+            network, 
+            scanned_at, 
+            result,
+            risk_level,
+            security_analysis,
+            security_warnings,
+            transaction_type
+          `)
           .eq('transaction_hash', txHash)
           .limit(1)
           .single();
@@ -185,7 +211,7 @@ const Monitor = () => {
           if (error.code === 'PGRST116') { // No rows returned
             toast({
               title: "Transaction Not Found",
-              description: "The requested transaction could not be found",
+              description: "The requested transaction could not be found or you don't have access to it",
               variant: "destructive",
             });
           } else {
@@ -199,14 +225,17 @@ const Monitor = () => {
           return;
         }
         
-        // Format the transaction
+        // Check if user has access to this transaction (must be monitoring the safe)
+        // We'll check this after monitors load, but for now allow the transaction to load
+        
+        // Format the transaction with full detail
         const txData = data.result.transaction_data || {};
         const transaction: Transaction = {
           id: data.id,
           safe_address: data.safe_address,
           network: data.network,
           scanned_at: data.scanned_at,
-          type: data.result.type || 'normal',
+          type: data.transaction_type || data.result.type || 'normal',
           description: data.result.description || 'Unknown transaction',
           transaction_hash: data.result.transaction_hash,
           safeTxHash: txData.safeTxHash,
@@ -214,6 +243,9 @@ const Monitor = () => {
           isExecuted: txData.isExecuted,
           executionTxHash: txData.transactionHash,
           submissionDate: txData.submissionDate,
+          risk_level: data.risk_level,
+          security_analysis: data.security_analysis,
+          security_warnings: data.security_warnings,
           result: data.result
         };
         
@@ -222,17 +254,47 @@ const Monitor = () => {
         setDetailModalOpen(true);
       } catch (error) {
         console.error('Unexpected error fetching transaction:', error);
+        toast({
+          title: "Error Loading Transaction",
+          description: "An unexpected error occurred while loading the transaction",
+          variant: "destructive",
+        });
       } finally {
         setIsLoadingDirectTransaction(false);
       }
     };
     
     fetchTransactionByHash();
-  }, [txHash, user, monitors, toast, isLoadingDirectTransaction]);
+  }, [txHash, user, toast, isLoadingDirectTransaction, detailModalOpen]);
+  
+  // Check access to transaction after monitors load
+  useEffect(() => {
+    if (!selectedTransaction || !monitors.length || !txHash) return;
+    
+    // Check if user has access to this transaction (must be monitoring the safe)
+    const hasAccess = monitors.some(monitor => 
+      monitor.safe_address.toLowerCase() === selectedTransaction.safe_address.toLowerCase() &&
+      monitor.network.toLowerCase() === selectedTransaction.network.toLowerCase()
+    );
+    
+    if (!hasAccess) {
+      toast({
+        title: "Access Denied",
+        description: "You don't have access to this transaction. You must be monitoring this Safe to view its transactions.",
+        variant: "destructive",
+      });
+      setSelectedTransaction(null);
+      setDetailModalOpen(false);
+      navigate('/monitor', { replace: true });
+    }
+  }, [selectedTransaction, monitors, txHash, toast, navigate]);
   
   // Fetch full transaction details when clicking on a transaction from the list
   const fetchTransactionDetails = async (transactionId: string) => {
     try {
+      // Reset the direct transaction link flag since this is from the list
+      isDirectTransactionLink.current = false;
+      
       const { data, error } = await supabase
         .from('results')
         .select(`
@@ -884,7 +946,27 @@ const Monitor = () => {
       </Dialog>
       
       {/* Transaction Details Modal */}
-      <Dialog open={detailModalOpen} onOpenChange={setDetailModalOpen}>
+      <Dialog open={detailModalOpen} onOpenChange={(open) => {
+        if (!open) {
+          // If closing the modal, handle URL cleanup
+          if (isDirectTransactionLink.current && txHash) {
+            // Direct transaction link - navigate back to /monitor
+            isDirectTransactionLink.current = false;
+            setSelectedTransaction(null);
+            setDetailModalOpen(false);
+            navigate('/monitor', { replace: true });
+          } else if (!isDirectTransactionLink.current && selectedTransaction) {
+            // List transaction - navigate back to /monitor and clear state
+            setSelectedTransaction(null);
+            setDetailModalOpen(false);
+            navigate('/monitor', { replace: true });
+          } else {
+            setDetailModalOpen(false);
+          }
+        } else {
+          setDetailModalOpen(open);
+        }
+      }}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader className="space-y-3">
             <div className="flex items-start justify-between gap-4">
@@ -1098,7 +1180,7 @@ const Monitor = () => {
                       {/* Detailed Security Analysis */}
                       {selectedTransaction.security_analysis?.details && (
                         <div className="space-y-3">
-                          <h4 className="text-sm font-medium text-muted-foreground">Analysis Details</h4>
+                          {/* <h4 className="text-sm font-medium text-muted-foreground">Analysis Details</h4> */}
                           <div className="space-y-3 max-h-64 overflow-y-auto">
                             {selectedTransaction.security_analysis.details.map((detail, index) => (
                               <div key={index} className={`p-3 rounded-lg border-l-4 ${
@@ -1155,38 +1237,7 @@ const Monitor = () => {
                         <div className="space-y-3">
                           <h4 className="text-sm font-medium text-muted-foreground">Hash Verification</h4>
                           <div className="space-y-3">
-                            <div className="grid grid-cols-1 gap-3">
-                              <div className="bg-muted/50 p-3 rounded-lg">
-                                <div className="text-xs font-medium mb-2">Domain Hash:</div>
-                                <div className="font-mono text-xs break-all text-green-600">
-                                  {selectedTransaction.security_analysis.hashVerification.calculatedHashes?.domainHash || "Not calculated"}
-                                </div>
-                              </div>
-                              <div className="bg-muted/50 p-3 rounded-lg">
-                                <div className="text-xs font-medium mb-2">Message Hash:</div>
-                                <div className="font-mono text-xs break-all text-green-600">
-                                  {selectedTransaction.security_analysis.hashVerification.calculatedHashes?.messageHash || "Not calculated"}
-                                </div>
-                              </div>
-                              <div className="bg-muted/50 p-3 rounded-lg">
-                                <div className="text-xs font-medium mb-2">Safe Transaction Hash:</div>
-                                <div className="space-y-2">
-                                  <div>
-                                    <span className="text-xs text-muted-foreground">Calculated:</span>
-                                    <div className="font-mono text-xs break-all text-blue-600 mt-1">
-                                      {selectedTransaction.security_analysis.hashVerification.calculatedHashes?.safeTxHash || "Not calculated"}
-                                    </div>
-                                  </div>
-                                  <div>
-                                    <span className="text-xs text-muted-foreground">API Response:</span>
-                                    <div className="font-mono text-xs break-all text-blue-600 mt-1">
-                                      {selectedTransaction.result.transaction_data?.safeTxHash || "Not available"}
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-                              
-                              {/* Hash Verification Status */}
+                                                          {/* Hash Verification Status */}
                               <div>
                                 {selectedTransaction.security_analysis.hashVerification.verified === false ? (
                                   <div className="bg-red-50 border border-red-200 p-3 rounded-lg">
@@ -1219,7 +1270,6 @@ const Monitor = () => {
                                   </div>
                                 )}
                               </div>
-                            </div>
                           </div>
                         </div>
                       )}
@@ -1258,6 +1308,46 @@ const Monitor = () => {
                       )}
                     </>
                   )}
+                </CardContent>
+              </Card>
+
+              {/* Calculated Hashes */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">Transaction Hashes</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 gap-3">
+                    <div className="bg-muted/50 p-3 rounded-lg">
+                      <div className="text-xs font-medium mb-2">Domain Hash:</div>
+                      <div className="font-mono text-xs break-all text-green-600">
+                        {selectedTransaction.security_analysis.hashVerification.calculatedHashes?.domainHash || "Not calculated"}
+                      </div>
+                    </div>
+                    <div className="bg-muted/50 p-3 rounded-lg">
+                      <div className="text-xs font-medium mb-2">Message Hash:</div>
+                      <div className="font-mono text-xs break-all text-green-600">
+                        {selectedTransaction.security_analysis.hashVerification.calculatedHashes?.messageHash || "Not calculated"}
+                      </div>
+                    </div>
+                    <div className="bg-muted/50 p-3 rounded-lg">
+                      <div className="text-xs font-medium mb-2">Safe Transaction Hash:</div>
+                      <div className="space-y-2">
+                        <div>
+                          <span className="text-xs text-muted-foreground">Calculated:</span>
+                          <div className="font-mono text-xs break-all text-blue-600 mt-1">
+                            {selectedTransaction.security_analysis.hashVerification.calculatedHashes?.safeTxHash || "Not calculated"}
+                          </div>
+                        </div>
+                        <div>
+                          <span className="text-xs text-muted-foreground">API Response:</span>
+                          <div className="font-mono text-xs break-all text-blue-600 mt-1">
+                            {selectedTransaction.result.transaction_data?.safeTxHash || "Not available"}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
 

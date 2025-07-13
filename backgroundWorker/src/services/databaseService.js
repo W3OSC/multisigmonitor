@@ -181,7 +181,6 @@ class DatabaseService {
     const insertData = {
       safe_address: safeAddress,
       network: network,
-      // New optimized columns
       transaction_hash: safeTxHash,
       safe_tx_hash: safeTxHash,
       nonce: transaction.nonce,
@@ -198,7 +197,6 @@ class DatabaseService {
       confirmations_count: transaction.confirmations ? transaction.confirmations.length : 0,
       trusted: transaction.trusted,
       operation_type: transaction.operation,
-      // Keep existing JSON structure for backward compatibility and detail views
       result: {
         transaction_hash: safeTxHash,
         transaction_data: transaction,
@@ -254,7 +252,6 @@ class DatabaseService {
     
     try {
       const updateData = {
-        // Update optimized columns
         transaction_hash: safeTxHash,
         safe_tx_hash: safeTxHash,
         nonce: transaction.nonce,
@@ -271,7 +268,6 @@ class DatabaseService {
         confirmations_count: transaction.confirmations ? transaction.confirmations.length : 0,
         trusted: transaction.trusted,
         operation_type: transaction.operation,
-        // Keep existing JSON structure for backward compatibility and detail views
         result: {
           transaction_hash: safeTxHash,
           transaction_data: transaction,

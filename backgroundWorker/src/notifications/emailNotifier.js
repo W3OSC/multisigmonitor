@@ -15,7 +15,6 @@ class EmailNotifier {
   async sendNotification(notification, txInfo) {
     try {
       if (!notification.email) {
-        console.log(`No email address configured for this notification`);
         return;
       }
       
@@ -26,7 +25,7 @@ class EmailNotifier {
       const textContent = generateTransactionEmailText(txInfo);
       
       // Set subject based on transaction type
-      const subject = `${txInfo.type === 'suspicious' ? '⚠️ SUSPICIOUS Safe Transaction Detected' : 'Safe Transaction Alert'}`;
+      const subject = `${txInfo.type === 'suspicious' ? 'Suspicious Safe Transaction Detected' : 'Multisig Transaction Detected'}`;
       
       const resend = getEmailClient();
       if (resend) {
@@ -44,8 +43,7 @@ class EmailNotifier {
           console.error(`Error sending email: ${emailSendError.message}`);
         }
       } else {
-        console.log(`Email sending is not configured. Would send email to ${notification.email}`);
-        console.log(`Make sure RESEND_API_KEY is set in your .env file`);
+        console.log(`RESEND_API_KEY is set as environment variable`);
       }
     } catch (emailError) {
       console.error(`Error sending email notification:`, emailError.message);

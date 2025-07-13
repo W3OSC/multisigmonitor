@@ -21,7 +21,7 @@ class TelegramNotifier {
       console.log(`Sending Telegram notification to chat ${notification.chatId}`);
       
       // Create message with markdown formatting
-      let message = `🔔 *${txInfo.type === 'suspicious' ? '⚠️ SUSPICIOUS TRANSACTION' : 'New Transaction'}*\n\n`;
+      let message = `*${txInfo.type === 'suspicious' ? 'SUSPICIOUS TRANSACTION' : 'New Transaction'}*\n\n`;
       message += `*Network:* ${txInfo.network}\n`;
       message += `*Safe:* \`${txInfo.safeAddress}\`\n`;
       message += `*Description:* ${txInfo.description}\n`;
@@ -30,7 +30,7 @@ class TelegramNotifier {
         message += `*Nonce:* ${txInfo.nonce}\n`;
       }
       
-      message += `*Status:* ${txInfo.isExecuted ? '✅ Executed' : '⏳ Awaiting execution'}\n\n`;
+      message += `*Status:* ${txInfo.isExecuted ? 'Executed' : 'Awaiting execution'}\n\n`;
       message += `*View transaction:*\n`;
       message += `- [Safe App](${txInfo.safeAppLink})\n`;
       message += `- [Safe Monitor](${txInfo.multisigmonitorLink})\n`;

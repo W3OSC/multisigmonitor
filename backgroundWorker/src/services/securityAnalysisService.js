@@ -7,7 +7,6 @@
  * - Other security concerns
  */
 
-// Constants
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
 // Trusted addresses for delegate calls
@@ -135,7 +134,7 @@ class SecurityAnalysisService {
     const safeTxGas = transaction.safeTxGas || "0";
     const baseGas = transaction.baseGas || "0";
 
-    // CRITICAL: Check if safeTxGas, baseGas, gasPrice, gasToken, refundReceiver should be 0
+    // Check if safeTxGas, baseGas, gasPrice, gasToken, refundReceiver should be 0
     // For most legitimate transactions, these should be 0
     const hasNonZeroGasParams = (
       gasPrice !== "0" || 
@@ -160,7 +159,7 @@ class SecurityAnalysisService {
       });
     }
 
-    // High risk: Custom gas token + custom refund receiver
+    // Custom gas token + custom refund receiver
     if (gasToken !== ZERO_ADDRESS && refundReceiver !== ZERO_ADDRESS) {
       analysis.warnings.push('Gas Token Attack Risk');
       analysis.details.push({
@@ -172,7 +171,7 @@ class SecurityAnalysisService {
         gasPrice
       });
 
-      // Even higher risk if gas price is non-zero
+      // Higher risk if gas price is non-zero
       if (gasPrice !== "0") {
         analysis.details.push({
           type: 'gas_token_attack_enhanced',
@@ -182,7 +181,7 @@ class SecurityAnalysisService {
         });
       }
     }
-    // Medium risk: Only custom gas token
+    // Only custom gas token
     else if (gasToken !== ZERO_ADDRESS) {
       analysis.warnings.push('Custom Gas Token');
       analysis.details.push({
@@ -192,7 +191,7 @@ class SecurityAnalysisService {
         gasToken
       });
     }
-    // Medium risk: Only custom refund receiver
+    // Only custom refund receiver
     else if (refundReceiver !== ZERO_ADDRESS) {
       analysis.warnings.push('Custom Refund Receiver');
       analysis.details.push({
@@ -240,7 +239,7 @@ class SecurityAnalysisService {
       }
     }
 
-    // Store call type information for frontend display
+    // Store call type information
     analysis.callType = {
       isCall: operation === 0,
       isDelegateCall: operation === 1,
@@ -260,9 +259,11 @@ class SecurityAnalysisService {
     const value = transaction.value || "0";
     const valueInEth = parseFloat(value) / 1e18;
 
-    // Flag transfers over 10 ETH as noteworthy
-    if (valueInEth > 10) {
-      const severity = valueInEth > 100 ? 'high' : 'medium';
+    // Flag transfers over 5000 ETH as noteworthy
+    // Todo: allow users to set a USD value themselves via config.
+    // Todo: Add support for erc20 token value
+    if (valueInEth > 5000) {
+      const severity = 'high';
       analysis.warnings.push('Large Value Transfer');
       analysis.details.push({
         type: 'large_value_transfer',
@@ -550,8 +551,7 @@ class SecurityAnalysisService {
         method: transaction.dataDecoded.method
       });
 
-      // Flag interactions with unverified or unusual contracts
-      // This would require additional data sources in a real implementation
+      // Todo: Allow users to add a whiotelist of contracts
       if (!transaction.trusted) {
         analysis.warnings.push('Unverified Contract Interaction');
         analysis.details.push({

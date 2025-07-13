@@ -1,7 +1,5 @@
-// Network configuration for Safe API
 const SAFE_API_VERSION = 'v2';
 
-// API endpoints for different networks
 const NETWORK_CONFIGS = {
   'ethereum': {
     txServiceUrl: 'https://safe-transaction-mainnet.safe.global',

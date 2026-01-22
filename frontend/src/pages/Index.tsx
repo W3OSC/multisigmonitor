@@ -310,7 +310,7 @@ const Index = () => {
           <p className="text-sm text-muted-foreground">
           </p>
           <div className="flex items-center gap-4">
-            <a href="https://github.com/fredrik0x/multisigmonitor/" className="text-sm text-muted-foreground hover:text-foreground">
+            <a href="https://github.com/W3OSC/multisigmonitor/" className="text-sm text-muted-foreground hover:text-foreground">
               Contribute
             </a>
           </div>

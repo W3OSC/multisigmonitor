@@ -1,7 +1,7 @@
 
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { HeaderWithLoginDialog } from "@/components/Header";
+import { Header } from "@/components/Header";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { AddressInput } from "@/components/AddressInput";
@@ -1099,7 +1099,7 @@ const Review = () => {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <HeaderWithLoginDialog />
+      <Header />
       
       <main className="flex-1 container py-12">
         <div className="max-w-6xl mx-auto">

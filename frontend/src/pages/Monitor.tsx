@@ -1,6 +1,5 @@
 import { useEffect, useState, useRef } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
-import { HeaderWithLoginDialog } from "@/components/Header";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -874,8 +873,6 @@ const Monitor = () => {
   if (!user) {
     return (
       <div className="min-h-screen flex flex-col">
-        <HeaderWithLoginDialog />
-        
         <main className="flex-1 container py-12 flex flex-col items-center justify-center">
           <Card className="w-full max-w-md mx-auto">
             <CardHeader>
@@ -898,7 +895,6 @@ const Monitor = () => {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <HeaderWithLoginDialog />
       
       {/* Delete Confirmation Modal */}
       <Dialog open={deleteConfirmModalOpen} onOpenChange={setDeleteConfirmModalOpen}>

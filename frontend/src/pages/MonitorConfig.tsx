@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import axios from "axios";
-import { HeaderWithLoginDialog } from "@/components/Header";
+import { Header } from "@/components/Header";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -716,7 +716,7 @@ const MonitorConfig = () => {
   if (isLoading) {
     return (
       <div className="min-h-screen flex flex-col">
-        <HeaderWithLoginDialog />
+        <Header />
         
         <main className="flex-1 container py-12 flex flex-col items-center justify-center">
           <div className="animate-spin">
@@ -730,7 +730,7 @@ const MonitorConfig = () => {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <HeaderWithLoginDialog />
+      <Header />
       
       <main className="flex-1 container py-12">
         <div className="max-w-2xl mx-auto">

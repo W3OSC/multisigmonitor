@@ -1,14 +1,24 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { Session, User } from '@supabase/supabase-js';
+
+interface User {
+  id: string;
+  email: string;
+  username: string;
+  ethereum_address?: string;
+  google_id?: string;
+  github_id?: string;
+  created_at?: string;
+  updated_at?: string;
+}
 
 type AuthContextType = {
-  session: Session | null;
   user: User | null;
-  loading: boolean;
-  isLoginDialogOpen: boolean;
-  setIsLoginDialogOpen: (isOpen: boolean) => void;
+  setUser: React.Dispatch<React.SetStateAction<User | null>>;
+  token: string | null;
+  loginWithProvider: (token: string, user: User) => Promise<void>;
   signOut: () => Promise<void>;
+  isAuthenticated: boolean;
+  isLoading: boolean;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -18,54 +28,63 @@ type AuthProviderProps = {
 };
 
 export function AuthProvider({ children }: AuthProviderProps) {
-  const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [isLoginDialogOpen, setIsLoginDialogOpen] = useState(false);
+  const [token, setToken] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        setLoading(false);
+    const checkAuth = async () => {
+      try {
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/me`, {
+          credentials: 'include',
+        });
+        
+        if (response.ok) {
+          const userData = await response.json();
+          setUser(userData);
+        }
+      } catch (error) {
+        console.error('Auth check failed:', error);
+      } finally {
+        setIsLoading(false);
       }
-    );
+    };
 
-    return () => subscription.unsubscribe();
+    checkAuth();
   }, []);
 
+  const loginWithProvider = async (jwtToken: string, userData: User) => {
+    setToken(jwtToken);
+    setUser(userData);
+  };
 
-  // Sign out
   const signOut = async () => {
     try {
-      await supabase.auth.signOut();
+      await fetch(`${import.meta.env.VITE_API_URL}/auth/logout`, {
+        method: 'POST',
+        credentials: 'include',
+      });
     } catch (error) {
-      console.error('Error signing out:', error);
+      console.error('Logout error:', error);
+    } finally {
+      setToken(null);
+      setUser(null);
     }
   };
 
   const value = {
-    session,
     user,
-    loading,
-    isLoginDialogOpen,
-    setIsLoginDialogOpen,
+    setUser,
+    token,
+    loginWithProvider,
     signOut,
+    isAuthenticated: !!user,
+    isLoading,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
-// Hook to use auth context
 export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {

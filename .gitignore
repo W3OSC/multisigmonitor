@@ -28,3 +28,4 @@ dist-ssr
 !*.secret
 secrets/.env.backend.prod
 secrets/.env.frontend.prod
+TODO.MD

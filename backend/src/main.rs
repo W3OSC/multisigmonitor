@@ -3,23 +3,30 @@ use axum::Router;
 use sqlx::sqlite::{SqlitePool, SqliteConnectOptions};
 use std::net::SocketAddr;
 use std::str::FromStr;
-use std::num::NonZeroU32;
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
-use tower_governor::{governor::GovernorConfigBuilder, GovernorLayer};
+use tower_governor::governor::GovernorConfigBuilder;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
 mod api;
+mod config;
+mod error;
 mod middleware;
 mod models;
 mod services;
+
+use config::Config;
+use api::AppState;
 
 #[derive(OpenApi)]
 #[openapi(
     paths(
         health,
+        api::security_analysis::analyze_transaction,
+        api::security_analysis::list_analyses,
+        api::security_analysis::get_analysis,
     ),
     components(
         schemas(
@@ -31,11 +38,24 @@ mod services;
             models::monitor::NotificationChannel,
             models::monitor::CreateMonitorRequest,
             models::monitor::UpdateMonitorRequest,
+            models::security_analysis::TransactionAnalysisRequest,
+            models::security_analysis::SafeTransaction,
+            models::security_analysis::DataDecoded,
+            models::security_analysis::Parameter,
+            models::security_analysis::SecurityAnalysisResult,
+            models::security_analysis::AnalysisResponse,
+            models::security_analysis::RiskLevel,
+            models::security_analysis::AnalysisDetail,
+            models::security_analysis::CallType,
+            models::security_analysis::HashVerification,
+            models::security_analysis::NonceCheck,
+            models::security_analysis::CalldataInfo,
         )
     ),
     tags(
         (name = "auth", description = "Authentication endpoints"),
         (name = "monitors", description = "Monitor management endpoints"),
+        (name = "security", description = "Security analysis endpoints"),
         (name = "health", description = "Health check endpoints")
     ),
     info(
@@ -48,12 +68,12 @@ struct ApiDoc;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let env_file = if cfg!(debug_assertions) {
-        "../secrets/.env.backend.local"
-    } else {
-        "../secrets/.env.backend.prod"
-    };
-    dotenvy::from_filename(env_file).ok();
+    let config = Config::from_env().map_err(|e| {
+        eprintln!("Configuration error: {}", e);
+        eprintln!("\nThe application cannot start without proper configuration.");
+        eprintln!("Please ensure all required environment variables are set.");
+        e
+    })?;
 
     tracing_subscriber::registry()
         .with(
@@ -63,8 +83,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
-    let database_url = std::env::var("DATABASE_URL")?;
-    let options = SqliteConnectOptions::from_str(&database_url)?
+    tracing::info!("Configuration loaded successfully");
+
+    let options = SqliteConnectOptions::from_str(&config.database_url)?
         .foreign_keys(true)
         .create_if_missing(true);
     let pool = SqlitePool::connect_with(options).await?;
@@ -82,21 +103,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
     
-    let rate_limit_per_second = std::env::var("RATE_LIMIT_PER_SECOND")
-        .ok()
-        .and_then(|s| s.parse::<u32>().ok())
-        .unwrap_or(10);
-    
     let governor_conf = GovernorConfigBuilder::default()
-        .per_second(rate_limit_per_second as u64)
-        .burst_size(rate_limit_per_second * 2)
+        .per_second(config.rate_limit_per_second as u64)
+        .burst_size(config.rate_limit_per_second * 2)
         .finish()
         .unwrap();
 
+    let cors_origin = config.cors_origin.parse::<axum::http::HeaderValue>()
+        .map_err(|e| format!("Invalid CORS_ORIGIN: {}", e))?;
+
     let cors = CorsLayer::new()
-        .allow_origin(std::env::var("CORS_ORIGIN")?
-            .parse::<axum::http::HeaderValue>()
-            .unwrap())
+        .allow_origin(cors_origin)
         .allow_methods([
             axum::http::Method::GET,
             axum::http::Method::POST,
@@ -111,13 +128,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ])
         .allow_credentials(true);
 
+    let app_state = AppState {
+        pool: pool.clone(),
+        nonce_store: nonce_store.clone(),
+        config: config.clone(),
+    };
+
     let app = Router::new()
         .route("/health", get(health))
         .merge(SwaggerUi::new("/api-docs").url("/api-docs/openapi.json", ApiDoc::openapi()))
-        .nest("/api", api::router(pool.clone(), nonce_store.clone()))
+        .nest("/api", api::router(app_state.clone()))
         .layer(TraceLayer::new_for_http())
         .layer(cors)
-        .with_state((pool, nonce_store));
+        .with_state(app_state);
 
     let governor_limiter = governor_conf.limiter().clone();
     let interval = std::time::Duration::from_secs(60);
@@ -129,9 +152,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
-    let host = std::env::var("HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
-    let port = std::env::var("PORT").unwrap_or_else(|_| "3000".to_string());
-    let addr: SocketAddr = format!("{}:{}", host, port).parse()?;
+    let addr = SocketAddr::new(config.host, config.port);
 
     tracing::info!("listening on {}", addr);
     let listener = tokio::net::TcpListener::bind(addr).await?;

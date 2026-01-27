@@ -93,6 +93,7 @@ export default function Login() {
 
       const data = await response.json()
       await loginWithProvider(data.token, data.user)
+      sessionStorage.setItem('justLoggedIn', 'true')
       navigate(targetRedirect || '/')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Google login failed. Please try again.')
@@ -141,6 +142,7 @@ export default function Login() {
 
       const data = await response.json()
       await loginWithProvider(data.token, data.user)
+      sessionStorage.setItem('justLoggedIn', 'true')
       navigate(targetRedirect || '/')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'GitHub login failed. Please try again.')
@@ -224,6 +226,7 @@ export default function Login() {
 
         await loginWithProvider(token, user)
         disconnect()
+        sessionStorage.setItem('justLoggedIn', 'true')
         navigate(redirectTo || '/')
       } catch (err) {
         console.error('Ethereum login error:', err)

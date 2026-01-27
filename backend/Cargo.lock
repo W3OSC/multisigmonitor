@@ -477,6 +477,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "cookie"
+version = "0.18.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4ddef33a339a91ea89fb53151bd0a4689cfce27055c291dfa69945475d22c747"
+dependencies = [
+ "time",
+ "version_check",
+]
+
+[[package]]
 name = "core-foundation"
 version = "0.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2092,24 +2102,30 @@ name = "multisigmonitor-backend"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "base64 0.22.1",
  "bcrypt",
  "chrono",
+ "cookie",
  "dotenvy",
  "ethers",
+ "futures",
  "hex",
  "jsonwebtoken 9.3.1",
+ "lazy_static",
  "reqwest 0.12.28",
  "serde",
  "serde_json",
  "siwe",
  "sqlx",
  "thiserror 1.0.69",
+ "time",
  "tokio",
  "tower 0.4.13",
  "tower-http 0.5.2",
  "tower_governor",
  "tracing",
  "tracing-subscriber",
+ "urlencoding",
  "utoipa",
  "utoipa-swagger-ui",
  "uuid 1.19.0",

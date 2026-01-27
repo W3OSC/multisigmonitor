@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { ChevronLeft, Loader2, X } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { monitorsApi } from "@/lib/api";
 
 // This would be fetched from your API in a real app
 const SUPPORTED_NETWORKS = [
@@ -179,18 +179,12 @@ const NewMonitor = () => {
         notifications: []
       };
 
-      // Insert into Supabase
-      const { data, error } = await supabase
-        .from('monitors')
-        .insert({
-          user_id: user.id,
-          safe_address: address,
-          network: network.toLowerCase(),
-          settings
-        })
-        .select();
-
-      if (error) throw error;
+      // Create monitor via Rust API
+      const monitor = await monitorsApi.create({
+        safe_address: address,
+        network: network.toLowerCase(),
+        settings
+      });
 
       toast({
         title: "Monitor Created",
@@ -198,13 +192,7 @@ const NewMonitor = () => {
       });
       
       // Redirect to the notification configuration page for this monitor
-      // Pass newSetup=true to indicate this is a new monitor setup
-      if (data && data[0]) {
-        navigate(`/monitor/config/${data[0].id}?newSetup=true`);
-      } else {
-        // Fallback if we couldn't get the ID
-        navigate("/monitor");
-      }
+      navigate(`/monitor/config/${monitor.id}?newSetup=true`);
     } catch (error: any) {
       console.error('Error creating monitor:', error);
       toast({

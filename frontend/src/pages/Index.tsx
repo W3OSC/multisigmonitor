@@ -1,19 +1,35 @@
-
+import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Header } from "@/components/Header";
-import { Shield, Eye } from "lucide-react";
+import { AlertCircle, Shield, Eye, Github } from "lucide-react";
 
 const Index = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-
-  const handleMonitor = () => {
+  
+  useEffect(() => {
     if (user) {
-      navigate('/scan');
+      const storedRedirectUrl = sessionStorage.getItem('redirectAfterLogin');
+      const justLoggedIn = sessionStorage.getItem('justLoggedIn');
+      
+      if (storedRedirectUrl) {
+        sessionStorage.removeItem('redirectAfterLogin');
+        const url = new URL(storedRedirectUrl);
+        navigate(url.pathname + url.search);
+      } else if (justLoggedIn) {
+        sessionStorage.removeItem('justLoggedIn');
+        navigate("/dashboard");
+      }
+    }
+  }, [user, navigate]);
+
+  const handleGetStarted = () => {
+    if (user) {
+      navigate("/dashboard");
     } else {
-      navigate('/login');
+      navigate("/login");
     }
   };
 
@@ -24,7 +40,7 @@ const Index = () => {
       <main className="flex-1 container max-w-6xl">
         <div className="py-12 md:py-20">
           <div className="flex flex-col items-center text-center">
-            <div className="relative mb-8 animate-float">
+            <div className="relative mb-8">
               <div className="absolute inset-0 rounded-full bg-jsr-lime/20 blur-xl"></div>
               <Shield className="relative h-16 w-16 text-jsr-lime" />
             </div>
@@ -37,14 +53,13 @@ const Index = () => {
               Monitor and review your multisignature wallets. Get notified about suspicious transactions and keep your assets secure.
             </p>
             
-            <div className="flex justify-center mt-8 mb-12">
+            <div className="flex gap-4 justify-center mb-12">
               <Button 
-                onClick={handleMonitor}
-                size="lg"
-                className="jsr-button-alt group flex items-center gap-2"
+                onClick={handleGetStarted}
+                className="jsr-button group flex items-center gap-2"
               >
-                <Eye className="h-5 w-5 group-hover:animate-pulse" />
-                Start Monitoring
+                <Shield className="h-5 w-5 group-hover:animate-pulse" />
+                Get Started
               </Button>
             </div>
           </div>
@@ -72,7 +87,7 @@ const Index = () => {
             
             <div className="jsr-card p-6">
               <div className="mb-4 bg-jsr-lime/30 rounded-full w-12 h-12 flex items-center justify-center">
-                <Shield className="h-6 w-6 text-jsr-lime" />
+                <AlertCircle className="h-6 w-6 text-jsr-lime" />
               </div>
               <h3 className="text-xl font-bold mb-2">Instant Alerts</h3>
               <p className="text-muted-foreground">
@@ -87,11 +102,15 @@ const Index = () => {
         <div className="container flex flex-col md:flex-row items-center justify-between gap-4 md:h-16">
           <p className="text-sm text-muted-foreground">
           </p>
-          <div className="flex items-center gap-4">
-            <a href="https://github.com/W3OSC/multisigmonitor?tab=contributing-ov-file" className="text-sm text-muted-foreground hover:text-foreground">
-              Contribute
-            </a>
-          </div>
+          <a 
+            href="https://github.com/W3OSC/multisigmonitor" 
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-2"
+          >
+            <Github className="h-4 w-4" />
+            Contribute
+          </a>
         </div>
       </footer>
     </div>

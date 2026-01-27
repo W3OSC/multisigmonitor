@@ -1,10 +1,14 @@
 import { Helmet } from 'react-helmet-async'
-import { Search as SearchIcon, Shield, AlertCircle, Network, Loader2, AlertTriangle } from 'lucide-react'
+import { Search as SearchIcon, Shield, AlertCircle, Network, Loader2, AlertTriangle, Clock, ExternalLink } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { AddressInput } from '@/components/AddressInput'
 import { useToast } from '@/hooks/use-toast'
+import { securityApi, SecurityAnalysisResult } from '@/lib/api'
+import { useAuth } from '@/context/AuthContext'
+import { Badge } from '@/components/ui/badge'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Select,
   SelectContent,
@@ -18,8 +22,11 @@ export default function Scan() {
   const [network, setNetwork] = useState('ethereum')
   const [safeExists, setSafeExists] = useState<boolean | null>(null)
   const [isValidatingSafe, setIsValidatingSafe] = useState(false)
+  const [pastScans, setPastScans] = useState<SecurityAnalysisResult[]>([])
+  const [loadingScans, setLoadingScans] = useState(false)
   const navigate = useNavigate()
   const { toast } = useToast()
+  const { isAuthenticated } = useAuth()
 
   const getSafeApiUrl = (network: string): string | null => {
     const apiUrls: { [key: string]: string } = {
@@ -42,6 +49,35 @@ export default function Scan() {
     }
   }, [address, network])
 
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadPastScans()
+    }
+  }, [isAuthenticated])
+
+  const loadPastScans = async () => {
+    setLoadingScans(true)
+    try {
+      const analyses = await securityApi.listAnalyses()
+      const formattedScans = analyses
+        .filter(a => a.assessment)
+        .map(analysis => ({
+          id: analysis.id,
+          safeAddress: analysis.safe_address || analysis.safeAddress,
+          network: analysis.network,
+          analyzedAt: analysis.analyzed_at || analysis.analyzedAt,
+          isSuspicious: analysis.is_suspicious,
+          riskLevel: analysis.risk_level || analysis.riskLevel,
+        }))
+      setPastScans(formattedScans.slice(0, 10))
+    } catch (error) {
+      console.error('Failed to load past scans:', error)
+      setPastScans([])
+    } finally {
+      setLoadingScans(false)
+    }
+  }
+
   const validateSafeExists = async (safeAddress: string, selectedNetwork: string) => {
     setIsValidatingSafe(true)
     setSafeExists(null)
@@ -58,10 +94,25 @@ export default function Scan() {
         return
       }
 
-      const response = await fetch(`${safeApiUrl}/api/v1/safes/${safeAddress}/`)
+      const response = await fetch(`${safeApiUrl}/api/v1/safes/${safeAddress}/`, {
+        redirect: 'follow',
+        headers: {
+          'Accept': 'application/json',
+        },
+      })
       
       if (response.ok) {
-        setSafeExists(true)
+        const data = await response.json()
+        if (data.address) {
+          setSafeExists(true)
+        } else {
+          setSafeExists(false)
+          toast({
+            title: "Validation Error",
+            description: "Unexpected response from Safe API",
+            variant: "destructive",
+          })
+        }
       } else if (response.status === 404) {
         setSafeExists(false)
         toast({
@@ -73,7 +124,7 @@ export default function Scan() {
         setSafeExists(false)
         toast({
           title: "Validation Error",
-          description: "Unable to validate Safe existence. Please try again.",
+          description: `Unable to validate Safe existence (HTTP ${response.status})`,
           variant: "destructive",
         })
       }
@@ -126,7 +177,7 @@ export default function Scan() {
   }
 
   return (
-    <div className="h-full bg-gradient-to-br from-background via-background to-secondary/20 p-8 overflow-auto">
+    <div className="p-8">
       <Helmet>
         <title>Scan - Multisig Monitor</title>
         <meta name="description" content="Scan addresses to check if they are multisig wallets." />
@@ -143,7 +194,7 @@ export default function Scan() {
         <div className="bg-card border border-border rounded-lg p-8 animate-slide-up">
           <div className="space-y-4">
             <div>
-              <label className="text-sm font-medium mb-2 block flex items-center gap-2">
+              <label className="text-sm font-medium mb-2 flex items-center gap-2">
                 <Network className="h-4 w-4" />
                 Network
               </label>
@@ -189,28 +240,80 @@ export default function Scan() {
               )}
             </div>
             
-            <div className="flex gap-3 pt-2">
-              <Button 
-                onClick={handleScan} 
-                disabled={!address || !safeExists}
-                className="flex-1 bg-[#8052ff] hover:bg-[#6941d9]"
-              >
-                <SearchIcon className="h-4 w-4 mr-2" />
-                Scan Address
-              </Button>
-              
-              <Button 
-                onClick={handleReview}
-                disabled={!address || !safeExists}
-                variant="outline"
-                className="flex-1"
-              >
-                <Shield className="h-4 w-4 mr-2" />
-                Security Review
-              </Button>
-            </div>
+            <Button 
+              onClick={handleReview}
+              disabled={!address || !safeExists}
+              className="w-full bg-[#8052ff] hover:bg-[#6941d9] mt-2"
+            >
+              <Shield className="h-4 w-4 mr-2" />
+              Security Review
+            </Button>
           </div>
         </div>
+
+        {isAuthenticated && (
+          <div className="mt-8 animate-slide-up" style={{ animationDelay: '100ms' }}>
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Clock className="h-5 w-5" />
+                  Recent Scans
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {loadingScans ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : pastScans.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-center">
+                    <Shield className="h-12 w-12 text-muted-foreground/50 mb-3" />
+                    <p className="text-sm font-medium text-muted-foreground mb-1">
+                      No scans yet
+                    </p>
+                    <p className="text-xs text-muted-foreground/70">
+                      Perform a security review to see your scan history here
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {pastScans.map((scan) => (
+                      <div
+                        key={scan.id}
+                        className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent/50 cursor-pointer transition-colors"
+                        onClick={() => navigate(`/review?address=${scan.safeAddress}&network=${scan.network}&analysisId=${scan.id}`)}
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-mono text-sm truncate">
+                              {scan.safeAddress.slice(0, 6)}...{scan.safeAddress.slice(-4)}
+                            </span>
+                            <Badge variant="outline" className="text-xs">
+                              {scan.network}
+                            </Badge>
+                          </div>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <Clock className="h-3 w-3" />
+                            {new Date(scan.analyzedAt).toLocaleDateString()}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <Badge 
+                            variant={scan.isSuspicious ? 'destructive' : 'default'}
+                            className="capitalize"
+                          >
+                            {scan.riskLevel}
+                          </Badge>
+                          <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </div>
     </div>
   )

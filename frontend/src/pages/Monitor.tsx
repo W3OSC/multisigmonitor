@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from "react";
-import { useNavigate, useParams, Link } from "react-router-dom";
+import { useNavigate, useParams, Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,6 +8,7 @@ import {
   AlertCircle, 
   ArrowDownAZ,
   ArrowUpAZ,
+  Bell,
   ChevronLeft,
   ChevronRight,
   ExternalLink,
@@ -61,7 +62,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
+import { monitorsApi, transactionsApi, type TransactionRecord } from "@/lib/api";
 
 interface Monitor {
   id: string;
@@ -82,19 +83,27 @@ interface Transaction {
   id: string;
   safe_address: string;
   network: string;
-  scanned_at: string;
-  type: 'normal' | 'suspicious';
-  description: string;
-  transaction_hash: string;
-  safeTxHash?: string;
-  nonce?: number;
-  isExecuted?: boolean;
-  executionTxHash?: string;
-  submissionDate?: string;
-  result: any;
-  risk_level?: 'low' | 'medium' | 'high' | 'critical';
-  security_analysis?: any;
-  security_warnings?: string[];
+  safe_tx_hash: string;
+  to_address: string;
+  value?: string;
+  data?: string;
+  operation?: number;
+  nonce: number;
+  is_executed: boolean;
+  submission_date?: string;
+  execution_date?: string;
+  created_at: string;
+  updated_at: string;
+  description?: string;
+  type?: string;
+  risk_level?: string;
+  transaction_data?: any;
+  security_analysis?: {
+    id: string;
+    is_suspicious: boolean;
+    risk_level: string;
+    warnings: string[];
+  };
 }
 
 interface TransactionFilters {
@@ -109,6 +118,7 @@ type SortDirection = 'asc' | 'desc';
 
 const Monitor = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const params = useParams();
   const { user } = useAuth();
   const { toast } = useToast();
@@ -167,7 +177,7 @@ const Monitor = () => {
     if (selectedTransaction && detailModalOpen && !isDirectTransactionLink.current) {
       // Only update URL with transaction hash when modal opens from clicking a transaction in the list
       // Don't update if this is from a direct transaction link
-      navigate(`/monitor/${selectedTransaction.transaction_hash}`, { replace: true });
+      navigate(`/monitor/${selectedTransaction.safe_tx_hash}`, { replace: true });
     } else if (!detailModalOpen && selectedTransaction && !isDirectTransactionLink.current) {
       // Remove transaction hash from URL when modal closes from list click
       navigate(`/monitor`, { replace: true });
@@ -188,65 +198,33 @@ const Monitor = () => {
       setIsLoadingDirectTransaction(true);
       
       try {
-        // Get the transaction from the database (detail view - includes full JSON)
-        const { data, error } = await supabase
-          .from('results')
-          .select(`
-            id, 
-            safe_address, 
-            network, 
-            scanned_at, 
-            result,
-            risk_level,
-            security_analysis,
-            security_warnings,
-            transaction_type
-          `)
-          .eq('transaction_hash', txHash)
-          .limit(1)
-          .single();
+        // Get all transactions and find by hash
+        const transactions = await transactionsApi.list();
+        const transaction = transactions.find(t => t.safe_tx_hash === txHash);
         
-        if (error) {
-          if (error.code === 'PGRST116') { // No rows returned
-            toast({
-              title: "Transaction Not Found",
-              description: "The requested transaction could not be found or you don't have access to it",
-              variant: "destructive",
-            });
-          } else {
-            console.error('Error fetching transaction by hash:', error);
-            toast({
-              title: "Error Loading Transaction",
-              description: error.message,
-              variant: "destructive",
-            });
-          }
+        if (!transaction) {
+          toast({
+            title: "Transaction Not Found",
+            description: "The requested transaction could not be found or you don't have access to it",
+            variant: "destructive",
+          });
           return;
         }
         
         // Check if user has access to this transaction (must be monitoring the safe)
-        // We'll check this after monitors load, but for now allow the transaction to load
+        const hasAccess = monitors.some(m => 
+          m.safe_address.toLowerCase() === transaction.safe_address.toLowerCase() && 
+          m.network === transaction.network
+        );
         
-        // Format the transaction with full detail
-        const txData = data.result.transaction_data || {};
-        const transaction: Transaction = {
-          id: data.id,
-          safe_address: data.safe_address,
-          network: data.network,
-          scanned_at: data.scanned_at,
-          type: data.transaction_type || data.result.type || 'normal',
-          description: data.result.description || 'Unknown transaction',
-          transaction_hash: data.result.transaction_hash,
-          safeTxHash: txData.safeTxHash,
-          nonce: txData.nonce !== undefined ? parseInt(txData.nonce) : undefined,
-          isExecuted: txData.isExecuted,
-          executionTxHash: txData.transactionHash,
-          submissionDate: txData.submissionDate,
-          risk_level: data.risk_level,
-          security_analysis: data.security_analysis,
-          security_warnings: data.security_warnings,
-          result: data.result
-        };
+        if (!hasAccess) {
+          toast({
+            title: "Access Denied",
+            description: "You don't have permission to view this transaction",
+            variant: "destructive",
+          });
+          return;
+        }
         
         // Set the selected transaction and open the modal
         setSelectedTransaction(transaction);
@@ -294,52 +272,7 @@ const Monitor = () => {
       // Reset the direct transaction link flag since this is from the list
       isDirectTransactionLink.current = false;
       
-      const { data, error } = await supabase
-        .from('results')
-        .select(`
-          id, 
-          safe_address, 
-          network, 
-          scanned_at, 
-          result,
-          risk_level,
-          security_analysis,
-          security_warnings,
-          transaction_type
-        `)
-        .eq('id', transactionId)
-        .single();
-      
-      if (error) {
-        console.error('Error fetching transaction details:', error);
-        toast({
-          title: "Error Loading Transaction Details",
-          description: error.message,
-          variant: "destructive",
-        });
-        return;
-      }
-      
-      // Format the transaction with full detail
-      const txData = data.result.transaction_data || {};
-      const transaction: Transaction = {
-        id: data.id,
-        safe_address: data.safe_address,
-        network: data.network,
-        scanned_at: data.scanned_at,
-        type: data.transaction_type || data.result.type || 'normal',
-        description: data.result.description || 'Unknown transaction',
-        transaction_hash: data.result.transaction_hash,
-        safeTxHash: txData.safeTxHash,
-        nonce: txData.nonce !== undefined ? parseInt(txData.nonce) : undefined,
-        isExecuted: txData.isExecuted,
-        executionTxHash: txData.transactionHash,
-        submissionDate: txData.submissionDate,
-        risk_level: data.risk_level,
-        security_analysis: data.security_analysis,
-        security_warnings: data.security_warnings,
-        result: data.result
-      };
+      const transaction = await transactionsApi.get(transactionId);
       
       setSelectedTransaction(transaction);
       setDetailModalOpen(true);
@@ -366,76 +299,39 @@ const Monitor = () => {
       }
 
       try {
-        // First fetch the monitors
-        const { data, error } = await supabase
-          .from('monitors')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false });
+        // First fetch the monitors via Rust API
+        const data = await monitorsApi.list();
 
-        if (error) {
-          console.error('Error fetching monitors:', error);
-          toast({
-            title: "Error Fetching Monitors",
-            description: error.message,
-            variant: "destructive",
-          });
+        if (!data || data.length === 0) {
+          console.log('No monitors found');
+          setMonitors([]);
+          setIsLoading(false);
           return;
         }
         
-        // Fetch the latest check time from the last_checks table
-        const lastChecksPromises = data.map(monitor => 
-          supabase
-            .from('last_checks')
-            .select('checked_at')
-            .eq('safe_address', monitor.safe_address)
-            .eq('network', monitor.network)
-            .single()
-        );
-        
-        const lastChecksResponses = await Promise.all(lastChecksPromises);
-        
-        // Create a map of the latest check time for each monitor's safe_address+network
+        // Create a map of the latest check time from the API response
         const latestScans = {};
-        lastChecksResponses.forEach((response, index) => {
-          if (response.error && response.error.code !== 'PGRST116') { // PGRST116 is "no rows returned" error
-            console.error('Error fetching last checks:', response.error);
-            return;
-          }
-          
-          if (response.data) {
-            const monitor = data[index];
-            const key = `${monitor.safe_address.toLowerCase()}-${monitor.network.toLowerCase()}`;
-            // Store the checked_at timestamp for time difference calculation
-            latestScans[key] = Date.parse(response.data.checked_at);
+        data.forEach(monitor => {
+          const key = `${monitor.safe_address.toLowerCase()}-${monitor.network.toLowerCase()}`;
+          if (monitor.last_checked_at) {
+            latestScans[key] = Date.parse(monitor.last_checked_at);
           }
         });
 
         // Get suspicious transaction counts for each address+network pair
-        const alertPromises = data.map(monitor =>
-          supabase
-            .from('results')
-            .select('id', { count: 'exact' })
-            .eq('safe_address', monitor.safe_address)
-            .eq('network', monitor.network)
-            .eq('transaction_type', 'suspicious')
-            .not('transaction_hash', 'is', null)
-        );
-        
-        const alertResponses = await Promise.all(alertPromises);
-        
-        // Create a map of alert counts for each address+network pair
         const alertCountMap = {};
-        alertResponses.forEach((response, index) => {
-          if (response.error) {
-            console.error('Error fetching alert counts:', response.error);
-            return;
+        for (const monitor of data) {
+          try {
+            const txs = await transactionsApi.list({
+              safe_address: monitor.safe_address,
+              network: monitor.network,
+            });
+            const key = `${monitor.safe_address.toLowerCase()}-${monitor.network.toLowerCase()}`;
+            alertCountMap[key] = txs.filter(tx => tx.security_analysis?.is_suspicious).length;
+          } catch (error) {
+            console.error('Error fetching transactions for alert count:', error);
           }
-          
-          const monitor = data[index];
-          const key = `${monitor.safe_address.toLowerCase()}-${monitor.network.toLowerCase()}`;
-          alertCountMap[key] = response.count || 0;
-        });
+        }
 
         const formattedMonitors = data.map(monitor => {
           const key = `${monitor.safe_address.toLowerCase()}-${monitor.network.toLowerCase()}`;
@@ -464,7 +360,7 @@ const Monitor = () => {
     }
 
     fetchMonitors();
-  }, [user, toast]);
+  }, [user, toast, location]);
   
   // Fetch transactions when filters, sorting, or pagination changes
   useEffect(() => {
@@ -479,108 +375,48 @@ const Monitor = () => {
       setIsLoadingTransactions(true);
       
       try {
-        // Get safe addresses and networks from user's monitors
-        const addressNetworkPairs = monitors.map(m => ({
-          safe_address: m.safe_address,
-          network: m.network
-        }));
-        
-        // Build the optimized query from results table for transactions (list view)
-        let query = supabase
-          .from('results')
-          .select(`
-            id, 
-            transaction_hash,
-            safe_address, 
-            network, 
-            nonce,
-            description,
-            transaction_type,
-            is_executed,
-            execution_tx_hash,
-            submission_date,
-            scanned_at,
-            risk_level,
-            security_analysis,
-            security_warnings
-          `, { count: 'exact' });
+        // Build query parameters
+        const queryParams: any = {};
         
         // Apply safe address filter if selected
         if (filters.safe) {
           const selectedMonitor = monitors.find(m => m.id === filters.safe);
           if (selectedMonitor) {
-            query = query
-              .eq('safe_address', selectedMonitor.safe_address)
-              .eq('network', selectedMonitor.network);
-          }
-        } else {
-          // Otherwise filter to only include the user's monitored addresses
-          const orConditions = addressNetworkPairs.map(pair => 
-            `safe_address.eq.${pair.safe_address},network.eq.${pair.network}`
-          ).join(',');
-          
-          if (orConditions) {
-            query = query.or(orConditions);
+            queryParams.safe_address = selectedMonitor.safe_address;
+            queryParams.network = selectedMonitor.network;
           }
         }
         
-        // Apply network filter if selected
-        if (filters.network) {
-          query = query.eq('network', filters.network);
+        // Apply network filter if selected (but not if safe filter already applied)
+        if (filters.network && !filters.safe) {
+          queryParams.network = filters.network;
         }
         
-        // Apply state filter if selected
+        // Fetch from API
+        let allResults = await transactionsApi.list(queryParams);
+        
+        // Apply client-side filters
         if (filters.state) {
           if (filters.state === 'executed') {
-            query = query.eq('is_executed', true);
+            allResults = allResults.filter(t => t.is_executed);
           } else if (filters.state === 'proposed') {
-            query = query.eq('is_executed', false);
+            allResults = allResults.filter(t => !t.is_executed);
           }
         }
         
-        // Apply security status filter if selected
         if (filters.securityStatus) {
-          query = query.eq('risk_level', filters.securityStatus);
+          allResults = allResults.filter(t => 
+            t.security_analysis?.risk_level === filters.securityStatus
+          );
         }
         
-        // Get all results before we do further client-side filtering/sorting
-        const { data: allResults, error, count } = await query;
-        
-        if (error) {
-          console.error('Error fetching transactions:', error);
-          throw error;
-        }
-        
-        // Filter for transactions with transaction_hash and map to optimized structure
-        const filteredTransactions = allResults.filter(item => 
-          item.transaction_hash
-        ).map(item => {
-          return {
-            id: item.id,
-            safe_address: item.safe_address,
-            network: item.network,
-            scanned_at: item.scanned_at,
-            type: item.transaction_type || 'normal',
-            description: item.description || 'Unknown transaction',
-            transaction_hash: item.transaction_hash,
-            safeTxHash: item.transaction_hash, // Use transaction_hash as safeTxHash
-            nonce: item.nonce,
-            isExecuted: item.is_executed,
-            executionTxHash: item.execution_tx_hash,
-            submissionDate: item.submission_date,
-            risk_level: item.risk_level || 'low',
-            security_analysis: item.security_analysis,
-            security_warnings: item.security_warnings,
-            result: {} // Add empty result object for list view compatibility
-          };
-        });
-        
+        const count = allResults.length;
         
         // Calculate total after all filters
-        setTotalItems(filteredTransactions.length);
+        setTotalItems(count);
         
         // Sort the transactions
-        filteredTransactions.sort((a, b) => {
+        allResults.sort((a, b) => {
           let valueA, valueB;
           
           switch (sortField) {
@@ -593,26 +429,24 @@ const Monitor = () => {
               valueB = b.network.toLowerCase();
               break;
             case 'nonce':
-              valueA = a.nonce !== undefined ? a.nonce : Infinity;
-              valueB = b.nonce !== undefined ? b.nonce : Infinity;
+              valueA = a.nonce;
+              valueB = b.nonce;
               break;
             case 'type':
-              valueA = a.type.toLowerCase();
-              valueB = b.type.toLowerCase();
+              valueA = (a.security_analysis?.is_suspicious ? 'suspicious' : 'normal').toLowerCase();
+              valueB = (b.security_analysis?.is_suspicious ? 'suspicious' : 'normal').toLowerCase();
               break;
             case 'scanned_at':
             default:
-              // Use submissionDate if available, fall back to scanned_at
-              valueA = a.submissionDate ? new Date(a.submissionDate).getTime() : new Date(a.scanned_at).getTime();
-              valueB = b.submissionDate ? new Date(b.submissionDate).getTime() : new Date(b.scanned_at).getTime();
+              valueA = a.submission_date ? new Date(a.submission_date).getTime() : new Date(a.created_at).getTime();
+              valueB = b.submission_date ? new Date(b.submission_date).getTime() : new Date(b.created_at).getTime();
               break;
           }
           
           if (valueA === valueB) {
-            // Secondary sort by scanned_at
             return sortDirection === 'asc' 
-              ? new Date(a.scanned_at).getTime() - new Date(b.scanned_at).getTime()
-              : new Date(b.scanned_at).getTime() - new Date(a.scanned_at).getTime();
+              ? new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+              : new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
           }
           
           if (sortDirection === 'asc') {
@@ -623,7 +457,7 @@ const Monitor = () => {
         });
         
         // Apply pagination
-        const paginatedTransactions = filteredTransactions.slice(
+        const paginatedTransactions = allResults.slice(
           (currentPage - 1) * itemsPerPage,
           currentPage * itemsPerPage
         );
@@ -657,17 +491,12 @@ const Monitor = () => {
       ));
 
       // Then update in the database
-      const { error } = await supabase
-        .from('monitors')
-        .update({ 
-          settings: {
-            ...monitor.settings,
-            active: newActiveState
-          }
-        })
-        .eq('id', id);
-
-      if (error) throw error;
+      await monitorsApi.update(id, {
+        settings: {
+          ...monitor.settings,
+          active: newActiveState
+        }
+      });
       
       toast({
         title: newActiveState ? "Monitor Activated" : "Monitor Paused",
@@ -724,12 +553,7 @@ const Monitor = () => {
       setDeleteConfirmModalOpen(false);
       
       // Then delete from database
-      const { error } = await supabase
-        .from('monitors')
-        .delete()
-        .eq('id', monitorToDelete.id);
-
-      if (error) throw error;
+      await monitorsApi.delete(monitorToDelete.id);
       
       toast({
         title: "Monitor Deleted",
@@ -804,12 +628,32 @@ const Monitor = () => {
         baseUrl = 'https://etherscan.io';
     }
     
-    return `${baseUrl}/tx/${transaction.executionTxHash || transaction.transaction_hash}`;
+    return `${baseUrl}/tx/${transaction.execution_date ? transaction.safe_tx_hash : transaction.safe_tx_hash}`;
   };
 
   const truncateAddress = (address: string) => {
     const middleStartIndex = Math.floor((address.length - 6) / 2);
     return `${address.substring(0, 6)}...${address.substring(middleStartIndex, middleStartIndex + 6)}...${address.substring(address.length - 6)}`;
+  };
+
+  const generateTransactionDescription = (tx: Transaction): string => {
+    const valueEth = tx.value ? parseFloat(tx.value) / 1e18 : 0;
+    const operation = tx.operation === 1 ? 'DelegateCall' : tx.operation === 2 ? 'Create' : 'Call';
+    const executed = tx.is_executed ? 'Executed' : 'Pending';
+    const riskLevel = tx.security_analysis?.risk_level || 'unknown';
+    
+    let desc = `${operation} to ${truncateAddress(tx.to_address)}`;
+    if (valueEth > 0) desc += ` - ${valueEth} ETH`;
+    desc += ` [${executed}]`;
+    if (tx.security_analysis?.is_suspicious) desc += ` [RISK: ${riskLevel.toUpperCase()}]`;
+    
+    return desc;
+  };
+
+  const generateDescription = (tx: Transaction) => {
+    const toAddr = tx.to_address ? truncateAddress(tx.to_address) : 'Unknown';
+    const valueInEth = tx.value && tx.value !== '0' ? `${parseFloat(tx.value) / 1e18} ETH` : '0 ETH';
+    return `Transfer ${valueInEth} to ${toAddr}`;
   };
 
   // Map network names to Safe App network identifiers
@@ -894,7 +738,7 @@ const Monitor = () => {
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-secondary/20 flex flex-col">
       
       {/* Delete Confirmation Modal */}
       <Dialog open={deleteConfirmModalOpen} onOpenChange={setDeleteConfirmModalOpen}>
@@ -969,32 +813,30 @@ const Monitor = () => {
               <div className="flex-1 min-w-0">
                 <DialogTitle className="text-lg font-semibold">Transaction Details</DialogTitle>
                 <DialogDescription className="text-sm mt-1">
-                  {selectedTransaction?.description.replace(/\s*\[.*?RISK:.*?\].*$/, '')}
+                  {selectedTransaction && generateDescription(selectedTransaction)}
                 </DialogDescription>
               </div>
               {selectedTransaction && (
                 <div className="flex items-center gap-2 shrink-0">
-                  <Badge variant={selectedTransaction.isExecuted ? "default" : "secondary"} 
-                    className={selectedTransaction.isExecuted ? "bg-green-600" : ""}>
-                    {selectedTransaction.isExecuted ? 'Executed' : 'Proposed'}
+                  <Badge variant={selectedTransaction.is_executed ? "default" : "secondary"} 
+                    className={selectedTransaction.is_executed ? "bg-green-600" : ""}>
+                    {selectedTransaction.is_executed ? 'Executed' : 'Proposed'}
                   </Badge>
                   {getRiskLevelBadge(
-                    selectedTransaction.result?.risk_level || 
-                    selectedTransaction.risk_level || 
-                    (selectedTransaction.type === 'suspicious' ? 'medium' : 'low'), 
-                    selectedTransaction.type
+                    selectedTransaction.security_analysis?.risk_level || 'low', 
+                    selectedTransaction.security_analysis?.is_suspicious ? 'suspicious' : 'normal'
                   )}
                 </div>
               )}
             </div>
           </DialogHeader>
           
-          {selectedTransaction && selectedTransaction.result && selectedTransaction.result.transaction_data && (
+          {selectedTransaction && (
             <div className="space-y-6 py-4">
               {/* Quick Actions */}
               <div className="flex flex-col sm:flex-row gap-3">
                 <a 
-                  href={`https://app.safe.global/transactions/tx?safe=${getSafeAppNetwork(selectedTransaction.network)}:${selectedTransaction.safe_address}&id=multisig_${selectedTransaction.safe_address}_${selectedTransaction.safeTxHash}`}
+                  href={`https://app.safe.global/transactions/tx?safe=${getSafeAppNetwork(selectedTransaction.network)}:${selectedTransaction.safe_address}&id=multisig_${selectedTransaction.safe_address}_${selectedTransaction.safe_tx_hash}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex-1"
@@ -1004,7 +846,7 @@ const Monitor = () => {
                   </Button>
                 </a>
                 
-                {selectedTransaction.isExecuted && (
+                {selectedTransaction.is_executed && (
                   <a 
                     href={getEtherscanTxUrl(selectedTransaction)}
                     target="_blank"
@@ -1018,10 +860,148 @@ const Monitor = () => {
                 )}
               </div>
 
-              {/* Security Analysis Section - Moved to top */}
+              {/* Transaction Information */}
               <Card>
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-base">Security Analysis</CardTitle>
+                  <CardTitle className="text-base">Transaction Information</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Safe Address</h3>
+                      <p className="text-sm font-mono break-all">
+                        <a 
+                          href={`https://app.safe.global/home?safe=${getSafeAppNetwork(selectedTransaction.network)}:${selectedTransaction.safe_address}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-500 hover:text-blue-600"
+                        >
+                          {selectedTransaction.safe_address}
+                        </a>
+                      </p>
+                    </div>
+                    <div className="space-y-1">
+                      <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Network</h3>
+                      <p className="text-sm">{selectedTransaction.network.charAt(0).toUpperCase() + selectedTransaction.network.slice(1)}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Nonce</h3>
+                      <p className="text-sm">{selectedTransaction.nonce}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Execution Status</h3>
+                      <Badge variant={selectedTransaction.is_executed ? "default" : "secondary"} 
+                        className={selectedTransaction.is_executed ? "bg-green-600" : ""}>
+                        {selectedTransaction.is_executed ? 'Executed' : 'Pending'}
+                      </Badge>
+                    </div>
+                    <div className="space-y-1">
+                      <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">To Address</h3>
+                      <p className="text-sm font-mono break-all">
+                        {selectedTransaction.to_address ? (
+                          <a 
+                            href={`${getEtherscanTxUrl(selectedTransaction).split('/tx/')[0]}/address/${selectedTransaction.to_address}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-500 hover:text-blue-600"
+                          >
+                            {selectedTransaction.to_address}
+                          </a>
+                        ) : "—"}
+                      </p>
+                    </div>
+                    <div className="space-y-1">
+                      <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Value</h3>
+                      <p className="text-sm">{selectedTransaction.value ? `${parseFloat(selectedTransaction.value) / 1e18} ETH` : '0 ETH'}</p>
+                    </div>
+                    {selectedTransaction.data && selectedTransaction.data !== "0x" && (
+                      <div className="space-y-1 sm:col-span-2">
+                        <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Data</h3>
+                        <p className="text-sm font-mono break-all bg-muted/50 p-2 rounded max-h-32 overflow-y-auto">
+                          {selectedTransaction.data}
+                        </p>
+                      </div>
+                    )}
+                    {selectedTransaction.operation !== undefined && (
+                      <div className="space-y-1">
+                        <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Operation Type</h3>
+                        <div className="flex items-center gap-2">
+                          {selectedTransaction.operation === 0 ? (
+                            <Badge variant="outline">Call (0)</Badge>
+                          ) : selectedTransaction.operation === 1 ? (
+                            <Badge variant="destructive">Delegate Call (1)</Badge>
+                          ) : selectedTransaction.operation === 2 ? (
+                            <Badge variant="secondary">Contract Creation (2)</Badge>
+                          ) : (
+                            <Badge variant="outline">Unknown</Badge>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    {selectedTransaction.submission_date && (
+                      <div className="space-y-1">
+                        <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Submission Date</h3>
+                        <p className="text-sm">{new Date(selectedTransaction.submission_date).toLocaleString()}</p>
+                      </div>
+                    )}
+                    {selectedTransaction.execution_date && (
+                      <div className="space-y-1">
+                        <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Execution Date</h3>
+                        <p className="text-sm">{new Date(selectedTransaction.execution_date).toLocaleString()}</p>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Security Analysis Section */}
+              {selectedTransaction.security_analysis && (
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base">Security Analysis</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-3">
+                      <h4 className="text-sm font-medium text-muted-foreground">Risk Assessment</h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Risk Level</h3>
+                          {getRiskLevelBadge(
+                            selectedTransaction.security_analysis.risk_level,
+                            selectedTransaction.security_analysis.is_suspicious ? 'suspicious' : 'normal'
+                          )}
+                        </div>
+                        <div className="space-y-1">
+                          <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Status</h3>
+                          <Badge variant={selectedTransaction.security_analysis.is_suspicious ? "destructive" : "default"}>
+                            {selectedTransaction.security_analysis.is_suspicious ? 'Suspicious' : 'Normal'}
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Security Warnings */}
+                    {selectedTransaction.security_analysis.warnings && selectedTransaction.security_analysis.warnings.length > 0 && (
+                      <div className="space-y-3">
+                        <h4 className="text-sm font-medium text-muted-foreground">Warnings</h4>
+                        <div className="space-y-2">
+                          {selectedTransaction.security_analysis.warnings.map((warning, index) => (
+                            <div key={index} className="flex items-start gap-2 p-3 bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800 rounded-lg">
+                              <AlertCircle className="h-4 w-4 text-orange-600 dark:text-orange-400 mt-0.5 flex-shrink-0" />
+                              <span className="text-sm text-orange-900 dark:text-orange-100">{warning}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Transaction Data Card */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">Transaction Data</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {/* Gas Parameters Analysis */}
@@ -1029,72 +1009,72 @@ const Monitor = () => {
                     <h4 className="text-sm font-medium text-muted-foreground">Gas Parameters Assessment</h4>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div className={`p-3 rounded-lg border ${
-                        selectedTransaction.result.transaction_data?.safeTxGas !== "0" ? 
+                        selectedTransaction.transaction_data?.safeTxGas !== "0" ? 
                         'bg-orange-50 border-orange-200' : 'bg-green-50 border-green-200'
                       }`}>
                         <div className="flex items-center gap-2 mb-1">
-                          {selectedTransaction.result.transaction_data?.safeTxGas !== "0" ? (
+                          {selectedTransaction.transaction_data?.safeTxGas !== "0" ? (
                             <AlertCircle className="h-4 w-4 text-orange-600" />
                           ) : (
                             <ShieldCheck className="h-4 w-4 text-green-600" />
                           )}
                           <span className={`text-sm font-medium ${
-                            selectedTransaction.result.transaction_data?.safeTxGas !== "0" ? 
+                            selectedTransaction.transaction_data?.safeTxGas !== "0" ? 
                             'text-orange-700' : 'text-green-700'
                           }`}>
-                            Safe Tx Gas: {selectedTransaction.result.transaction_data?.safeTxGas || "0"}
+                            Safe Tx Gas: {selectedTransaction.transaction_data?.safeTxGas || "0"}
                           </span>
                         </div>
                         <p className="text-xs text-muted-foreground">
-                          {selectedTransaction.result.transaction_data?.safeTxGas !== "0" ? 
+                          {selectedTransaction.transaction_data?.safeTxGas !== "0" ? 
                             "Custom gas limit set - verify this is intentional" : 
                             "Using default gas estimation"}
                         </p>
                       </div>
                       
                       <div className={`p-3 rounded-lg border ${
-                        selectedTransaction.result.transaction_data?.gasToken !== "0x0000000000000000000000000000000000000000" ? 
+                        selectedTransaction.transaction_data?.gasToken !== "0x0000000000000000000000000000000000000000" ? 
                         'bg-orange-50 border-orange-200' : 'bg-green-50 border-green-200'
                       }`}>
                         <div className="flex items-center gap-2 mb-1">
-                          {selectedTransaction.result.transaction_data?.gasToken !== "0x0000000000000000000000000000000000000000" ? (
+                          {selectedTransaction.transaction_data?.gasToken !== "0x0000000000000000000000000000000000000000" ? (
                             <AlertCircle className="h-4 w-4 text-orange-600" />
                           ) : (
                             <ShieldCheck className="h-4 w-4 text-green-600" />
                           )}
                           <span className={`text-sm font-medium ${
-                            selectedTransaction.result.transaction_data?.gasToken !== "0x0000000000000000000000000000000000000000" ? 
+                            selectedTransaction.transaction_data?.gasToken !== "0x0000000000000000000000000000000000000000" ? 
                             'text-orange-700' : 'text-green-700'
                           }`}>
                             Gas Token
                           </span>
                         </div>
                         <p className="text-xs text-muted-foreground">
-                          {selectedTransaction.result.transaction_data?.gasToken !== "0x0000000000000000000000000000000000000000" ? 
+                          {selectedTransaction.transaction_data?.gasToken !== "0x0000000000000000000000000000000000000000" ? 
                             "Custom gas token specified - verify token legitimacy" : 
                             "Using native ETH for gas"}
                         </p>
                       </div>
                       
                       <div className={`p-3 rounded-lg border sm:col-span-2 ${
-                        selectedTransaction.result.transaction_data?.refundReceiver !== "0x0000000000000000000000000000000000000000" ? 
+                        selectedTransaction.transaction_data?.refundReceiver !== "0x0000000000000000000000000000000000000000" ? 
                         'bg-orange-50 border-orange-200' : 'bg-green-50 border-green-200'
                       }`}>
                         <div className="flex items-center gap-2 mb-1">
-                          {selectedTransaction.result.transaction_data?.refundReceiver !== "0x0000000000000000000000000000000000000000" ? (
+                          {selectedTransaction.transaction_data?.refundReceiver !== "0x0000000000000000000000000000000000000000" ? (
                             <AlertCircle className="h-4 w-4 text-orange-600" />
                           ) : (
                             <ShieldCheck className="h-4 w-4 text-green-600" />
                           )}
                           <span className={`text-sm font-medium ${
-                            selectedTransaction.result.transaction_data?.refundReceiver !== "0x0000000000000000000000000000000000000000" ? 
+                            selectedTransaction.transaction_data?.refundReceiver !== "0x0000000000000000000000000000000000000000" ? 
                             'text-orange-700' : 'text-green-700'
                           }`}>
                             Refund Receiver
                           </span>
                         </div>
                         <p className="text-xs text-muted-foreground">
-                          {selectedTransaction.result.transaction_data?.refundReceiver !== "0x0000000000000000000000000000000000000000" ? 
+                          {selectedTransaction.transaction_data?.refundReceiver !== "0x0000000000000000000000000000000000000000" ? 
                             "Custom refund receiver set - verify this address is trusted" : 
                             "No custom refund receiver"}
                         </p>
@@ -1106,47 +1086,47 @@ const Monitor = () => {
                   <div className="space-y-3">
                     <h4 className="text-sm font-medium text-muted-foreground">Operation Type Assessment</h4>
                     <div className={`p-3 rounded-lg border ${
-                      selectedTransaction.result.transaction_data?.operation === 1 ? 
+                      selectedTransaction.transaction_data?.operation === 1 ? 
                       'bg-red-50 border-red-200' : 
-                      selectedTransaction.result.transaction_data?.operation === 2 ? 
+                      selectedTransaction.transaction_data?.operation === 2 ? 
                       'bg-yellow-50 border-yellow-200' : 
                       'bg-green-50 border-green-200'
                     }`}>
                       <div className="flex items-center gap-2 mb-2">
-                        {selectedTransaction.result.transaction_data?.operation === 1 ? (
+                        {selectedTransaction.transaction_data?.operation === 1 ? (
                           <ShieldX className="h-4 w-4 text-red-600" />
-                        ) : selectedTransaction.result.transaction_data?.operation === 2 ? (
+                        ) : selectedTransaction.transaction_data?.operation === 2 ? (
                           <AlertCircle className="h-4 w-4 text-yellow-600" />
                         ) : (
                           <ShieldCheck className="h-4 w-4 text-green-600" />
                         )}
                         <span className={`text-sm font-medium ${
-                          selectedTransaction.result.transaction_data?.operation === 1 ? 
+                          selectedTransaction.transaction_data?.operation === 1 ? 
                           'text-red-700' : 
-                          selectedTransaction.result.transaction_data?.operation === 2 ? 
+                          selectedTransaction.transaction_data?.operation === 2 ? 
                           'text-yellow-700' : 
                           'text-green-700'
                         }`}>
-                          {selectedTransaction.result.transaction_data?.operation === 0 ? 'Call Operation' :
-                           selectedTransaction.result.transaction_data?.operation === 1 ? 'Delegate Call Operation' :
-                           selectedTransaction.result.transaction_data?.operation === 2 ? 'Contract Creation' :
+                          {selectedTransaction.transaction_data?.operation === 0 ? 'Call Operation' :
+                           selectedTransaction.transaction_data?.operation === 1 ? 'Delegate Call Operation' :
+                           selectedTransaction.transaction_data?.operation === 2 ? 'Contract Creation' :
                            'Unknown Operation'}
                         </span>
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        {selectedTransaction.result.transaction_data?.operation === 0 ? 
+                        {selectedTransaction.transaction_data?.operation === 0 ? 
                           "Standard call operation - lowest risk level" :
-                         selectedTransaction.result.transaction_data?.operation === 1 ? 
+                         selectedTransaction.transaction_data?.operation === 1 ? 
                           "⚠️ DELEGATE CALL - High risk! This allows the target contract to execute code in the Safe's context with full access to storage and funds. Verify the target contract is absolutely trusted." :
-                         selectedTransaction.result.transaction_data?.operation === 2 ? 
+                         selectedTransaction.transaction_data?.operation === 2 ? 
                           "Contract creation operation - verify the bytecode being deployed" :
                           "Unknown operation type - exercise extreme caution"}
                       </p>
-                      {selectedTransaction.result.transaction_data?.operation === 1 && selectedTransaction.result.transaction_data?.to && (
+                      {selectedTransaction.transaction_data?.operation === 1 && selectedTransaction.transaction_data?.to && (
                         <div className="mt-2 p-2 bg-red-100 rounded border border-red-300">
                           <p className="text-xs font-medium text-red-800">Target Contract:</p>
                           <p className="text-xs font-mono text-red-700 break-all">
-                            {selectedTransaction.result.transaction_data.to}
+                            {selectedTransaction.transaction_data.to}
                           </p>
                           <p className="text-xs text-red-600 mt-1">
                             ⚠️ Ensure this contract is verified and audited before approving
@@ -1308,44 +1288,46 @@ const Monitor = () => {
               </Card>
 
               {/* Calculated Hashes */}
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base">Transaction Hashes</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-1 gap-3">
-                    <div className="bg-muted/50 p-3 rounded-lg">
-                      <div className="text-xs font-medium mb-2">Domain Hash:</div>
-                      <div className="font-mono text-xs break-all text-green-600">
-                        {selectedTransaction.security_analysis.hashVerification.calculatedHashes?.domainHash || "Not calculated"}
-                      </div>
-                    </div>
-                    <div className="bg-muted/50 p-3 rounded-lg">
-                      <div className="text-xs font-medium mb-2">Message Hash:</div>
-                      <div className="font-mono text-xs break-all text-green-600">
-                        {selectedTransaction.security_analysis.hashVerification.calculatedHashes?.messageHash || "Not calculated"}
-                      </div>
-                    </div>
-                    <div className="bg-muted/50 p-3 rounded-lg">
-                      <div className="text-xs font-medium mb-2">Safe Transaction Hash:</div>
-                      <div className="space-y-2">
-                        <div>
-                          <span className="text-xs text-muted-foreground">Calculated:</span>
-                          <div className="font-mono text-xs break-all text-blue-600 mt-1">
-                            {selectedTransaction.security_analysis.hashVerification.calculatedHashes?.safeTxHash || "Not calculated"}
-                          </div>
-                        </div>
-                        <div>
-                          <span className="text-xs text-muted-foreground">API Response:</span>
-                          <div className="font-mono text-xs break-all text-blue-600 mt-1">
-                            {selectedTransaction.result.transaction_data?.safeTxHash || "Not available"}
-                          </div>
+              {selectedTransaction.security_analysis?.hashVerification?.calculatedHashes && (
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base">Transaction Hashes</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-1 gap-3">
+                      <div className="bg-muted/50 p-3 rounded-lg">
+                        <div className="text-xs font-medium mb-2">Domain Hash:</div>
+                        <div className="font-mono text-xs break-all text-green-600">
+                          {selectedTransaction.security_analysis.hashVerification.calculatedHashes?.domainHash || "Not calculated"}
                         </div>
                       </div>
+                      <div className="bg-muted/50 p-3 rounded-lg">
+                        <div className="text-xs font-medium mb-2">Message Hash:</div>
+                        <div className="font-mono text-xs break-all text-green-600">
+                          {selectedTransaction.security_analysis.hashVerification.calculatedHashes?.messageHash || "Not calculated"}
+                        </div>
+                      </div>
+                      <div className="bg-muted/50 p-3 rounded-lg">
+                        <div className="text-xs font-medium mb-2">Safe Transaction Hash:</div>
+                        <div className="space-y-2">
+                          <div>
+                            <span className="text-xs text-muted-foreground">Calculated:</span>
+                            <div className="font-mono text-xs break-all text-blue-600 mt-1">
+                              {selectedTransaction.security_analysis.hashVerification.calculatedHashes?.safeTxHash || "Not calculated"}
+                            </div>
+                          </div>
+                          <div>
+                            <span className="text-xs text-muted-foreground">API Response:</span>
+                            <div className="font-mono text-xs break-all text-blue-600 mt-1">
+                              {selectedTransaction.transaction_data?.safeTxHash || "Not available"}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+              )}
 
               {/* Basic Transaction Information */}
               <Card>
@@ -1374,14 +1356,14 @@ const Monitor = () => {
                     <div className="space-y-1">
                       <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">To Address</h3>
                       <p className="text-sm font-mono break-all">
-                        {selectedTransaction.result.transaction_data?.to ? (
+                        {selectedTransaction.transaction_data?.to ? (
                           <a 
-                            href={`${getEtherscanTxUrl(selectedTransaction).split('/tx/')[0]}/address/${selectedTransaction.result.transaction_data.to}`}
+                            href={`${getEtherscanTxUrl(selectedTransaction).split('/tx/')[0]}/address/${selectedTransaction.transaction_data.to}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-blue-500 hover:text-blue-600"
                           >
-                            {selectedTransaction.result.transaction_data.to}
+                            {selectedTransaction.transaction_data.to}
                           </a>
                         ) : "—"}
                       </p>
@@ -1389,15 +1371,15 @@ const Monitor = () => {
                     <div className="space-y-1">
                       <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Value</h3>
                       <p className="text-sm">
-                        {selectedTransaction.result.transaction_data?.value ? 
-                          `${parseFloat(selectedTransaction.result.transaction_data.value) / 1e18} ETH` 
+                        {selectedTransaction.transaction_data?.value ? 
+                          `${parseFloat(selectedTransaction.transaction_data.value) / 1e18} ETH` 
                           : "0 ETH"}
                       </p>
                     </div>
                     <div className="space-y-1 sm:col-span-2">
                       <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Data</h3>
                       <p className="text-sm font-mono break-all bg-muted/50 p-2 rounded">
-                        {selectedTransaction.result.transaction_data?.data || "0x"}
+                        {selectedTransaction.transaction_data?.data || "0x"}
                       </p>
                     </div>
                     <div className="space-y-1">
@@ -1407,14 +1389,14 @@ const Monitor = () => {
                     <div className="space-y-1">
                       <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Operation Type</h3>
                       <div className="flex items-center gap-2">
-                        {selectedTransaction.result.transaction_data?.operation === 0 ? (
+                        {selectedTransaction.transaction_data?.operation === 0 ? (
                           <Badge variant="outline">Call (0)</Badge>
-                        ) : selectedTransaction.result.transaction_data?.operation === 1 ? (
+                        ) : selectedTransaction.transaction_data?.operation === 1 ? (
                           <div className="flex items-center gap-2">
                             <Badge variant="destructive">Delegate Call (1)</Badge>
-                            {selectedTransaction.result.transaction_data?.to && (
+                            {selectedTransaction.transaction_data?.to && (
                               <a 
-                                href={`${getEtherscanTxUrl(selectedTransaction).split('/tx/')[0]}/address/${selectedTransaction.result.transaction_data.to}`}
+                                href={`${getEtherscanTxUrl(selectedTransaction).split('/tx/')[0]}/address/${selectedTransaction.transaction_data.to}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="text-blue-500 hover:text-blue-600"
@@ -1423,7 +1405,7 @@ const Monitor = () => {
                               </a>
                             )}
                           </div>
-                        ) : selectedTransaction.result.transaction_data?.operation === 2 ? (
+                        ) : selectedTransaction.transaction_data?.operation === 2 ? (
                           <Badge variant="secondary">Contract Creation (2)</Badge>
                         ) : (
                           <Badge variant="outline">Unknown</Badge>
@@ -1443,36 +1425,36 @@ const Monitor = () => {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1">
                       <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Safe Tx Gas</h3>
-                      <p className={`text-sm ${selectedTransaction.result.transaction_data?.safeTxGas !== "0" ? 'text-orange-600 font-medium' : 'text-green-600'}`}>
-                        {selectedTransaction.result.transaction_data?.safeTxGas || "0"}
+                      <p className={`text-sm ${selectedTransaction.transaction_data?.safeTxGas !== "0" ? 'text-orange-600 font-medium' : 'text-green-600'}`}>
+                        {selectedTransaction.transaction_data?.safeTxGas || "0"}
                       </p>
                     </div>
                     <div className="space-y-1">
                       <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Base Gas</h3>
-                      <p className={`text-sm ${selectedTransaction.result.transaction_data?.baseGas !== "0" ? 'text-orange-600 font-medium' : 'text-green-600'}`}>
-                        {selectedTransaction.result.transaction_data?.baseGas || "0"}
+                      <p className={`text-sm ${selectedTransaction.transaction_data?.baseGas !== "0" ? 'text-orange-600 font-medium' : 'text-green-600'}`}>
+                        {selectedTransaction.transaction_data?.baseGas || "0"}
                       </p>
                     </div>
                     <div className="space-y-1">
                       <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Gas Price</h3>
-                      <p className={`text-sm ${selectedTransaction.result.transaction_data?.gasPrice !== "0" ? 'text-orange-600 font-medium' : 'text-green-600'}`}>
-                        {selectedTransaction.result.transaction_data?.gasPrice || "0"}
+                      <p className={`text-sm ${selectedTransaction.transaction_data?.gasPrice !== "0" ? 'text-orange-600 font-medium' : 'text-green-600'}`}>
+                        {selectedTransaction.transaction_data?.gasPrice || "0"}
                       </p>
                     </div>
                     <div className="space-y-1">
                       <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Gas Token</h3>
-                      <p className={`text-sm font-mono break-all ${selectedTransaction.result.transaction_data?.gasToken !== "0x0000000000000000000000000000000000000000" ? 'text-orange-600 font-medium' : 'text-green-600'}`}>
-                        {selectedTransaction.result.transaction_data?.gasToken === "0x0000000000000000000000000000000000000000" ? 
+                      <p className={`text-sm font-mono break-all ${selectedTransaction.transaction_data?.gasToken !== "0x0000000000000000000000000000000000000000" ? 'text-orange-600 font-medium' : 'text-green-600'}`}>
+                        {selectedTransaction.transaction_data?.gasToken === "0x0000000000000000000000000000000000000000" ? 
                           "0x0000000000000000000000000000000000000000 (Native)" : 
-                          selectedTransaction.result.transaction_data?.gasToken || "0x0000000000000000000000000000000000000000"}
+                          selectedTransaction.transaction_data?.gasToken || "0x0000000000000000000000000000000000000000"}
                       </p>
                     </div>
                     <div className="space-y-1 sm:col-span-2">
                       <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Refund Receiver</h3>
-                      <p className={`text-sm font-mono break-all ${selectedTransaction.result.transaction_data?.refundReceiver !== "0x0000000000000000000000000000000000000000" ? 'text-orange-600 font-medium' : 'text-green-600'}`}>
-                        {selectedTransaction.result.transaction_data?.refundReceiver === "0x0000000000000000000000000000000000000000" ? 
+                      <p className={`text-sm font-mono break-all ${selectedTransaction.transaction_data?.refundReceiver !== "0x0000000000000000000000000000000000000000" ? 'text-orange-600 font-medium' : 'text-green-600'}`}>
+                        {selectedTransaction.transaction_data?.refundReceiver === "0x0000000000000000000000000000000000000000" ? 
                           "0x0000000000000000000000000000000000000000 (None)" : 
-                          selectedTransaction.result.transaction_data?.refundReceiver || "0x0000000000000000000000000000000000000000"}
+                          selectedTransaction.transaction_data?.refundReceiver || "0x0000000000000000000000000000000000000000"}
                       </p>
                     </div>
                   </div>
@@ -1496,20 +1478,20 @@ const Monitor = () => {
                     <div className="space-y-1">
                       <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Confirmations</h3>
                       <p className="text-sm">
-                        {selectedTransaction.result.transaction_data?.confirmations?.length || 0} of {selectedTransaction.result.transaction_data?.confirmationsRequired || "—"} required
+                        {selectedTransaction.transaction_data?.confirmations?.length || 0} of {selectedTransaction.transaction_data?.confirmationsRequired || "—"} required
                       </p>
                     </div>
                     <div className="space-y-1">
                       <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Proposer</h3>
                       <p className="text-sm font-mono break-all">
-                        {selectedTransaction.result.transaction_data?.proposer ? (
+                        {selectedTransaction.transaction_data?.proposer ? (
                           <a 
-                            href={`${getEtherscanTxUrl(selectedTransaction).split('/tx/')[0]}/address/${selectedTransaction.result.transaction_data.proposer}`}
+                            href={`${getEtherscanTxUrl(selectedTransaction).split('/tx/')[0]}/address/${selectedTransaction.transaction_data.proposer}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-blue-500 hover:text-blue-600"
                           >
-                            {selectedTransaction.result.transaction_data.proposer}
+                            {selectedTransaction.transaction_data.proposer}
                           </a>
                         ) : "—"}
                       </p>
@@ -1517,14 +1499,14 @@ const Monitor = () => {
                     <div className="space-y-1">
                       <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Execution Transaction Hash</h3>
                       <p className="text-sm font-mono break-all">
-                        {selectedTransaction.result.transaction_data?.transactionHash ? (
+                        {selectedTransaction.transaction_data?.transactionHash ? (
                           <a 
                             href={getEtherscanTxUrl(selectedTransaction)}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-blue-500 hover:text-blue-600"
                           >
-                            {selectedTransaction.result.transaction_data.transactionHash}
+                            {selectedTransaction.transaction_data.transactionHash}
                           </a>
                         ) : "—"}
                       </p>
@@ -1532,28 +1514,28 @@ const Monitor = () => {
                     <div className="space-y-1">
                       <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Submission Date</h3>
                       <p className="text-sm">
-                        {selectedTransaction.result.transaction_data?.submissionDate ? 
-                          new Date(selectedTransaction.result.transaction_data.submissionDate).toLocaleString() :
+                        {selectedTransaction.transaction_data?.submissionDate ? 
+                          new Date(selectedTransaction.transaction_data.submissionDate).toLocaleString() :
                           "—"}
                       </p>
                     </div>
                     <div className="space-y-1">
                       <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Execution Date</h3>
                       <p className="text-sm">
-                        {selectedTransaction.result.transaction_data?.executionDate ? 
-                          new Date(selectedTransaction.result.transaction_data.executionDate).toLocaleString() :
+                        {selectedTransaction.transaction_data?.executionDate ? 
+                          new Date(selectedTransaction.transaction_data.executionDate).toLocaleString() :
                           "—"}
                       </p>
                     </div>
                   </div>
                   
                   {/* Confirmations Details */}
-                  {selectedTransaction.result.transaction_data?.confirmations && 
-                   selectedTransaction.result.transaction_data.confirmations.length > 0 && (
+                  {selectedTransaction.transaction_data?.confirmations && 
+                   selectedTransaction.transaction_data.confirmations.length > 0 && (
                     <div className="space-y-3">
                       <h4 className="text-sm font-medium text-muted-foreground">Signers</h4>
                       <div className="bg-muted/50 rounded-lg p-3 max-h-48 overflow-y-auto">
-                        {selectedTransaction.result.transaction_data.confirmations.map((confirmation: any, index: number) => (
+                        {selectedTransaction.transaction_data.confirmations.map((confirmation: any, index: number) => (
                           <div key={index} className="flex flex-col sm:flex-row sm:justify-between sm:items-center py-2 border-b last:border-0 gap-2">
                             <a 
                               href={`${getEtherscanTxUrl(selectedTransaction).split('/tx/')[0]}/address/${confirmation.owner}`}
@@ -1575,15 +1557,6 @@ const Monitor = () => {
               </Card>
             </div>
           )}
-          
-          {selectedTransaction && (!selectedTransaction.result || !selectedTransaction.result.transaction_data) && (
-            <div className="flex items-center justify-center py-8">
-              <div className="text-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-                <p className="text-muted-foreground">Loading transaction details...</p>
-              </div>
-            </div>
-          )}
         </DialogContent>
       </Dialog>
       
@@ -1591,15 +1564,13 @@ const Monitor = () => {
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold">Multisignature Wallets</h1>
           
-          <div className="flex gap-2">            
-            <Button 
-              onClick={() => navigate("/monitor/new")}
-              className="jsr-button flex items-center gap-2"
-            >
-              <PlusCircle className="h-5 w-5" />
-              Add Wallet
-            </Button>
-          </div>
+          <Button 
+            onClick={() => navigate("/monitor/new")}
+            className="jsr-button flex items-center gap-2"
+          >
+            <PlusCircle className="h-5 w-5" />
+            Add Wallet
+          </Button>
         </div>
         
         {isLoading ? (
@@ -1730,17 +1701,17 @@ const Monitor = () => {
                             m.network === tx.network
                           );
                           const safeName = monitor?.alias || truncateAddress(tx.safe_address);
-                          const txDescription = tx.description.replace(/,/g, ';'); // Replace commas to avoid CSV issues
-                          const executionState = tx.isExecuted ? 'Executed' : 'Proposed';
-                          const time = tx.submissionDate ? new Date(tx.submissionDate).toLocaleString() : new Date(tx.scanned_at).toLocaleString();
+                          const txDescription = (tx.description || `Transaction to ${tx.to_address}`).replace(/,/g, ';'); // Replace commas to avoid CSV issues
+                          const executionState = tx.is_executed ? 'Executed' : 'Proposed';
+                          const time = tx.submission_date ? new Date(tx.submission_date).toLocaleString() : new Date(tx.created_at).toLocaleString();
                           return [
                             safeName,
                             tx.network.charAt(0).toUpperCase() + tx.network.slice(1),
-                            tx.nonce !== undefined ? tx.nonce : '',
+                            tx.nonce,
                             txDescription,
                             executionState,
                             time,
-                            tx.type
+                            tx.security_analysis?.is_suspicious ? 'suspicious' : 'normal'
                           ].join(',');
                         });
                         
@@ -2050,25 +2021,25 @@ const Monitor = () => {
                                 )?.alias || truncateAddress(tx.safe_address)}
                               </TableCell>
                               <TableCell>{tx.network.charAt(0).toUpperCase() + tx.network.slice(1)}</TableCell>
-                              <TableCell>{tx.nonce !== undefined ? tx.nonce : '—'}</TableCell>
+                              <TableCell>{tx.nonce}</TableCell>
                               <TableCell>
                                 <div className="max-w-xs truncate">
-                                  {tx.description.replace(/\s*\[.*?RISK:.*?\].*$/, '')}
+                                  {generateDescription(tx)}
                                 </div>
                               </TableCell>
                               <TableCell>
-                                <Badge variant={tx.isExecuted ? "default" : "secondary"} className={tx.isExecuted ? "bg-green-600" : ""}>
-                                  {tx.isExecuted ? 'Executed' : 'Proposed'}
+                                <Badge variant={tx.is_executed ? "default" : "secondary"} className={tx.is_executed ? "bg-green-600" : ""}>
+                                  {tx.is_executed ? 'Executed' : 'Proposed'}
                                 </Badge>
                               </TableCell>
-                              <TableCell>{formatTimeAgo(tx.submissionDate ? new Date(tx.submissionDate).getTime() : new Date(tx.scanned_at).getTime())}</TableCell>
+                              <TableCell>{formatTimeAgo(tx.submission_date ? new Date(tx.submission_date).getTime() : new Date(tx.created_at).getTime())}</TableCell>
                               <TableCell>
-                                {getRiskLevelBadge(tx.risk_level || 'low', tx.type)}
+                                {getRiskLevelBadge(tx.security_analysis?.risk_level || 'low', tx.security_analysis?.is_suspicious ? 'suspicious' : 'normal')}
                               </TableCell>
                               <TableCell>
                                 <div className="flex gap-1.5">
                                   <a 
-                                    href={`https://app.safe.global/transactions/tx?safe=${getSafeAppNetwork(tx.network)}:${tx.safe_address}&id=multisig_${tx.safe_address}_${tx.safeTxHash}`} 
+                                    href={`https://app.safe.global/transactions/tx?safe=${getSafeAppNetwork(tx.network)}:${tx.safe_address}&id=multisig_${tx.safe_address}_${tx.safe_tx_hash}`} 
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     onClick={(e) => e.stopPropagation()}
@@ -2079,7 +2050,7 @@ const Monitor = () => {
                                     </Badge>
                                   </a>
                                   
-                                  {tx.isExecuted && (
+                                  {tx.is_executed && (
                                     <a 
                                       href={getEtherscanTxUrl(tx)} 
                                       target="_blank"
@@ -2146,13 +2117,13 @@ const Monitor = () => {
 
                             {/* Transaction description */}
                             <div className="text-sm text-muted-foreground">
-                              {tx.description.replace(/\s*\[.*?RISK:.*?\].*$/, '')}
+                              {(tx.description || `Transaction to ${tx.to_address}`).replace(/\s*\[.*?RISK:.*?\].*$/, '')}
                             </div>
 
                             {/* Security status and time */}
                             <div className="flex items-center justify-between">
                               <div>
-                                {getRiskLevelBadge(tx.risk_level || 'low', tx.type)}
+                                {getRiskLevelBadge(tx.security_analysis?.risk_level || tx.risk_level || 'low', tx.type)}
                               </div>
                               <span className="text-xs text-muted-foreground">
                                 {formatTimeAgo(tx.submissionDate ? new Date(tx.submissionDate).getTime() : new Date(tx.scanned_at).getTime())}
@@ -2260,12 +2231,8 @@ const Monitor = () => {
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                Get started by clicking "Add Wallet" to set up your first multisignature wallet monitor.
+                Get started by clicking "Add Wallet" above to set up your first multisignature wallet monitor.
               </p>
-              <Button onClick={() => navigate("/monitor/new")} className="jsr-button">
-                <PlusCircle className="mr-2 h-5 w-5" />
-                Add Wallet
-              </Button>
             </CardContent>
           </Card>
         )}

@@ -5,49 +5,43 @@ use axum::{
     Json,
     Extension,
 };
-use sqlx::SqlitePool;
 use uuid::Uuid;
+use cookie::{Cookie, SameSite};
+use time::Duration;
 
 use crate::{
     models::user::{User, AuthResponse, UserResponse, GoogleAuthRequest, GoogleCallbackRequest, GitHubCallbackRequest, EthereumNonceRequest, EthereumNonceResponse, EthereumVerifyRequest},
-    services::{AuthService, NonceStore},
+    services::AuthService,
+    api::AppState,
 };
 
-type AppState = (SqlitePool, NonceStore);
-
 pub async fn google_auth(
-    State((_, _)): State<AppState>,
-    Json(payload): Json<GoogleAuthRequest>,
+    State(state): State<AppState>,
+    Json(_payload): Json<GoogleAuthRequest>,
 ) -> Result<impl IntoResponse, StatusCode> {
-    let client_id = std::env::var("GOOGLE_CLIENT_ID")
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let redirect_uri = std::env::var("GOOGLE_REDIRECT_URI")
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
     let auth_url = format!(
         "https://accounts.google.com/o/oauth2/v2/auth?client_id={}&redirect_uri={}&response_type=code&scope=email%20profile",
-        client_id, redirect_uri
+        state.config.google_client_id, state.config.google_redirect_uri
     );
 
     Ok(Json(serde_json::json!({ "url": auth_url })))
 }
 
 pub async fn google_callback(
-    State((pool, _)): State<AppState>,
+    State(state): State<AppState>,
     Json(payload): Json<GoogleCallbackRequest>,
 ) -> Result<impl IntoResponse, StatusCode> {
-    let redirect_uri = std::env::var("GOOGLE_REDIRECT_URI")
-        .map_err(|e| {
-            tracing::error!("Failed to get GOOGLE_REDIRECT_URI: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
-
-    let access_token = AuthService::exchange_google_code(&payload.code, &redirect_uri)
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to exchange Google code: {}", e);
-            StatusCode::UNAUTHORIZED
-        })?;
+    let access_token = AuthService::exchange_google_code(
+        &payload.code,
+        &state.config.google_redirect_uri,
+        &state.config.google_client_id,
+        &state.config.google_client_secret,
+    )
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to exchange Google code: {}", e);
+        StatusCode::UNAUTHORIZED
+    })?;
 
     let user_info = AuthService::verify_google_token(&access_token)
         .await
@@ -61,7 +55,7 @@ pub async fn google_callback(
     )
     .bind(&user_info.email)
     .bind(&user_info.sub)
-    .fetch_optional(&pool)
+    .fetch_optional(&state.pool)
     .await
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -70,7 +64,7 @@ pub async fn google_callback(
             sqlx::query("UPDATE users SET google_id = ? WHERE id = ?")
                 .bind(&user_info.sub)
                 .bind(&user.id)
-                .execute(&pool)
+                .execute(&state.pool)
                 .await
                 .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
             user.google_id = Some(user_info.sub);
@@ -87,23 +81,35 @@ pub async fn google_callback(
         .bind(&user_info.email)
         .bind(&user_info.sub)
         .bind(&username)
-        .execute(&pool)
+        .execute(&state.pool)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
         sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = ?")
             .bind(&user_id)
-            .fetch_one(&pool)
+            .fetch_one(&state.pool)
             .await
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
     };
 
-    let token = AuthService::generate_token(&user.id, &user.email)
+    let token = AuthService::generate_token(&user.id, &user.email, &state.config.jwt_secret)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    let cookie = format!("token={}; HttpOnly; SameSite=Lax; Path=/; Max-Age=604800", token);
+    let mut cookie = Cookie::build(("token", token.clone()))
+        .path("/")
+        .max_age(Duration::days(7))
+        .same_site(SameSite::Lax)
+        .http_only(true);
+
+    if state.config.cookie_secure {
+        cookie = cookie.secure(true);
+    }
+    if let Some(domain) = &state.config.cookie_domain {
+        cookie = cookie.domain(domain.clone());
+    }
+
     let mut headers = HeaderMap::new();
-    headers.insert(SET_COOKIE, cookie.parse().unwrap());
+    headers.insert(SET_COOKIE, cookie.to_string().parse().unwrap());
 
     Ok((headers, Json(AuthResponse {
         token: token.clone(),
@@ -112,15 +118,17 @@ pub async fn google_callback(
 }
 
 pub async fn github_callback(
-    State((pool, _)): State<AppState>,
+    State(state): State<AppState>,
     Json(payload): Json<GitHubCallbackRequest>,
 ) -> Result<impl IntoResponse, StatusCode> {
-    let redirect_uri = std::env::var("GITHUB_REDIRECT_URI")
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    let access_token = AuthService::exchange_github_code(&payload.code, &redirect_uri)
-        .await
-        .map_err(|_| StatusCode::UNAUTHORIZED)?;
+    let access_token = AuthService::exchange_github_code(
+        &payload.code,
+        &state.config.github_redirect_uri,
+        &state.config.github_client_id,
+        &state.config.github_client_secret,
+    )
+    .await
+    .map_err(|_| StatusCode::UNAUTHORIZED)?;
 
     let (user_info, primary_email) = AuthService::get_github_user_info(&access_token)
         .await
@@ -133,7 +141,7 @@ pub async fn github_callback(
     )
     .bind(&primary_email)
     .bind(&github_id_str)
-    .fetch_optional(&pool)
+    .fetch_optional(&state.pool)
     .await
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -142,7 +150,7 @@ pub async fn github_callback(
             sqlx::query("UPDATE users SET github_id = ? WHERE id = ?")
                 .bind(&github_id_str)
                 .bind(&user.id)
-                .execute(&pool)
+                .execute(&state.pool)
                 .await
                 .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
             user.github_id = Some(github_id_str);
@@ -159,23 +167,35 @@ pub async fn github_callback(
         .bind(&primary_email)
         .bind(&github_id_str)
         .bind(&username)
-        .execute(&pool)
+        .execute(&state.pool)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
         sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = ?")
             .bind(&user_id)
-            .fetch_one(&pool)
+            .fetch_one(&state.pool)
             .await
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
     };
 
-    let token = AuthService::generate_token(&user.id, &user.email)
+    let token = AuthService::generate_token(&user.id, &user.email, &state.config.jwt_secret)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    let cookie = format!("token={}; HttpOnly; SameSite=Lax; Path=/; Max-Age=604800", token);
+    let mut cookie = Cookie::build(("token", token.clone()))
+        .path("/")
+        .max_age(Duration::days(7))
+        .same_site(SameSite::Lax)
+        .http_only(true);
+
+    if state.config.cookie_secure {
+        cookie = cookie.secure(true);
+    }
+    if let Some(domain) = &state.config.cookie_domain {
+        cookie = cookie.domain(domain.clone());
+    }
+
     let mut headers = HeaderMap::new();
-    headers.insert(SET_COOKIE, cookie.parse().unwrap());
+    headers.insert(SET_COOKIE, cookie.to_string().parse().unwrap());
 
     Ok((headers, Json(AuthResponse {
         token: token.clone(),
@@ -184,20 +204,20 @@ pub async fn github_callback(
 }
 
 pub async fn ethereum_nonce(
-    State((_, nonce_store)): State<AppState>,
+    State(state): State<AppState>,
     Json(payload): Json<EthereumNonceRequest>,
 ) -> Result<impl IntoResponse, StatusCode> {
     let address = payload.address.trim_start_matches("0x").to_lowercase();
     let nonce = AuthService::generate_nonce();
     
     tracing::info!("Storing nonce for address: {}", address);
-    nonce_store.store_nonce(&address, nonce.clone()).await;
+    state.nonce_store.store_nonce(&address, nonce.clone()).await;
 
     Ok(Json(EthereumNonceResponse { nonce }))
 }
 
 pub async fn ethereum_verify(
-    State((pool, nonce_store)): State<AppState>,
+    State(state): State<AppState>,
     Json(payload): Json<EthereumVerifyRequest>,
 ) -> Result<impl IntoResponse, StatusCode> {
     tracing::info!("Ethereum verify request received");
@@ -213,7 +233,7 @@ pub async fn ethereum_verify(
     let address_lower = address.to_lowercase();
     tracing::info!("Recovered address: {}", address_lower);
     
-    let stored_nonce = nonce_store.get_nonce(&address_lower).await
+    let stored_nonce = state.nonce_store.get_nonce(&address_lower).await
         .ok_or_else(|| {
             tracing::error!("Nonce not found for address: {}", address_lower);
             StatusCode::UNAUTHORIZED
@@ -221,13 +241,13 @@ pub async fn ethereum_verify(
     
     tracing::info!("Nonce found: {}", stored_nonce);
 
-    nonce_store.remove_nonce(&address_lower).await;
+    state.nonce_store.remove_nonce(&address_lower).await;
 
     let existing_user = sqlx::query_as::<_, User>(
         "SELECT * FROM users WHERE ethereum_address = ?"
     )
     .bind(&address_lower)
-    .fetch_optional(&pool)
+    .fetch_optional(&state.pool)
     .await
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -245,23 +265,35 @@ pub async fn ethereum_verify(
         .bind(&email)
         .bind(&address_lower)
         .bind(&username)
-        .execute(&pool)
+        .execute(&state.pool)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
         sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = ?")
             .bind(&user_id)
-            .fetch_one(&pool)
+            .fetch_one(&state.pool)
             .await
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
     };
 
-    let token = AuthService::generate_token(&user.id, &user.email)
+    let token = AuthService::generate_token(&user.id, &user.email, &state.config.jwt_secret)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    let cookie = format!("token={}; HttpOnly; SameSite=Lax; Path=/; Max-Age=604800", token);
+    let mut cookie = Cookie::build(("token", token.clone()))
+        .path("/")
+        .max_age(Duration::days(7))
+        .same_site(SameSite::Lax)
+        .http_only(true);
+
+    if state.config.cookie_secure {
+        cookie = cookie.secure(true);
+    }
+    if let Some(domain) = &state.config.cookie_domain {
+        cookie = cookie.domain(domain.clone());
+    }
+
     let mut headers = HeaderMap::new();
-    headers.insert(SET_COOKIE, cookie.parse().unwrap());
+    headers.insert(SET_COOKIE, cookie.to_string().parse().unwrap());
 
     Ok((headers, Json(AuthResponse {
         token: token.clone(),
@@ -269,21 +301,35 @@ pub async fn ethereum_verify(
     })))
 }
 
-pub async fn logout() -> Result<impl IntoResponse, StatusCode> {
-    let cookie = "token=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0";
+pub async fn logout(
+    State(state): State<AppState>,
+) -> Result<impl IntoResponse, StatusCode> {
+    let mut cookie = Cookie::build(("token", ""))
+        .path("/")
+        .max_age(Duration::ZERO)
+        .same_site(SameSite::Lax)
+        .http_only(true);
+
+    if state.config.cookie_secure {
+        cookie = cookie.secure(true);
+    }
+    if let Some(domain) = &state.config.cookie_domain {
+        cookie = cookie.domain(domain.clone());
+    }
+
     let mut headers = HeaderMap::new();
-    headers.insert(SET_COOKIE, cookie.parse().unwrap());
+    headers.insert(SET_COOKIE, cookie.to_string().parse().unwrap());
 
     Ok((headers, Json(serde_json::json!({ "success": true }))))
 }
 
 pub async fn me(
+    State(state): State<AppState>,
     Extension(user_id): Extension<String>,
-    Extension(pool): Extension<SqlitePool>,
 ) -> Result<impl IntoResponse, StatusCode> {
     let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = ?")
         .bind(&user_id)
-        .fetch_one(&pool)
+        .fetch_one(&state.pool)
         .await
         .map_err(|_| StatusCode::NOT_FOUND)?;
 

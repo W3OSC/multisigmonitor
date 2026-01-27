@@ -1,5 +1,5 @@
 import { Helmet } from 'react-helmet-async'
-import { User, Bell, Shield, ExternalLink } from 'lucide-react'
+import { Shield, ExternalLink } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -26,7 +26,7 @@ export default function Settings() {
   }
 
   return (
-    <div className="h-full bg-gradient-to-br from-background via-background to-secondary/20 p-4 sm:p-6 md:p-8 overflow-auto">
+    <div className="p-4 sm:p-6 md:p-8">
       <Helmet>
         <title>Settings - Multisig Monitor</title>
         <meta name="description" content="Manage your account settings and preferences." />
@@ -57,39 +57,6 @@ export default function Settings() {
 
           <div className="bg-card border border-border rounded-lg p-6 animate-slide-up" style={{ animationDelay: '100ms' }}>
             <div className="flex items-center gap-3 mb-4">
-              <Bell className="w-5 h-5 text-jsr-purple" />
-              <h2 className="text-xl font-bold text-foreground">Notifications</h2>
-            </div>
-            <p className="text-sm text-muted-foreground mb-4">
-              Configure how you want to receive alerts about your monitored wallets
-            </p>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg">
-                <div>
-                  <p className="text-sm font-medium text-foreground">Email Notifications</p>
-                  <p className="text-xs text-muted-foreground">Receive alerts via email</p>
-                </div>
-                <Button variant="outline" size="sm">Configure</Button>
-              </div>
-              <div className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg">
-                <div>
-                  <p className="text-sm font-medium text-foreground">Telegram Notifications</p>
-                  <p className="text-xs text-muted-foreground">Receive alerts via Telegram</p>
-                </div>
-                <Button variant="outline" size="sm">Configure</Button>
-              </div>
-              <div className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg">
-                <div>
-                  <p className="text-sm font-medium text-foreground">Webhook Notifications</p>
-                  <p className="text-xs text-muted-foreground">Send alerts to custom endpoints</p>
-                </div>
-                <Button variant="outline" size="sm">Configure</Button>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-card border border-border rounded-lg p-6 animate-slide-up" style={{ animationDelay: '200ms' }}>
-            <div className="flex items-center gap-3 mb-4">
               <Shield className="w-5 h-5 text-jsr-purple" />
               <h2 className="text-xl font-bold text-foreground">Appearance</h2>
             </div>
@@ -104,7 +71,7 @@ export default function Settings() {
             </div>
           </div>
 
-          <div className="bg-card border border-border rounded-lg p-6 animate-slide-up" style={{ animationDelay: '300ms' }}>
+          <div className="bg-card border border-border rounded-lg p-6 animate-slide-up" style={{ animationDelay: '200ms' }}>
             <div className="flex items-center gap-3 mb-4">
               <Shield className="w-5 h-5 text-jsr-purple" />
               <h2 className="text-xl font-bold text-foreground">Security</h2>
@@ -120,7 +87,7 @@ export default function Settings() {
             </div>
           </div>
 
-          <div className="bg-card border border-border rounded-lg p-6 animate-slide-up" style={{ animationDelay: '400ms' }}>
+          <div className="bg-card border border-border rounded-lg p-6 animate-slide-up" style={{ animationDelay: '300ms' }}>
             <div className="flex items-center gap-3 mb-4">
               <ExternalLink className="w-5 h-5 text-jsr-purple" />
               <h2 className="text-xl font-bold text-foreground">Developer</h2>

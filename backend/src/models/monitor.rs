@@ -9,8 +9,15 @@ pub struct Monitor {
     pub safe_address: String,
     pub network: String,
     pub settings: String,
-    pub created_at: chrono::NaiveDateTime,
-    pub updated_at: chrono::NaiveDateTime,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct MonitorWithLastCheck {
+    #[serde(flatten)]
+    pub monitor: Monitor,
+    pub last_checked_at: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]

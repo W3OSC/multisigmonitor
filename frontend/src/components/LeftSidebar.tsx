@@ -1,6 +1,6 @@
 import { useAuth } from '@/context/AuthContext'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
-import { Home, Search, Monitor, Settings, LogOut, PanelLeftClose, PanelLeft, Shield } from 'lucide-react'
+import { Home, Search, Monitor, Settings, LogOut, PanelLeftClose, PanelLeft, Shield, Bell } from 'lucide-react'
 import { useState, useEffect } from 'react'
 
 export default function LeftSidebar() {
@@ -30,6 +30,7 @@ export default function LeftSidebar() {
     { to: '/dashboard', icon: Home, label: 'Dashboard' },
     { to: '/scan', icon: Search, label: 'Scan' },
     { to: '/monitor', icon: Monitor, label: 'Monitor' },
+    { to: '/alerts', icon: Bell, label: 'Alerts' },
     { to: '/settings', icon: Settings, label: 'Settings' },
   ]
 
@@ -53,19 +54,15 @@ export default function LeftSidebar() {
   }
 
   return (
-    <div className={`fixed left-0 top-0 h-screen bg-background border-r border-border flex flex-col transition-all duration-300 overflow-hidden ${
+    <div className={`fixed left-0 top-0 h-screen bg-background border-r flex flex-col transition-all duration-300 overflow-hidden ${
       isExpanded ? 'w-64' : 'w-20'
     } z-50`}>
-      <div className="border-b border-border px-4 py-4 min-h-[89px] flex items-center overflow-hidden">
+      <div className="border-b px-4 h-20 flex items-center overflow-hidden">
         {isExpanded ? (
           <div className="flex items-center justify-between w-full">
-            <Link to="/" className="hidden md:flex items-center gap-2 hover:opacity-80 transition-opacity">
-              <div className="w-8 h-8 bg-gradient-to-br from-jsr-purple to-jsr-purple-dark rounded-lg flex items-center justify-center shadow-md flex-shrink-0">
-                <Shield className="w-5 h-5 text-white" />
-              </div>
-              <span className="text-xl font-bold jsr-text-gradient whitespace-nowrap">
-                multisigmonitor
-              </span>
+            <Link to="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity font-bold text-xl">
+              <Shield className="h-6 w-6 text-jsr-purple" />
+              <span className="jsr-text-gradient whitespace-nowrap">multisigmonitor</span>
             </Link>
             <button
               onClick={() => setIsExpanded(!isExpanded)}

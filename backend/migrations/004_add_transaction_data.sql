@@ -1,0 +1,4 @@
+-- Add transaction_data column to transactions table (if not exists)
+-- SQLite doesn't support IF NOT EXISTS for ALTER TABLE ADD COLUMN, so we handle this at runtime
+-- This migration file is kept for documentation but the column may already exist
+-- No-op migration since column already exists

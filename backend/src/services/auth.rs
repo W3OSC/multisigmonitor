@@ -1,7 +1,6 @@
 use bcrypt::{hash, verify, DEFAULT_COST};
 use jsonwebtoken::{encode, decode, Header, Validation, EncodingKey, DecodingKey};
 use serde::{Deserialize, Serialize};
-use std::env;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -84,8 +83,7 @@ impl AuthService {
         verify(password, hash)
     }
 
-    pub fn generate_token(user_id: &str, email: &str) -> Result<String, jsonwebtoken::errors::Error> {
-        let secret = env::var("JWT_SECRET").expect("JWT_SECRET must be set");
+    pub fn generate_token(user_id: &str, email: &str, jwt_secret: &str) -> Result<String, jsonwebtoken::errors::Error> {
         let expiration = chrono::Utc::now()
             .checked_add_signed(chrono::Duration::days(7))
             .expect("valid timestamp")
@@ -97,15 +95,13 @@ impl AuthService {
             exp: expiration,
         };
 
-        encode(&Header::default(), &claims, &EncodingKey::from_secret(secret.as_bytes()))
+        encode(&Header::default(), &claims, &EncodingKey::from_secret(jwt_secret.as_bytes()))
     }
 
-    pub fn verify_token(token: &str) -> Result<Claims, jsonwebtoken::errors::Error> {
-        let secret = env::var("JWT_SECRET").expect("JWT_SECRET must be set");
-        
+    pub fn verify_token(token: &str, jwt_secret: &str) -> Result<Claims, jsonwebtoken::errors::Error> {
         let token_data = decode::<Claims>(
             token,
-            &DecodingKey::from_secret(secret.as_bytes()),
+            &DecodingKey::from_secret(jwt_secret.as_bytes()),
             &Validation::default(),
         )?;
 
@@ -128,15 +124,12 @@ impl AuthService {
         Ok(user_info)
     }
 
-    pub async fn exchange_google_code(code: &str, redirect_uri: &str) -> Result<String, Box<dyn std::error::Error>> {
-        let client_id = env::var("GOOGLE_CLIENT_ID")?;
-        let client_secret = env::var("GOOGLE_CLIENT_SECRET")?;
-        
+    pub async fn exchange_google_code(code: &str, redirect_uri: &str, client_id: &str, client_secret: &str) -> Result<String, Box<dyn std::error::Error>> {
         let client = reqwest::Client::new();
         let params = [
             ("code", code),
-            ("client_id", &client_id),
-            ("client_secret", &client_secret),
+            ("client_id", client_id),
+            ("client_secret", client_secret),
             ("redirect_uri", redirect_uri),
             ("grant_type", "authorization_code"),
         ];
@@ -163,15 +156,12 @@ impl AuthService {
         Ok(token_response.access_token)
     }
 
-    pub async fn exchange_github_code(code: &str, redirect_uri: &str) -> Result<String, Box<dyn std::error::Error>> {
-        let client_id = env::var("GITHUB_CLIENT_ID")?;
-        let client_secret = env::var("GITHUB_CLIENT_SECRET")?;
-        
+    pub async fn exchange_github_code(code: &str, redirect_uri: &str, client_id: &str, client_secret: &str) -> Result<String, Box<dyn std::error::Error>> {
         let client = reqwest::Client::new();
         let params = [
             ("code", code),
-            ("client_id", &client_id),
-            ("client_secret", &client_secret),
+            ("client_id", client_id),
+            ("client_secret", client_secret),
             ("redirect_uri", redirect_uri),
         ];
 
@@ -276,5 +266,37 @@ impl AuthService {
         
         tracing::info!("Successfully verified signature, recovered address: {}", recovered_address);
         Ok(recovered_address)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_generate_nonce() {
+        let nonce1 = AuthService::generate_nonce();
+        let nonce2 = AuthService::generate_nonce();
+        
+        assert!(!nonce1.is_empty(), "Nonce should not be empty");
+        assert!(!nonce2.is_empty(), "Nonce should not be empty");
+        assert_ne!(nonce1, nonce2, "Each nonce should be unique");
+        assert!(Uuid::parse_str(&nonce1).is_ok(), "Nonce should be valid UUID");
+    }
+
+    #[tokio::test]
+    async fn test_nonce_store() {
+        let store = NonceStore::new();
+        let address = "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb";
+        let nonce = "test-nonce-123";
+
+        store.store_nonce(address, nonce.to_string()).await;
+        
+        let retrieved = store.get_nonce(address).await;
+        assert_eq!(retrieved, Some(nonce.to_string()), "Should retrieve stored nonce");
+
+        store.remove_nonce(address).await;
+        let removed = store.get_nonce(address).await;
+        assert_eq!(removed, None, "Nonce should be removed");
     }
 }

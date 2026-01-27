@@ -3,6 +3,14 @@ name = "multisigmonitor-backend"
 version = "0.1.0"
 edition = "2021"
 
+[[bin]]
+name = "multisigmonitor-backend"
+path = "src/main.rs"
+
+[[bin]]
+name = "monitor-worker"
+path = "src/bin/worker.rs"
+
 [dependencies]
 axum = { version = "0.7", features = ["multipart"] }
 tower_governor = "0.4"
@@ -21,11 +29,17 @@ thiserror = "1.0"
 bcrypt = "0.15"
 jsonwebtoken = "9.3"
 reqwest = { version = "0.12", features = ["json"] }
+cookie = "0.18"
+time = { version = "0.3", features = ["macros"] }
 siwe = "0.6"
 hex = "0.4"
 ethers = { version = "2.0", default-features = false }
 utoipa = { version = "4", features = ["axum_extras"] }
 utoipa-swagger-ui = { version = "6", features = ["axum"] }
+lazy_static = "1.4"
+futures = "0.3"
+base64 = "0.22"
+urlencoding = "2.1"
 
 [profile.release]
 opt-level = 3

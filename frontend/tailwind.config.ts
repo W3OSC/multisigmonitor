@@ -65,7 +65,7 @@ export default {
 				},
 				// Jet Set Radio inspired colors
 				jsr: {
-					lime: '#c4ff00',
+					lime: '#8fb800',
 					green: '#19d600',
 					blue: '#6964ff',
 					lightblue: '#90d0ff',

@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { useAuth } from "@/context/AuthContext";
+import { securityApi } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { AddressInput } from "@/components/AddressInput";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -124,11 +125,12 @@ async function checkSanctions(address: string): Promise<{
   error?: string;
 }> {
   try {
-    const response = await fetch('https://jgqotbhokyuasepuhzxy.supabase.co/functions/v1/check-sanctions', {
+    const response = await fetch('http://localhost:7111/api/sanctions/check', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
+      credentials: 'include',
       body: JSON.stringify({
         address: address
       })
@@ -218,11 +220,12 @@ async function getMultisigInfo(txHash: string, network: string): Promise<{
 }> {
   try {
     network = getBackendNetworkName(network);
-    const response = await fetch('https://jgqotbhokyuasepuhzxy.supabase.co/functions/v1/multisig-info', {
+    const response = await fetch('http://localhost:7111/api/multisig/info', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
+      credentials: 'include',
       body: JSON.stringify({
         txhash: txHash,
         network: network
@@ -826,9 +829,7 @@ async function performSecurityAssessment(safeAddress: string, network: string): 
 
   } catch (error) {
     console.error('Assessment error:', error);
-    assessment.riskFactors.push('Assessment failed due to network error');
-    assessment.overallRisk = 'unknown';
-    assessment.securityScore = 50;
+    throw error;
   }
 
   return assessment;
@@ -876,7 +877,7 @@ interface SafeAssessment {
 const Review = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const { toast } = useToast();
   const [address, setAddress] = useState("");
   const [network, setNetwork] = useState("ethereum");
@@ -946,7 +947,11 @@ const Review = () => {
     const searchParams = new URLSearchParams(location.search);
     const addressParam = searchParams.get("address");
     const networkParam = searchParams.get("network");
-    if (addressParam) {
+    const analysisIdParam = searchParams.get("analysisId");
+    
+    if (analysisIdParam) {
+      loadExistingAnalysis(analysisIdParam, addressParam, networkParam);
+    } else if (addressParam) {
       setAddress(addressParam);
       if (networkParam) {
         setNetwork(networkParam);
@@ -955,55 +960,63 @@ const Review = () => {
     }
   }, [location.search]);
 
+  const loadExistingAnalysis = async (analysisId: string, addr: string | null, net: string | null) => {
+    setLoading(true);
+    try {
+      const analysis = await securityApi.getAnalysis(analysisId);
+      
+      if (addr) setAddress(addr);
+      else setAddress(analysis.safeAddress || analysis.safe_address);
+      
+      if (net) setNetwork(net);
+      else setNetwork(analysis.network);
+      
+      setAssessment(analysis.assessment);
+      
+      toast({
+        title: "Review Loaded",
+        description: "Displaying previously saved security review",
+      });
+    } catch (error) {
+      console.error('Failed to load existing review:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load existing review",
+        variant: "destructive",
+      });
+      
+      if (addr && net) {
+        runSecurityAssessment(addr, net);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const runSecurityAssessment = async (addr: string, selectedNetwork: string) => {
     setLoading(true);
     setAssessment(null);
     
     try {
-      // Directly call Safe API from frontend for now
       const assessment = await performSecurityAssessment(addr, selectedNetwork);
       setAssessment(assessment);
+      
+      if (isAuthenticated) {
+        try {
+          await securityApi.analyzeSafe(addr, selectedNetwork, assessment);
+          console.log('Security analysis saved to database');
+        } catch (saveError) {
+          console.error('Failed to save security analysis:', saveError);
+        }
+      }
     } catch (error) {
       console.error('Error performing security assessment:', error);
-      // Set mock data for demo when API is not available
-      setAssessment({
-        safeAddress: addr,
-        network: selectedNetwork,
-        timestamp: new Date().toISOString(),
-        overallRisk: 'medium',
-        riskFactors: ['Unable to verify all security checks - API unavailable'],
-        securityScore: 65,
-        checks: {
-          addressValidation: { isValid: true, isChecksummed: true },
-          factoryValidation: { isCanonical: false, warnings: ['API unavailable'] },
-          mastercopyValidation: { isCanonical: false, warnings: ['API unavailable'] },
-          creationTransaction: { isValid: false, warnings: ['API unavailable'] },
-          safeConfiguration: { isValid: false, warnings: ['API unavailable'] },
-          ownershipValidation: { isValid: false, warnings: ['API unavailable'] },
-          moduleValidation: { isValid: false, warnings: ['API unavailable'] },
-          proxyValidation: { isValid: false, warnings: ['API unavailable'] },
-          initializerValidation: { isValid: false, warnings: ['API unavailable'] },
-          fallbackHandlerValidation: { isValid: false, warnings: ['API unavailable'] },
-          sanctionsValidation: { isValid: false, warnings: ['API unavailable'] },
-          multisigInfoValidation: { isValid: false, warnings: ['API unavailable'] }
-        },
-        details: {
-          creator: null,
-          factory: null,
-          mastercopy: null,
-          version: null,
-          owners: [],
-          threshold: null,
-          modules: [],
-          nonce: null,
-          creationTx: null,
-          initializer: null,
-          fallbackHandler: null,
-          guard: null,
-          sanctionsData: [],
-          multisigInfoData: null
-        }
+      toast({
+        title: "Assessment Failed",
+        description: error instanceof Error ? error.message : "Unable to perform security assessment. Please try again.",
+        variant: "destructive",
       });
+      setAssessment(null);
     } finally {
       setLoading(false);
     }
@@ -1103,7 +1116,7 @@ const Review = () => {
       
       <main className="flex-1 container py-12">
         <div className="max-w-6xl mx-auto">
-          <h1 className="text-3xl font-bold mb-6">Multisignature Security Assessment</h1>
+          <h1 className="text-3xl font-bold mb-6">Multisignature Wallet Security Assessment</h1>
           <p className="text-muted-foreground mb-8">
             Security analysis of multisignature wallets including factory validation, 
             mastercopy verification, ownership structure review, and creation transaction analysis.
@@ -1158,7 +1171,7 @@ const Review = () => {
                 ) : (
                   <>
                     <Shield className="mr-2 h-4 w-4" />
-                    Run Security Assessment
+                    Rescan Wallet
                   </>
                 )}
               </Button>

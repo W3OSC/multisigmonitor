@@ -23,3 +23,7 @@
 
 - Use the above contribution guidelines when making code changes
 - Attempt to understand how to interact with the system, and after you apply code changes, verify the changes work as intended (e.g. running tests, reading logs, curl commands, etc)
+- If you are unsure about how to proceed with a code change, ask for clarification
+- Never use fallbacks or workarounds for task completion
+- Never use mock data or mock implementations for task completion
+- Never create a new function over fixing or updating an existing one

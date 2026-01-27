@@ -4,11 +4,16 @@ module.exports = {
       name: 'multisig-backend',
       cwd: './backend',
       script: 'cargo',
-      args: 'run',
+      args: 'run --bin multisigmonitor-backend',
       interpreter: 'none',
-      env: {
-        NODE_ENV: 'development',
-      },
+      env_file: '../secrets/.env.backend.local',
+    },
+    {
+      name: 'multisig-worker',
+      cwd: './backend',
+      script: 'cargo',
+      args: 'run --bin monitor-worker',
+      interpreter: 'none',
       env_file: '../secrets/.env.backend.local',
     },
     {
@@ -16,10 +21,8 @@ module.exports = {
       cwd: './frontend',
       script: 'npm',
       args: 'run dev',
-      env: {
-        NODE_ENV: 'development',
-      },
       env_file: '../secrets/.env.frontend.local',
     },
   ],
 };
+

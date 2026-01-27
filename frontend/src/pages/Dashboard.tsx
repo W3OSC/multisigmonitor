@@ -24,7 +24,7 @@ export default function Dashboard() {
   }, [])
 
   return (
-    <div className="h-full bg-gradient-to-br from-background via-background to-secondary/20 p-8 overflow-auto">
+    <div className="p-8">
       <Helmet>
         <title>Dashboard - Multisig Monitor</title>
         <meta name="description" content="Your multisig wallet monitoring dashboard." />

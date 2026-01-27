@@ -44,7 +44,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           setUser(userData);
         }
       } catch (error) {
-        console.error('Auth check failed:', error);
+        console.error('Auth check error:', error);
       } finally {
         setIsLoading(false);
       }

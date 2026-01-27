@@ -1,7 +1,7 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
-import { Shield, Menu, X, LogIn } from "lucide-react";
+import { Shield, Menu, X, LogIn, Github } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
@@ -44,7 +44,7 @@ export function Header() {
     )}>
       <div className="w-full px-4">
         {/* Top row with logo and hamburger menu */}
-        <div className="flex h-16 items-center justify-between">
+        <div className="flex h-20 items-center justify-between">
           <div className="flex-shrink-0">
             <Link 
               to={user ? "/dashboard" : "/"} 
@@ -70,19 +70,36 @@ export function Header() {
               )}
             </Button>
           ) : (
-            <div className="flex items-center justify-end flex-shrink-0">
+            <div className="flex items-center gap-2 justify-end flex-shrink-0">
               {user ? (
                 <UserDropdownMenu />
               ) : (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => navigate('/login')}
-                  className="flex items-center gap-1"
-                >
-                  <LogIn className="h-4 w-4" />
-                  <span>Login</span>
-                </Button>
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => navigate('/login')}
+                    className="flex items-center gap-1"
+                  >
+                    <LogIn className="h-4 w-4" />
+                    <span>Login</span>
+                  </Button>
+                  <Button
+                    asChild
+                    variant="outline"
+                    size="sm"
+                  >
+                    <a 
+                      href="https://github.com/W3OSC/multisigmonitor" 
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1"
+                    >
+                      <Github className="h-4 w-4" />
+                      <span>Contribute</span>
+                    </a>
+                  </Button>
+                </>
               )}
             </div>
           )}

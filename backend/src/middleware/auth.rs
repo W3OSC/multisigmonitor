@@ -4,73 +4,63 @@ use axum::{
     middleware::Next,
     response::Response,
 };
-use sqlx::SqlitePool;
+use cookie::Cookie;
 
 use crate::services::AuthService;
-
-type AppState = (SqlitePool, crate::services::NonceStore);
+use crate::api::AppState;
 
 pub async fn auth_middleware(
-    State((pool, _)): State<AppState>,
+    State(state): State<AppState>,
     headers: HeaderMap,
     mut request: Request,
     next: Next,
 ) -> Result<Response, StatusCode> {
-    let token = headers
-        .get("cookie")
-        .and_then(|h| h.to_str().ok())
-        .and_then(|cookies| {
-            cookies
-                .split(';')
-                .find_map(|cookie| {
-                    let (key, value) = cookie.trim().split_once('=')?;
-                    if key == "token" {
-                        Some(value)
-                    } else {
-                        None
-                    }
-                })
-        })
-        .ok_or(StatusCode::UNAUTHORIZED)?;
+    let token = extract_token_from_cookie(&headers)
+        .ok_or_else(|| {
+            tracing::debug!("No authentication token found in cookies");
+            StatusCode::UNAUTHORIZED
+        })?;
 
-    let claims = AuthService::verify_token(token)
-        .map_err(|_| StatusCode::UNAUTHORIZED)?;
+    let claims = AuthService::verify_token(&token, &state.config.jwt_secret)
+        .map_err(|e| {
+            tracing::warn!("Token verification failed: {}", e);
+            StatusCode::UNAUTHORIZED
+        })?;
 
     request.extensions_mut().insert(claims.sub.clone());
-    request.extensions_mut().insert(pool);
 
     Ok(next.run(request).await)
 }
 
 pub async fn optional_auth_middleware(
-    State((pool, _)): State<AppState>,
+    State(state): State<AppState>,
     headers: HeaderMap,
     mut request: Request,
     next: Next,
 ) -> Result<Response, StatusCode> {
-    let user_id = headers
+    let user_id = extract_token_from_cookie(&headers)
+        .and_then(|token| {
+            AuthService::verify_token(&token, &state.config.jwt_secret)
+                .ok()
+                .map(|claims| claims.sub)
+        });
+
+    if let Some(id) = user_id {
+        request.extensions_mut().insert(id);
+    }
+
+    Ok(next.run(request).await)
+}
+
+fn extract_token_from_cookie(headers: &HeaderMap) -> Option<String> {
+    headers
         .get("cookie")
         .and_then(|h| h.to_str().ok())
         .and_then(|cookies| {
             cookies
                 .split(';')
-                .find_map(|cookie| {
-                    let (key, value) = cookie.trim().split_once('=')?;
-                    if key == "token" {
-                        Some(value)
-                    } else {
-                        None
-                    }
-                })
+                .filter_map(|cookie_str| Cookie::parse(cookie_str.trim()).ok())
+                .find(|cookie| cookie.name() == "token")
+                .map(|cookie| cookie.value().to_string())
         })
-        .and_then(|token| {
-            AuthService::verify_token(token)
-                .ok()
-                .map(|claims| claims.sub)
-        });
-
-    request.extensions_mut().insert(user_id);
-    request.extensions_mut().insert(pool);
-
-    Ok(next.run(request).await)
 }

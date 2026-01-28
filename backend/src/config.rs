@@ -20,7 +20,8 @@ pub struct Config {
     pub chainalysis_api_key: Option<String>,
     pub infura_api_key: String,
     pub default_from_email: String,
-    pub resend_api_key: Option<String>,
+    pub mailjet_api_key: Option<String>,
+    pub mailjet_secret_key: Option<String>,
     pub cookie_domain: Option<String>,
     pub cookie_secure: bool,
 }
@@ -107,7 +108,8 @@ impl Config {
         let default_from_email = Self::require_var("DEFAULT_FROM_EMAIL")?;
 
         let chainalysis_api_key = env::var("CHAINALYSIS_API_KEY").ok();
-        let resend_api_key = env::var("RESEND_API_KEY").ok();
+        let mailjet_api_key = env::var("MAILJET_API_KEY").ok();
+        let mailjet_secret_key = env::var("MAILJET_SECRET_KEY").ok();
         let cookie_domain = env::var("COOKIE_DOMAIN").ok();
         
         let cookie_secure = env::var("COOKIE_SECURE")
@@ -132,7 +134,8 @@ impl Config {
             chainalysis_api_key,
             infura_api_key,
             default_from_email,
-            resend_api_key,
+            mailjet_api_key,
+            mailjet_secret_key,
             cookie_domain,
             cookie_secure,
         })

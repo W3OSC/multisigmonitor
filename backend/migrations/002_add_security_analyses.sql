@@ -18,9 +18,9 @@ CREATE TABLE IF NOT EXISTS security_analyses (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
-CREATE INDEX idx_security_analyses_user_id ON security_analyses(user_id);
-CREATE INDEX idx_security_analyses_safe_address ON security_analyses(safe_address);
-CREATE INDEX idx_security_analyses_network ON security_analyses(network);
-CREATE INDEX idx_security_analyses_risk_level ON security_analyses(risk_level);
-CREATE INDEX idx_security_analyses_analyzed_at ON security_analyses(analyzed_at);
-CREATE INDEX idx_security_analyses_safe_tx_hash ON security_analyses(safe_tx_hash);
+CREATE INDEX IF NOT EXISTS idx_security_analyses_user_id ON security_analyses(user_id);
+CREATE INDEX IF NOT EXISTS idx_security_analyses_safe_address ON security_analyses(safe_address);
+CREATE INDEX IF NOT EXISTS idx_security_analyses_network ON security_analyses(network);
+CREATE INDEX IF NOT EXISTS idx_security_analyses_risk_level ON security_analyses(risk_level);
+CREATE INDEX IF NOT EXISTS idx_security_analyses_analyzed_at ON security_analyses(analyzed_at);
+CREATE INDEX IF NOT EXISTS idx_security_analyses_safe_tx_hash ON security_analyses(safe_tx_hash);

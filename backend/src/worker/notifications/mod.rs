@@ -47,14 +47,16 @@ pub enum WebhookType {
 
 pub struct NotificationService {
     from_email: String,
-    resend_api_key: Option<String>,
+    mailjet_api_key: Option<String>,
+    mailjet_secret_key: Option<String>,
 }
 
 impl NotificationService {
-    pub fn new(from_email: String, resend_api_key: Option<String>) -> Self {
+    pub fn new(from_email: String, mailjet_api_key: Option<String>, mailjet_secret_key: Option<String>) -> Self {
         Self {
             from_email,
-            resend_api_key,
+            mailjet_api_key,
+            mailjet_secret_key,
         }
     }
 
@@ -82,8 +84,10 @@ impl NotificationService {
         alert: &Alert,
         to_email: &str,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let api_key = self.resend_api_key.as_ref()
-            .ok_or("RESEND_API_KEY not configured")?;
+        let api_key = self.mailjet_api_key.as_ref()
+            .ok_or("MAILJET_API_KEY not configured")?;
+        let secret_key = self.mailjet_secret_key.as_ref()
+            .ok_or("MAILJET_SECRET_KEY not configured")?;
 
         let subject = match alert.alert_type {
             AlertType::Suspicious => format!("⚠️ SUSPICIOUS TRANSACTION - {}", alert.network),
@@ -95,17 +99,24 @@ impl NotificationService {
         let text_body = email::generate_email_text(alert);
 
         let payload = serde_json::json!({
-            "from": self.from_email,
-            "to": [to_email],
-            "subject": subject,
-            "html": html_body,
-            "text": text_body,
+            "Messages": [{
+                "From": {
+                    "Email": self.from_email,
+                    "Name": "Multisig Monitor"
+                },
+                "To": [{
+                    "Email": to_email
+                }],
+                "Subject": subject,
+                "TextPart": text_body,
+                "HTMLPart": html_body
+            }]
         });
 
         let client = reqwest::Client::new();
         let response = client
-            .post("https://api.resend.com/emails")
-            .header("Authorization", format!("Bearer {}", api_key))
+            .post("https://api.mailjet.com/v3.1/send")
+            .basic_auth(api_key, Some(secret_key))
             .header("Content-Type", "application/json")
             .json(&payload)
             .send()
@@ -113,7 +124,7 @@ impl NotificationService {
 
         if !response.status().is_success() {
             let error_text = response.text().await?;
-            return Err(format!("Resend API error: {}", error_text).into());
+            return Err(format!("Mailjet API error: {}", error_text).into());
         }
 
         tracing::info!("Email sent to {} for transaction {}", to_email, alert.transaction_hash);

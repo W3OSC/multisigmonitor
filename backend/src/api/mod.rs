@@ -6,7 +6,6 @@ use axum::{
 use sqlx::SqlitePool;
 
 use crate::middleware::auth_middleware;
-use crate::config::Config;
 
 pub mod auth;
 pub mod monitors;
@@ -16,6 +15,9 @@ pub mod transactions;
 pub mod sanctions;
 pub mod multisig_info;
 pub mod discord_oauth;
+pub mod api_keys;
+pub mod email_verification;
+pub mod dashboard;
 
 #[cfg(test)]
 mod transaction_data_tests;
@@ -24,11 +26,12 @@ mod transaction_data_tests;
 pub struct AppState {
     pub pool: SqlitePool,
     pub nonce_store: crate::services::NonceStore,
-    pub config: Config,
+    pub config: crate::config::Config,
 }
 
-pub fn router(state: AppState) -> Router<AppState> {
+pub fn router(state: AppState) -> Router {
     let protected_routes = Router::new()
+        .route("/dashboard/stats", get(dashboard::get_dashboard_stats))
         .route("/monitors", post(monitors::create_monitor))
         .route("/monitors", get(monitors::list_monitors))
         .route("/monitors/:id", get(monitors::get_monitor))
@@ -41,13 +44,17 @@ pub fn router(state: AppState) -> Router<AppState> {
         .route("/security/analyze", post(security_analysis::analyze_transaction))
         .route("/security/safe-review", post(security_analysis::save_safe_review))
         .route("/security/analyses", get(security_analysis::list_analyses))
-        .route("/security/analyses", delete(security_analysis::delete_all_analyses))
         .route("/security/analyses/:id", get(security_analysis::get_analysis))
-        .route("/security/analyses/:id", delete(security_analysis::delete_analysis))
         .route("/sanctions/check", post(sanctions::check_sanctions))
         .route("/multisig/info", post(multisig_info::get_multisig_info))
         .route("/discord/oauth/start", get(discord_oauth::discord_oauth_start))
         .route("/discord/oauth/callback", get(discord_oauth::discord_oauth_callback))
+        .route("/api-keys", post(api_keys::create_api_key))
+        .route("/api-keys", get(api_keys::list_api_keys))
+        .route("/api-keys/:id", delete(api_keys::revoke_api_key))
+        .route("/email/send-verification", post(email_verification::send_verification_email))
+        .route("/email/alerts/status", get(email_verification::get_email_alerts_status))
+        .route("/email/alerts", put(email_verification::update_email_alerts))
         .route("/auth/me", get(auth::me))
         .route("/auth/logout", post(auth::logout))
         .route_layer(middleware::from_fn_with_state(
@@ -60,7 +67,8 @@ pub fn router(state: AppState) -> Router<AppState> {
         .route("/auth/google/callback", post(auth::google_callback))
         .route("/auth/github/callback", post(auth::github_callback))
         .route("/auth/ethereum/nonce", post(auth::ethereum_nonce))
-        .route("/auth/ethereum/verify", post(auth::ethereum_verify));
+        .route("/auth/ethereum/verify", post(auth::ethereum_verify))
+        .route("/email/verify", get(email_verification::verify_email));
 
     Router::new()
         .merge(protected_routes)

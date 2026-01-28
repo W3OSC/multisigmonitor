@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS last_checks (
     UNIQUE(safe_address, network)
 );
 
-CREATE INDEX idx_last_checks_safe_network ON last_checks(safe_address, network);
+CREATE INDEX IF NOT EXISTS idx_last_checks_safe_network ON last_checks(safe_address, network);
 
 CREATE TABLE IF NOT EXISTS notification_status (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -21,5 +21,5 @@ CREATE TABLE IF NOT EXISTS notification_status (
     UNIQUE(transaction_hash, monitor_id)
 );
 
-CREATE INDEX idx_notification_status_tx ON notification_status(transaction_hash);
-CREATE INDEX idx_notification_status_monitor ON notification_status(monitor_id);
+CREATE INDEX IF NOT EXISTS idx_notification_status_tx ON notification_status(transaction_hash);
+CREATE INDEX IF NOT EXISTS idx_notification_status_monitor ON notification_status(monitor_id);

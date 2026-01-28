@@ -137,10 +137,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = Router::new()
         .route("/health", get(health))
         .merge(SwaggerUi::new("/api-docs").url("/api-docs/openapi.json", ApiDoc::openapi()))
-        .nest("/api", api::router(app_state.clone()))
+        .nest("/api", api::router(app_state))
         .layer(TraceLayer::new_for_http())
-        .layer(cors)
-        .with_state(app_state);
+        .layer(cors);
 
     let governor_limiter = governor_conf.limiter().clone();
     let interval = std::time::Duration::from_secs(60);
@@ -156,7 +155,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     tracing::info!("listening on {}", addr);
     let listener = tokio::net::TcpListener::bind(addr).await?;
-    axum::serve(listener, app).await?;
+    axum::serve(listener, app.into_make_service()).await?;
 
     Ok(())
 }

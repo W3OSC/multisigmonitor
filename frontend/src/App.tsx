@@ -20,6 +20,7 @@ import MonitorConfig from "./pages/MonitorConfig";
 import Settings from "./pages/Settings";
 import Alerts from "./pages/Alerts";
 import About from "./pages/About";
+import VerifyEmail from "./pages/VerifyEmail";
 import NotFound from "./pages/NotFound";
 import ProtectedRoute from "./components/ProtectedRoute";
 import LeftSidebar from "./components/LeftSidebar";
@@ -74,6 +75,7 @@ function AppContent() {
           <Route path="/monitor/:txHash" element={<ProtectedRoute><Monitor /></ProtectedRoute>} />
           <Route path="/monitor" element={<ProtectedRoute><Monitor /></ProtectedRoute>} />
           <Route path="/alerts" element={<ProtectedRoute><Alerts /></ProtectedRoute>} />
+          <Route path="/verify-email" element={<VerifyEmail />} />
           <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
           <Route path="/about" element={<About />} />
           <Route path="*" element={<NotFound />} />

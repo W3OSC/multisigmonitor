@@ -31,11 +31,16 @@ pub struct TransactionRecord {
 }
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct SecurityAnalysisSummary {
     pub id: String,
     pub is_suspicious: bool,
     pub risk_level: String,
     pub warnings: Vec<String>,
+    pub details: Option<Vec<serde_json::Value>>,
+    pub hash_verification: Option<serde_json::Value>,
+    pub nonce_check: Option<serde_json::Value>,
+    pub calldata: Option<serde_json::Value>,
 }
 
 #[derive(Debug, FromRow)]
@@ -60,6 +65,10 @@ struct TransactionRow {
     is_suspicious: Option<bool>,
     risk_level: Option<String>,
     warnings: Option<String>,
+    details: Option<String>,
+    hash_verification: Option<String>,
+    nonce_check: Option<String>,
+    calldata: Option<String>,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
@@ -84,11 +93,12 @@ pub async fn list_transactions(
             t.to_address, t.value, t.data, t.operation, t.nonce,
             t.is_executed, t.submission_date, t.execution_date,
             t.transaction_data, t.created_at, t.updated_at,
-            sa.id as sa_id, sa.is_suspicious, sa.risk_level, sa.warnings
+            sa.id as sa_id, sa.is_suspicious, sa.risk_level, sa.warnings, sa.details,
+            sa.hash_verification, sa.nonce_check, sa.calldata
          FROM transactions t
          INNER JOIN monitors m ON t.monitor_id = m.id
-         LEFT JOIN security_analyses sa ON t.safe_tx_hash = sa.transaction_hash 
-            AND t.safe_address = sa.safe_address
+         LEFT JOIN security_analyses sa ON t.safe_tx_hash = sa.safe_tx_hash 
+            AND LOWER(t.safe_address) = LOWER(sa.safe_address)
          WHERE m.user_id = ?"
     );
 
@@ -126,13 +136,25 @@ pub async fn list_transactions(
         .into_iter()
         .map(|row| {
             let security_analysis = if let (Some(sa_id), Some(is_suspicious), Some(risk_level), Some(warnings_str)) = 
-                (row.sa_id, row.is_suspicious, row.risk_level, row.warnings) {
+                (row.sa_id.clone(), row.is_suspicious, row.risk_level.clone(), row.warnings.clone()) {
                 let warnings: Vec<String> = serde_json::from_str(&warnings_str).unwrap_or_default();
+                let details: Option<Vec<serde_json::Value>> = row.details
+                    .and_then(|d| serde_json::from_str(&d).ok());
+                let hash_verification: Option<serde_json::Value> = row.hash_verification
+                    .and_then(|h| serde_json::from_str(&h).ok());
+                let nonce_check: Option<serde_json::Value> = row.nonce_check
+                    .and_then(|n| serde_json::from_str(&n).ok());
+                let calldata: Option<serde_json::Value> = row.calldata
+                    .and_then(|c| serde_json::from_str(&c).ok());
                 Some(SecurityAnalysisSummary {
                     id: sa_id,
                     is_suspicious,
                     risk_level,
                     warnings,
+                    details,
+                    hash_verification,
+                    nonce_check,
+                    calldata,
                 })
             } else {
                 None
@@ -174,10 +196,11 @@ pub async fn get_transaction(
             t.to_address, t.value, t.data, t.operation, t.nonce,
             t.is_executed, t.submission_date, t.execution_date,
             t.transaction_data, t.created_at, t.updated_at,
-            sa.id as sa_id, sa.is_suspicious, sa.risk_level, sa.warnings
+            sa.id as sa_id, sa.is_suspicious, sa.risk_level, sa.warnings, sa.details,
+            sa.hash_verification, sa.nonce_check, sa.calldata
          FROM transactions t
          INNER JOIN monitors m ON t.monitor_id = m.id
-         LEFT JOIN security_analyses sa ON t.safe_tx_hash = sa.transaction_hash 
+         LEFT JOIN security_analyses sa ON t.safe_tx_hash = sa.safe_tx_hash 
             AND t.safe_address = sa.safe_address
          WHERE t.id = ? AND m.user_id = ?"
     )
@@ -192,13 +215,25 @@ pub async fn get_transaction(
     .ok_or(StatusCode::NOT_FOUND)?;
 
     let security_analysis = if let (Some(sa_id), Some(is_suspicious), Some(risk_level), Some(warnings_str)) = 
-        (row.sa_id, row.is_suspicious, row.risk_level, row.warnings) {
+        (row.sa_id.clone(), row.is_suspicious, row.risk_level.clone(), row.warnings.clone()) {
         let warnings: Vec<String> = serde_json::from_str(&warnings_str).unwrap_or_default();
+        let details: Option<Vec<serde_json::Value>> = row.details.clone()
+            .and_then(|d| serde_json::from_str(&d).ok());
+        let hash_verification: Option<serde_json::Value> = row.hash_verification.clone()
+            .and_then(|h| serde_json::from_str(&h).ok());
+        let nonce_check: Option<serde_json::Value> = row.nonce_check.clone()
+            .and_then(|n| serde_json::from_str(&n).ok());
+        let calldata: Option<serde_json::Value> = row.calldata.clone()
+            .and_then(|c| serde_json::from_str(&c).ok());
         Some(SecurityAnalysisSummary {
             id: sa_id,
             is_suspicious,
             risk_level,
             warnings,
+            details,
+            hash_verification,
+            nonce_check,
+            calldata,
         })
     } else {
         None

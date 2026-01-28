@@ -209,4 +209,53 @@ impl SafeApiClient {
         tracing::debug!("Found {} total transactions", tx_response.results.len());
         Ok(tx_response.results)
     }
+
+    pub async fn fetch_safe_info(
+        &self,
+        safe_address: &str,
+        network: &str,
+    ) -> Result<SafeInfo, Box<dyn std::error::Error>> {
+        let config = self.network_configs.get(network)
+            .ok_or(format!("Unsupported network: {}", network))?;
+
+        let checksum_address = to_checksum(&safe_address.parse()?, None);
+
+        let url = format!(
+            "{}/api/v1/safes/{}/",
+            config.tx_service_url,
+            checksum_address
+        );
+
+        tracing::debug!("Fetching Safe info from: {}", url);
+
+        let response = self.client
+            .get(&url)
+            .send()
+            .await?;
+
+        let status = response.status();
+        if !status.is_success() {
+            let body = response.text().await.unwrap_or_else(|_| "Unable to read response body".to_string());
+            return Err(format!("Safe API returned status: {} - {}", status, body).into());
+        }
+
+        let safe_info: SafeInfo = response.json().await?;
+        Ok(safe_info)
+    }
+
+    pub fn get_chain_id(&self, network: &str) -> Option<u64> {
+        self.network_configs.get(network).map(|config| config.chain_id)
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct SafeInfo {
+    pub address: String,
+    pub nonce: u64,
+    pub threshold: u32,
+    pub owners: Vec<String>,
+    pub master_copy: Option<String>,
+    pub version: Option<String>,
+    pub guard: Option<String>,
 }

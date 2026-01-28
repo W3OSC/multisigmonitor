@@ -18,6 +18,9 @@
 - SEO excellence is required for every UI change (use react appropriate react library)
 - Always prefer using existing libraries and utilities already present in the codebase
 - Security best practices must be followed at all times
+- APIs used by users must be equivalently operatable via user-generated API key (not just normal auth)
+- Never call alert/message box and always use a stylish modal component, with consistent UX and tab navigation
+- Don't use unwrap_or or similar that can hide potential issues, always handle errors explicitly
 
 ## AGENTS instructions
 
@@ -27,3 +30,5 @@
 - Never use fallbacks or workarounds for task completion
 - Never use mock data or mock implementations for task completion
 - Never create a new function over fixing or updating an existing one
+- Don't stdout to 2>&1 or similar
+- Building is only for production or production-preparations, otherwise always use pm2 to run debug and inspect the code

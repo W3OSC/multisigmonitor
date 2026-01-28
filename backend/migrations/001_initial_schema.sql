@@ -10,10 +10,10 @@ CREATE TABLE IF NOT EXISTS users (
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_users_email ON users(email);
-CREATE INDEX idx_users_google_id ON users(google_id);
-CREATE INDEX idx_users_github_id ON users(github_id);
-CREATE INDEX idx_users_ethereum_address ON users(ethereum_address);
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+CREATE INDEX IF NOT EXISTS idx_users_google_id ON users(google_id);
+CREATE INDEX IF NOT EXISTS idx_users_github_id ON users(github_id);
+CREATE INDEX IF NOT EXISTS idx_users_ethereum_address ON users(ethereum_address);
 
 CREATE TABLE IF NOT EXISTS monitors (
     id TEXT PRIMARY KEY NOT NULL,
@@ -27,9 +27,9 @@ CREATE TABLE IF NOT EXISTS monitors (
     UNIQUE(user_id, safe_address, network)
 );
 
-CREATE INDEX idx_monitors_user_id ON monitors(user_id);
-CREATE INDEX idx_monitors_safe_address ON monitors(safe_address);
-CREATE INDEX idx_monitors_network ON monitors(network);
+CREATE INDEX IF NOT EXISTS idx_monitors_user_id ON monitors(user_id);
+CREATE INDEX IF NOT EXISTS idx_monitors_safe_address ON monitors(safe_address);
+CREATE INDEX IF NOT EXISTS idx_monitors_network ON monitors(network);
 
 CREATE TABLE IF NOT EXISTS transactions (
     id TEXT PRIMARY KEY NOT NULL,
@@ -55,10 +55,10 @@ CREATE TABLE IF NOT EXISTS transactions (
     UNIQUE(safe_tx_hash, network)
 );
 
-CREATE INDEX idx_transactions_monitor_id ON transactions(monitor_id);
-CREATE INDEX idx_transactions_safe_tx_hash ON transactions(safe_tx_hash);
-CREATE INDEX idx_transactions_safe_address ON transactions(safe_address);
-CREATE INDEX idx_transactions_network ON transactions(network);
+CREATE INDEX IF NOT EXISTS idx_transactions_monitor_id ON transactions(monitor_id);
+CREATE INDEX IF NOT EXISTS idx_transactions_safe_tx_hash ON transactions(safe_tx_hash);
+CREATE INDEX IF NOT EXISTS idx_transactions_safe_address ON transactions(safe_address);
+CREATE INDEX IF NOT EXISTS idx_transactions_network ON transactions(network);
 
 CREATE TABLE IF NOT EXISTS notifications (
     id TEXT PRIMARY KEY NOT NULL,
@@ -77,10 +77,10 @@ CREATE TABLE IF NOT EXISTS notifications (
     FOREIGN KEY (transaction_id) REFERENCES transactions(id) ON DELETE CASCADE
 );
 
-CREATE INDEX idx_notifications_user_id ON notifications(user_id);
-CREATE INDEX idx_notifications_monitor_id ON notifications(monitor_id);
-CREATE INDEX idx_notifications_transaction_id ON notifications(transaction_id);
-CREATE INDEX idx_notifications_status ON notifications(status);
+CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_monitor_id ON notifications(monitor_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_transaction_id ON notifications(transaction_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_status ON notifications(status);
 
 CREATE TABLE IF NOT EXISTS last_checks (
     id TEXT PRIMARY KEY NOT NULL,
@@ -95,5 +95,5 @@ CREATE TABLE IF NOT EXISTS last_checks (
     UNIQUE(monitor_id)
 );
 
-CREATE INDEX idx_last_checks_monitor_id ON last_checks(monitor_id);
-CREATE INDEX idx_last_checks_safe_address ON last_checks(safe_address);
+CREATE INDEX IF NOT EXISTS idx_last_checks_monitor_id ON last_checks(monitor_id);
+CREATE INDEX IF NOT EXISTS idx_last_checks_safe_address ON last_checks(safe_address);

@@ -19,13 +19,14 @@ impl MonitorWorker {
     pub fn new(
         pool: SqlitePool,
         from_email: String,
-        resend_api_key: Option<String>,
+        mailjet_api_key: Option<String>,
+        mailjet_secret_key: Option<String>,
         concurrency: usize,
     ) -> Self {
         Self {
             pool,
             safe_api: SafeApiClient::new(),
-            notification_service: NotificationService::new(from_email, resend_api_key),
+            notification_service: NotificationService::new(from_email, mailjet_api_key, mailjet_secret_key),
             security_service: SecurityAnalysisService::new(),
             concurrency,
         }
@@ -66,7 +67,7 @@ impl MonitorWorker {
 
     async fn get_active_monitors(&self) -> Result<Vec<MonitorData>, Box<dyn std::error::Error>> {
         let monitors = sqlx::query_as::<_, MonitorData>(
-            "SELECT id, safe_address, network, settings FROM monitors WHERE json_extract(settings, '$.active') != false"
+            "SELECT id, user_id, safe_address, network, settings FROM monitors WHERE json_extract(settings, '$.active') != false"
         )
         .fetch_all(&self.pool)
         .await?;
@@ -109,11 +110,48 @@ impl MonitorWorker {
             .collect();
         tracing::info!("Found {} pending transactions", pending_transactions.len());
 
-        for transaction in &all_transactions {
+        let safe_info = self.safe_api.fetch_safe_info(safe_address, network).await.ok();
+        let safe_version = safe_info.as_ref().and_then(|info| info.version.clone()).unwrap_or_else(|| "1.3.0".to_string());
+        let chain_id = self.safe_api.get_chain_id(network).unwrap_or(1);
+
+        tracing::info!("Starting transaction loop for {} transactions", all_transactions.len());
+        for (idx, transaction) in all_transactions.iter().enumerate() {
+            tracing::info!("Processing transaction {}/{}: {}", idx + 1, all_transactions.len(), transaction.safe_tx_hash);
+            
             for monitor in monitors {
-                self.store_transaction(transaction, &monitor.id, network, safe_address).await?;
+                tracing::info!("Storing transaction for monitor {}", monitor.id);
+                match self.store_transaction(transaction, &monitor.id, network, safe_address).await {
+                    Ok(_) => tracing::info!("Transaction stored successfully"),
+                    Err(e) => {
+                        tracing::error!("Failed to store transaction: {:?}", e);
+                        return Err(e);
+                    }
+                }
+            }
+            
+            let model_tx = self.convert_to_model_transaction(transaction);
+            tracing::info!("Running security analysis");
+            let analysis = self.security_service.analyze_transaction(
+                &model_tx,
+                safe_address,
+                AnalysisOptions {
+                    chain_id: Some(chain_id),
+                    safe_version: Some(safe_version.clone()),
+                    previous_nonce: None,
+                },
+            );
+
+            let user_id = &monitors[0].user_id;
+            tracing::info!("Storing security analysis");
+            match self.store_security_analysis(safe_address, network, &transaction.safe_tx_hash, &analysis, user_id).await {
+                Ok(_) => tracing::info!("Security analysis stored successfully"),
+                Err(e) => {
+                    tracing::error!("Failed to store security analysis: {:?}", e);
+                    return Err(e);
+                }
             }
         }
+        tracing::info!("Completed transaction loop");
 
         for transaction in pending_transactions {
             if self.was_notified(&transaction.safe_tx_hash, safe_address, network).await? {
@@ -125,10 +163,12 @@ impl MonitorWorker {
             let analysis = self.security_service.analyze_transaction(
                 &model_tx,
                 safe_address,
-                AnalysisOptions::default(),
+                AnalysisOptions {
+                    chain_id: Some(chain_id),
+                    safe_version: Some(safe_version.clone()),
+                    previous_nonce: None,
+                },
             );
-
-            self.store_security_analysis(safe_address, network, &transaction.safe_tx_hash, &analysis).await?;
 
             let alert_type = self.determine_alert_type(&analysis.risk_level, transaction);
             let description = self.generate_description(transaction, &analysis);
@@ -285,6 +325,7 @@ impl MonitorWorker {
         network: &str,
         transaction_hash: &str,
         analysis: &AnalysisResponse,
+        user_id: &str,
     ) -> Result<(), Box<dyn std::error::Error>> {
         let id = uuid::Uuid::new_v4().to_string();
         let now = chrono::Utc::now().to_rfc3339();
@@ -299,21 +340,17 @@ impl MonitorWorker {
         let warnings_json = serde_json::to_string(&analysis.warnings)?;
         let details_json = serde_json::to_string(&analysis.details)?;
 
-        sqlx::query(
+        let result = sqlx::query(
             "INSERT INTO security_analyses (id, safe_address, network, transaction_hash, safe_tx_hash,
                                            is_suspicious, risk_level, warnings, details, call_type,
-                                           hash_verification, nonce_check, calldata, priority, created_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-             ON CONFLICT(transaction_hash, safe_address) DO UPDATE SET 
-                risk_level = excluded.risk_level,
-                warnings = excluded.warnings,
-                details = excluded.details"
+                                           hash_verification, nonce_check, calldata, user_id, analyzed_at, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
         )
         .bind(&id)
         .bind(safe_address)
         .bind(network)
         .bind(transaction_hash)
-        .bind(transaction_hash) // safe_tx_hash same as transaction_hash for now
+        .bind(transaction_hash)
         .bind(analysis.is_suspicious)
         .bind(risk_level_str)
         .bind(&warnings_json)
@@ -322,10 +359,20 @@ impl MonitorWorker {
         .bind(analysis.hash_verification.as_ref().map(|hv| serde_json::to_string(hv).unwrap()))
         .bind(analysis.nonce_check.as_ref().map(|nc| serde_json::to_string(nc).unwrap()))
         .bind(analysis.calldata.as_ref().map(|cd| serde_json::to_string(cd).unwrap()))
-        .bind(analysis.priority.as_deref())
+        .bind(user_id)
+        .bind(&now)
         .bind(&now)
         .execute(&self.pool)
-        .await?;
+        .await;
+        
+        match result {
+            Ok(_) => {},
+            Err(e) => {
+                if !e.to_string().contains("UNIQUE constraint failed") {
+                    return Err(e.into());
+                }
+            }
+        }
 
         Ok(())
     }
@@ -473,6 +520,7 @@ impl MonitorWorker {
 #[derive(sqlx::FromRow)]
 struct MonitorData {
     id: String,
+    user_id: String,
     safe_address: String,
     network: String,
     settings: serde_json::Value,

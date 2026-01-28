@@ -124,9 +124,26 @@ pub struct CallType {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct HashVerification {
     pub verified: bool,
+    pub calculated_hashes: Option<CalculatedHashes>,
+    pub api_hashes: Option<ApiHashes>,
     pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CalculatedHashes {
+    pub domain_hash: String,
+    pub message_hash: String,
+    pub safe_tx_hash: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ApiHashes {
+    pub safe_tx_hash: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]

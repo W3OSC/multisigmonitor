@@ -120,8 +120,8 @@ export interface TransactionRecord {
   updated_at: string;
   security_analysis?: {
     id: string;
-    is_suspicious: boolean;
-    risk_level: string;
+    isSuspicious: boolean;
+    riskLevel: string;
     warnings: string[];
   };
 }
@@ -216,6 +216,73 @@ export const securityApi = {
   },
 };
 
+export interface ApiKey {
+  id: string;
+  name: string;
+  key_prefix: string;
+  created_at: string;
+  expires_at: string;
+  last_used_at: string | null;
+  is_revoked: boolean;
+}
+
+export interface CreateApiKeyRequest {
+  name?: string;
+}
+
+export interface CreateApiKeyResponse {
+  id: string;
+  name: string;
+  key: string;
+  key_prefix: string;
+  created_at: string;
+  expires_at: string;
+}
+
+export const apiKeysApi = {
+  create: async (request: CreateApiKeyRequest): Promise<CreateApiKeyResponse> => {
+    return fetchWithAuth(`${API_BASE_URL}/api-keys`, {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
+  },
+
+  list: async (): Promise<ApiKey[]> => {
+    return fetchWithAuth(`${API_BASE_URL}/api-keys`);
+  },
+
+  revoke: async (id: string): Promise<void> => {
+    return fetchWithAuth(`${API_BASE_URL}/api-keys/${id}`, {
+      method: 'DELETE',
+    });
+  },
+};
+
+export interface EmailAlertsStatus {
+  email_verified: boolean;
+  email_alerts_enabled: boolean;
+  email: string;
+}
+
+export const emailAlertsApi = {
+  getStatus: async (): Promise<EmailAlertsStatus> => {
+    return fetchWithAuth(`${API_BASE_URL}/email/alerts/status`);
+  },
+
+  sendVerification: async (): Promise<{ message: string }> => {
+    return fetchWithAuth(`${API_BASE_URL}/email/send-verification`, {
+      method: 'POST',
+    });
+  },
+
+  updateAlerts: async (enabled: boolean): Promise<EmailAlertsStatus> => {
+    return fetchWithAuth(`${API_BASE_URL}/email/alerts`, {
+      method: 'PUT',
+      body: JSON.stringify({ enabled }),
+    });
+  },
+};
+
 function getChainId(network: string): number {
   const chainIds: { [key: string]: number } = {
     'ethereum': 1,
@@ -227,3 +294,18 @@ function getChainId(network: string): number {
   };
   return chainIds[network.toLowerCase()] || 1;
 }
+
+export interface DashboardStats {
+  active_monitors: number;
+  total_transactions: number;
+  suspicious_transactions: number;
+  recent_alerts: number;
+  email_alerts_enabled: boolean;
+  monitored_networks: string[];
+}
+
+export const dashboardApi = {
+  getStats: async (): Promise<DashboardStats> => {
+    return fetchWithAuth(`${API_BASE_URL}/dashboard/stats`);
+  },
+};

@@ -36,7 +36,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let worker = MonitorWorker::new(
         pool, 
         config.default_from_email.clone(),
-        config.resend_api_key.clone(),
+        config.mailjet_api_key.clone(),
+        config.mailjet_secret_key.clone(),
         config.worker_concurrency,
     );
 

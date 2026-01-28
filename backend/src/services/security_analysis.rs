@@ -1,4 +1,5 @@
 use crate::models::security_analysis::*;
+use crate::services::hash_verification;
 use std::collections::HashMap;
 
 const ZERO_ADDRESS: &str = "0x0000000000000000000000000000000000000000";
@@ -32,8 +33,8 @@ impl SecurityAnalysisService {
     pub fn analyze_transaction(
         &self,
         transaction: &SafeTransaction,
-        _safe_address: &str,
-        _options: AnalysisOptions,
+        safe_address: &str,
+        options: AnalysisOptions,
     ) -> AnalysisResponse {
         let mut analysis = AnalysisResponse {
             is_suspicious: false,
@@ -53,6 +54,55 @@ impl SecurityAnalysisService {
         self.check_owner_management(transaction, &mut analysis);
         self.check_unusual_gas_settings(transaction, &mut analysis);
         self.check_external_contracts(transaction, &mut analysis);
+        
+        if let (Some(chain_id), Some(safe_version)) = (options.chain_id, &options.safe_version) {
+            if let Some(nonce) = transaction.nonce {
+                if let Some(ref safe_tx_hash) = transaction.safe_tx_hash {
+                    let hash_result = hash_verification::verify_transaction_hashes(
+                        &transaction.to,
+                        transaction.value.as_deref().unwrap_or("0"),
+                        transaction.data.as_deref().unwrap_or("0x"),
+                        transaction.operation.unwrap_or(0),
+                        transaction.safe_tx_gas.as_deref().unwrap_or("0"),
+                        transaction.base_gas.as_deref().unwrap_or("0"),
+                        transaction.gas_price.as_deref().unwrap_or("0"),
+                        transaction.gas_token.as_deref().unwrap_or(ZERO_ADDRESS),
+                        transaction.refund_receiver.as_deref().unwrap_or(ZERO_ADDRESS),
+                        nonce,
+                        safe_tx_hash,
+                        safe_address,
+                        chain_id,
+                        safe_version,
+                    );
+                    
+                    if !hash_result.verified {
+                        analysis.warnings.push("Hash Verification Failed".to_string());
+                        if let Some(error) = &hash_result.error {
+                            analysis.details.push(AnalysisDetail {
+                                r#type: "hash_mismatch".to_string(),
+                                severity: "critical".to_string(),
+                                message: error.clone(),
+                                priority: Some("P0".to_string()),
+                                extra: serde_json::json!({}),
+                            });
+                        }
+                    }
+                    
+                    analysis.hash_verification = Some(HashVerification {
+                        verified: hash_result.verified,
+                        calculated_hashes: Some(CalculatedHashes {
+                            domain_hash: hash_result.calculated_hashes.domain_hash.clone(),
+                            message_hash: hash_result.calculated_hashes.message_hash.clone(),
+                            safe_tx_hash: hash_result.calculated_hashes.safe_tx_hash.clone(),
+                        }),
+                        api_hashes: Some(ApiHashes {
+                            safe_tx_hash: hash_result.api_hashes.safe_tx_hash.clone(),
+                        }),
+                        error: hash_result.error.clone(),
+                    });
+                }
+            }
+        }
         
         self.calculate_risk_level(&mut analysis);
 

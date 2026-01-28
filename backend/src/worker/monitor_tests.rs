@@ -1,19 +1,19 @@
 use super::*;
 use crate::worker::safe_api::{SafeTransaction, DataDecoded};
 use crate::models::security_analysis::RiskLevel;
+use serde_json::Value;
 
-// Helper functions don't need async
 fn create_test_transaction() -> SafeTransaction {
     SafeTransaction {
         safe_tx_hash: "0xtest123".to_string(),
         to: "0x1234567890123456789012345678901234567890".to_string(),
-        value: Some("0".to_string()),
+        value: Some(Value::String("0".to_string())),
         data: Some("0x".to_string()),
         operation: Some(0),
         gas_token: Some("0x0000000000000000000000000000000000000000".to_string()),
-        safe_tx_gas: Some("0".to_string()),
-        base_gas: Some("0".to_string()),
-        gas_price: Some("0".to_string()),
+        safe_tx_gas: Some(Value::String("0".to_string())),
+        base_gas: Some(Value::String("0".to_string())),
+        gas_price: Some(Value::String("0".to_string())),
         refund_receiver: Some("0x0000000000000000000000000000000000000000".to_string()),
         nonce: 1,
         execution_date: None,
@@ -34,7 +34,7 @@ fn create_test_transaction() -> SafeTransaction {
 #[tokio::test]
 async fn test_determine_alert_type_suspicious() {
     let pool = sqlx::SqlitePool::connect(":memory:").await.unwrap();
-    let worker = MonitorWorker::new(pool, "test@example.com".to_string(), None, 10);
+    let worker = MonitorWorker::new(pool, "test@example.com".to_string(), None, None, 10);
     let tx = create_test_transaction();
     
     let alert_type = worker.determine_alert_type(&RiskLevel::Critical, &tx);
@@ -47,7 +47,7 @@ async fn test_determine_alert_type_suspicious() {
 #[tokio::test]
 async fn test_determine_alert_type_management() {
     let pool = sqlx::SqlitePool::connect(":memory:").await.unwrap();
-    let worker = MonitorWorker::new(pool, "test@example.com".to_string(), None, 10);
+    let worker = MonitorWorker::new(pool, "test@example.com".to_string(), None, None, 10);
     
     let management_methods = vec![
         "addOwnerWithThreshold",
@@ -80,7 +80,7 @@ async fn test_determine_alert_type_management() {
 #[tokio::test]
 async fn test_determine_alert_type_normal() {
     let pool = sqlx::SqlitePool::connect(":memory:").await.unwrap();
-    let worker = MonitorWorker::new(pool, "test@example.com".to_string(), None, 10);
+    let worker = MonitorWorker::new(pool, "test@example.com".to_string(), None, None, 10);
     let tx = create_test_transaction();
     
     let alert_type = worker.determine_alert_type(&RiskLevel::Low, &tx);
@@ -90,7 +90,7 @@ async fn test_determine_alert_type_normal() {
 #[tokio::test]
 async fn test_generate_description_with_decoded_method() {
     let pool = sqlx::SqlitePool::connect(":memory:").await.unwrap();
-    let worker = MonitorWorker::new(pool, "test@example.com".to_string(), None, 10);
+    let worker = MonitorWorker::new(pool, "test@example.com".to_string(), None, None, 10);
     
     let mut tx = create_test_transaction();
     tx.data_decoded = Some(DataDecoded {
@@ -119,10 +119,10 @@ async fn test_generate_description_with_decoded_method() {
 #[tokio::test]
 async fn test_generate_description_value_transfer() {
     let pool = sqlx::SqlitePool::connect(":memory:").await.unwrap();
-    let worker = MonitorWorker::new(pool, "test@example.com".to_string(), None, 10);
+    let worker = MonitorWorker::new(pool, "test@example.com".to_string(), None, None, 10);
     
     let mut tx = create_test_transaction();
-    tx.value = Some("1000000000000000000".to_string()); // 1 ETH
+    tx.value = Some(Value::String("1000000000000000000".to_string())); // 1 ETH
     tx.data_decoded = None;
     
     let analysis = crate::models::security_analysis::AnalysisResponse {
@@ -144,8 +144,7 @@ async fn test_generate_description_value_transfer() {
 
 #[test]
 fn test_should_notify_suspicious_always() {
-    // Create a minimal test - these methods don't need the full worker
-    let settings = serde_json::json!({
+    let _settings = serde_json::json!({
         "notifyAll": false,
         "notifyManagement": false
     });

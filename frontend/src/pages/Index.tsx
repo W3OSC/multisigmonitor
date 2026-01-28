@@ -1,158 +1,46 @@
-
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
-import { HeaderWithLoginDialog } from "@/components/Header";
-import { AddressInput } from "@/components/AddressInput";
-import { AlertCircle, Shield, Eye, Network, Loader2, AlertTriangle } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Header } from "@/components/Header";
+import { AlertCircle, Shield, Eye, Github } from "lucide-react";
 
 const Index = () => {
-  const [address, setAddress] = useState("");
-  const [network, setNetwork] = useState("ethereum");
-  const [safeExists, setSafeExists] = useState<boolean | null>(null);
-  const [isValidatingSafe, setIsValidatingSafe] = useState(false);
   const navigate = useNavigate();
-  const { toast } = useToast();
   const { user } = useAuth();
-
-  // Safe API URL function
-  const getSafeApiUrl = (network: string): string | null => {
-    const apiUrls: { [key: string]: string } = {
-      'ethereum': 'https://safe-transaction-mainnet.safe.global',
-      'sepolia': 'https://safe-transaction-sepolia.safe.global',
-      'polygon': 'https://safe-transaction-polygon.safe.global',
-      'arbitrum': 'https://safe-transaction-arbitrum.safe.global',
-      'optimism': 'https://safe-transaction-optimism.safe.global',
-      'base': 'https://safe-transaction-base.safe.global'
-    };
-    
-    return apiUrls[network.toLowerCase()] || null;
-  };
-
-  // Validate Safe exists when address or network changes
-  useEffect(() => {
-    if (address && address.match(/^0x[a-fA-F0-9]{40}$/) && network) {
-      validateSafeExists(address, network);
-    } else {
-      setSafeExists(null);
-    }
-  }, [address, network]);
-
-  const validateSafeExists = async (safeAddress: string, selectedNetwork: string) => {
-    setIsValidatingSafe(true);
-    setSafeExists(null);
-
-    try {
-      const safeApiUrl = getSafeApiUrl(selectedNetwork);
-      if (!safeApiUrl) {
-        setSafeExists(false);
-        toast({
-          title: "Unsupported Network",
-          description: "This network is not supported for Safe validation",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      const response = await fetch(`${safeApiUrl}/api/v1/safes/${safeAddress}/`);
-      
-      if (response.ok) {
-        setSafeExists(true);
-      } else if (response.status === 404) {
-        setSafeExists(false);
-        toast({
-          title: "Safe Not Found",
-          description: "No Safe wallet found at this address on the selected network",
-          variant: "destructive",
-        });
-      } else {
-        setSafeExists(false);
-        toast({
-          title: "Validation Error",
-          description: "Unable to validate Safe existence. Please try again.",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
-      console.error('Error validating Safe:', error);
-      setSafeExists(false);
-      toast({
-        title: "Network Error",
-        description: "Unable to connect to Safe API for validation",
-        variant: "destructive",
-      });
-    } finally {
-      setIsValidatingSafe(false);
-    }
-  };
   
   useEffect(() => {
     if (user) {
-      // Check if there's a stored redirect URL from before authentication
       const storedRedirectUrl = sessionStorage.getItem('redirectAfterLogin');
+      const justLoggedIn = sessionStorage.getItem('justLoggedIn');
       
       if (storedRedirectUrl) {
-        // Clear the stored URL and navigate to it
         sessionStorage.removeItem('redirectAfterLogin');
-        // Extract just the pathname and search from the stored URL
         const url = new URL(storedRedirectUrl);
         navigate(url.pathname + url.search);
-      } else {
-        // Default behavior - go to monitor dashboard
-        navigate("/monitor");
+      } else if (justLoggedIn) {
+        sessionStorage.removeItem('justLoggedIn');
+        navigate("/dashboard");
       }
     }
   }, [user, navigate]);
 
-  const validateInputs = () => {
-    if (!address) {
-      toast({
-        title: "Address Required",
-        description: "Please enter a Safe address",
-        variant: "destructive",
-      });
-      return false;
+  const handleGetStarted = () => {
+    if (user) {
+      navigate("/dashboard");
+    } else {
+      navigate("/login");
     }
-    
-    if (!address.match(/^0x[a-fA-F0-9]{40}$/)) {
-      toast({
-        title: "Invalid Address",
-        description: "Please enter a valid Ethereum address",
-        variant: "destructive",
-      });
-      return false;
-    }
-    
-    return true;
-  };
-
-  const handleReview = () => {
-    if (!validateInputs()) return;
-    navigate(`/review?address=${address}&network=${network}`);
-  };
-
-  const handleMonitor = () => {
-    if (!validateInputs()) return;
-    navigate(`/monitor/new?address=${address}&network=${network}`);
   };
 
   return (
     <div className="min-h-screen flex flex-col">
-      <HeaderWithLoginDialog />
+      <Header />
       
       <main className="flex-1 container max-w-6xl">
         <div className="py-12 md:py-20">
           <div className="flex flex-col items-center text-center">
-            <div className="relative mb-8 animate-float">
+            <div className="relative mb-8">
               <div className="absolute inset-0 rounded-full bg-jsr-lime/20 blur-xl"></div>
               <Shield className="relative h-16 w-16 text-jsr-lime" />
             </div>
@@ -165,109 +53,14 @@ const Index = () => {
               Monitor and review your multisignature wallets. Get notified about suspicious transactions and keep your assets secure.
             </p>
             
-            <div className="w-full max-w-lg space-y-6 mb-12">
-              <div className="space-y-4">
-                <div className="flex gap-3">
-                  <div className="flex-1">
-                    <AddressInput
-                      value={address}
-                      onChange={setAddress}
-                      placeholder="Enter multisignature address (0x...)"
-                      label="Multisignature Address"
-                    />
-                  </div>
-                  <div className="w-40">
-                    <label className="text-sm font-medium text-muted-foreground mb-2 block">
-                      Network
-                    </label>
-                    <Select value={network} onValueChange={setNetwork}>
-                      <SelectTrigger className="w-full">
-                        <div className="flex items-center gap-2">
-                          <Network className="h-4 w-4" />
-                          <SelectValue />
-                        </div>
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="ethereum">
-                          <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 rounded-full bg-blue-500"></div>
-                            Ethereum
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="sepolia">
-                          <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 rounded-full bg-purple-500"></div>
-                            Sepolia Testnet
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="polygon">
-                          <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 rounded-full bg-purple-600"></div>
-                            Polygon
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="arbitrum">
-                          <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 rounded-full bg-blue-400"></div>
-                            Arbitrum
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="optimism">
-                          <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 rounded-full bg-red-500"></div>
-                            Optimism
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="base">
-                          <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 rounded-full bg-blue-600"></div>
-                            Base
-                          </div>
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <Button 
-                  onClick={handleReview}
-                  disabled={!address || isValidatingSafe || safeExists === false}
-                  className="jsr-button group flex items-center gap-2"
-                >
-                  {isValidatingSafe ? (
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                  ) : safeExists === false ? (
-                    <AlertTriangle className="h-5 w-5" />
-                  ) : (
-                    <AlertCircle className="h-5 w-5 group-hover:animate-pulse" />
-                  )}
-                  {isValidatingSafe ? "Validating..." : safeExists === false ? "Safe Not Found" : "Security Review"}
-                </Button>
-                
-                <Button 
-                  onClick={handleMonitor}
-                  disabled={!address || isValidatingSafe || safeExists === false}
-                  className="jsr-button-alt group flex items-center gap-2"
-                >
-                  {isValidatingSafe ? (
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                  ) : safeExists === false ? (
-                    <AlertTriangle className="h-5 w-5" />
-                  ) : (
-                    <Eye className="h-5 w-5 group-hover:animate-pulse" />
-                  )}
-                  {isValidatingSafe ? "Validating..." : safeExists === false ? "Safe Not Found" : "Set Up Monitor"}
-                </Button>
-              </div>
-              
-              {/* {network && (
-                <p className="text-xs text-muted-foreground text-center">
-                  Selected network: <span className="font-medium capitalize">{network}</span>
-                  {network === 'sepolia' && ' (Testnet)'}
-                </p>
-              )} */}
+            <div className="flex gap-4 justify-center mb-12">
+              <Button 
+                onClick={handleGetStarted}
+                className="jsr-button group flex items-center gap-2"
+              >
+                <Shield className="h-5 w-5 group-hover:animate-pulse" />
+                Get Started
+              </Button>
             </div>
           </div>
           
@@ -309,11 +102,15 @@ const Index = () => {
         <div className="container flex flex-col md:flex-row items-center justify-between gap-4 md:h-16">
           <p className="text-sm text-muted-foreground">
           </p>
-          <div className="flex items-center gap-4">
-            <a href="https://github.com/fredrik0x/multisigmonitor/" className="text-sm text-muted-foreground hover:text-foreground">
-              Contribute
-            </a>
-          </div>
+          <a 
+            href="https://github.com/W3OSC/multisigmonitor" 
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-2"
+          >
+            <Github className="h-4 w-4" />
+            Contribute
+          </a>
         </div>
       </footer>
     </div>

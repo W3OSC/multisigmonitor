@@ -1,18 +1,17 @@
-import { Link } from "react-router-dom";
-import { ThemeToggle } from "@/components/theme-toggle";
+import { Link, useNavigate } from "react-router-dom";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
-import { Shield, Menu, X, LogIn, LogOut } from "lucide-react";
+import { Shield, Menu, X, LogIn, Github } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
-import { LoginDialog } from "@/components/LoginDialog";
 import { UserDropdownMenu } from "@/components/UserDropdownMenu";
 
 export function Header() {
   const isMobile = useIsMobile();
+  const navigate = useNavigate();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const { user, isLoginDialogOpen, setIsLoginDialogOpen, signOut } = useAuth();
+  const { user } = useAuth();
   const headerRef = useRef<HTMLElement>(null);
 
   // Close mobile menu when clicking outside
@@ -45,10 +44,10 @@ export function Header() {
     )}>
       <div className="w-full px-4">
         {/* Top row with logo and hamburger menu */}
-        <div className="flex h-16 items-center justify-between">
+        <div className="flex h-20 items-center justify-between">
           <div className="flex-shrink-0">
             <Link 
-              to={user ? "/monitor" : "/"} 
+              to={user ? "/dashboard" : "/"} 
               className="flex items-center gap-2 font-bold text-xl"
               onClick={() => setIsMenuOpen(false)}
             >
@@ -71,25 +70,37 @@ export function Header() {
               )}
             </Button>
           ) : (
-            <div className="flex items-center justify-end flex-shrink-0">
-              <div className="flex items-center gap-6">
-                <div className="flex items-center gap-4">
-                  {user ? (
-                    <UserDropdownMenu />
-                  ) : (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setIsLoginDialogOpen(true)}
+            <div className="flex items-center gap-2 justify-end flex-shrink-0">
+              {user ? (
+                <UserDropdownMenu />
+              ) : (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => navigate('/login')}
+                    className="flex items-center gap-1"
+                  >
+                    <LogIn className="h-4 w-4" />
+                    <span>Login</span>
+                  </Button>
+                  <Button
+                    asChild
+                    variant="outline"
+                    size="sm"
+                  >
+                    <a 
+                      href="https://github.com/W3OSC/multisigmonitor" 
+                      target="_blank"
+                      rel="noopener noreferrer"
                       className="flex items-center gap-1"
                     >
-                      <LogIn className="h-4 w-4" />
-                      <span>Login</span>
-                    </Button>
-                  )}
-                  <ThemeToggle />
-                </div>
-              </div>
+                      <Github className="h-4 w-4" />
+                      <span>Contribute</span>
+                    </a>
+                  </Button>
+                </>
+              )}
             </div>
           )}
         </div>
@@ -107,7 +118,7 @@ export function Header() {
                   variant="outline"
                   size="sm"
                   onClick={() => {
-                    setIsLoginDialogOpen(true);
+                    navigate('/login');
                     setIsMenuOpen(false);
                   }}
                   className="flex items-center gap-2 justify-center"
@@ -116,28 +127,10 @@ export function Header() {
                   <span>Login</span>
                 </Button>
               )}
-              <div className="flex justify-center">
-                <ThemeToggle />
-              </div>
             </nav>
           </div>
         )}
       </div>
     </header>
-  );
-}
-
-// Rendering the login dialog outside the main component to avoid nesting issues
-export function HeaderWithLoginDialog() {
-  const { isLoginDialogOpen, setIsLoginDialogOpen } = useAuth();
-  
-  return (
-    <>
-      <Header />
-      <LoginDialog 
-        isOpen={isLoginDialogOpen} 
-        onClose={() => setIsLoginDialogOpen(false)} 
-      />
-    </>
   );
 }

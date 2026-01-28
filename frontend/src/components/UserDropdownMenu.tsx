@@ -15,31 +15,45 @@ export function UserDropdownMenu({ className }: { className?: string }) {
   const navigate = useNavigate();
   
   if (!user) return null;
-  
-  // Get user's email or fallback to 'User'
-  const email = user.email || 'User';
-  // Get user's name or fallback to email
-  const name = user.user_metadata?.full_name || user.user_metadata?.name || email;
-  // Get user's avatar or fallback to first letter of name
-  const avatarUrl = user.user_metadata?.avatar_url || null;
-  // Get the first letter of the name for the avatar fallback
-  const initials = name.charAt(0).toUpperCase();
+
+  const getDisplayName = () => {
+    if (user.username) return user.username;
+    if (user.user_metadata?.full_name) return user.user_metadata.full_name;
+    if (user.user_metadata?.name) return user.user_metadata.name;
+    if (user.email) return user.email.split('@')[0];
+    return 'User';
+  };
+
+  const getInitials = () => {
+    const name = getDisplayName();
+    return name.charAt(0).toUpperCase();
+  };
+
+  const getAvatarUrl = () => {
+    return user.user_metadata?.avatar_url || null;
+  };
+
+  const displayName = getDisplayName();
+  const initials = getInitials();
+  const avatarUrl = getAvatarUrl();
+  const email = user.email || '';
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger className={cn("focus:outline-none", className)}>
-        <div className="flex items-center gap-2 hover:bg-muted/50 rounded-full px-2 py-1 cursor-pointer">
-          <Avatar>
-            <AvatarImage src={avatarUrl || undefined} alt={name} />
-            <AvatarFallback>{initials}</AvatarFallback>
+        <div className="flex items-center gap-2 hover:bg-muted/50 rounded-full transition-colors">
+          <Avatar className="h-8 w-8">
+            <AvatarImage src={avatarUrl || undefined} alt={displayName} />
+            <AvatarFallback className="bg-primary text-primary-foreground text-sm font-semibold">
+              {initials}
+            </AvatarFallback>
           </Avatar>
-          <span className="font-medium text-sm hidden sm:inline">{name}</span>
         </div>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
         <div className="flex flex-col px-2 py-1.5">
-          <span className="font-semibold">{name}</span>
-          <span className="text-xs text-muted-foreground">{email}</span>
+          <span className="font-semibold">{displayName}</span>
+          {email && <span className="text-xs text-muted-foreground">{email}</span>}
         </div>
         <DropdownMenuItem 
           onClick={() => {

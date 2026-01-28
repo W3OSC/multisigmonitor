@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import axios from "axios";
-import { HeaderWithLoginDialog } from "@/components/Header";
+import { Header } from "@/components/Header";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { ChevronLeft, Loader2 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { monitorsApi } from "@/lib/api";
 
 // Use the same constants as NewMonitor.tsx
 const SUPPORTED_NETWORKS = [
@@ -164,16 +164,8 @@ const MonitorConfig = () => {
     }
     
     try {
-      // Fetch the monitor data from Supabase
-      const { data, error } = await supabase
-        .from('monitors')
-        .select('*')
-        .eq('id', id)
-        .single();
-      
-      if (error) {
-        throw error;
-      }
+      // Fetch the monitor data from Rust API
+      const data = await monitorsApi.get(id);
       
       if (!data) {
         throw new Error("Monitor not found");
@@ -279,11 +271,11 @@ const MonitorConfig = () => {
     const left = window.screenX + (window.outerWidth - width) / 2;
     const top = window.screenY + (window.outerHeight - height) / 2;
     
-    // Use the Supabase URL directly
-    const supabaseUrl = "https://jgqotbhokyuasepuhzxy.supabase.co";
+    // Use the Rust backend URL
+    const backendUrl = "http://localhost:7111";
     
     window.open(
-      `${supabaseUrl}/functions/v1/discord-oauth-start?monitorId=${id}`,
+      `${backendUrl}/api/discord/oauth/start?monitorId=${id}`,
       'discord-oauth',
       `width=${width},height=${height},left=${left},top=${top}`
     );
@@ -386,17 +378,11 @@ const MonitorConfig = () => {
         notifications: processedNotifications
       };
       
-      // Update the monitor in Supabase
-      const { error } = await supabase
-        .from('monitors')
-        .update({
-          safe_address: address,
-          settings: settings
-        })
-        .eq('id', id);
+      // Update the monitor via Rust API
+      await monitorsApi.update(id, {
+        settings
+      });
     
-      if (error) throw error;
-      
       toast({
         title: "Discord Disconnected",
         description: "Discord webhook has been completely removed",
@@ -578,16 +564,10 @@ const MonitorConfig = () => {
         notifications: processedNotifications
       };
         
-        // Update the monitor in Supabase
-        const { error } = await supabase
-          .from('monitors')
-          .update({
-            safe_address: address,
-            settings: settings
-          })
-          .eq('id', id);
-      
-      if (error) throw error;
+        // Update the monitor via Rust API
+        await monitorsApi.update(id, {
+          settings
+        });
       
       toast({
         title: "Monitor Updated",
@@ -716,7 +696,7 @@ const MonitorConfig = () => {
   if (isLoading) {
     return (
       <div className="min-h-screen flex flex-col">
-        <HeaderWithLoginDialog />
+        <Header />
         
         <main className="flex-1 container py-12 flex flex-col items-center justify-center">
           <div className="animate-spin">
@@ -730,7 +710,7 @@ const MonitorConfig = () => {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <HeaderWithLoginDialog />
+      <Header />
       
       <main className="flex-1 container py-12">
         <div className="max-w-2xl mx-auto">

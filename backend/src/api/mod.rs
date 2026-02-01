@@ -16,7 +16,6 @@ pub mod sanctions;
 pub mod multisig_info;
 pub mod discord_oauth;
 pub mod api_keys;
-pub mod email_verification;
 pub mod dashboard;
 
 #[cfg(test)]
@@ -52,9 +51,6 @@ pub fn router(state: AppState) -> Router {
         .route("/api-keys", post(api_keys::create_api_key))
         .route("/api-keys", get(api_keys::list_api_keys))
         .route("/api-keys/:id", delete(api_keys::revoke_api_key))
-        .route("/email/send-verification", post(email_verification::send_verification_email))
-        .route("/email/alerts/status", get(email_verification::get_email_alerts_status))
-        .route("/email/alerts", put(email_verification::update_email_alerts))
         .route("/auth/me", get(auth::me))
         .route("/auth/logout", post(auth::logout))
         .route_layer(middleware::from_fn_with_state(
@@ -67,8 +63,7 @@ pub fn router(state: AppState) -> Router {
         .route("/auth/google/callback", post(auth::google_callback))
         .route("/auth/github/callback", post(auth::github_callback))
         .route("/auth/ethereum/nonce", post(auth::ethereum_nonce))
-        .route("/auth/ethereum/verify", post(auth::ethereum_verify))
-        .route("/email/verify", get(email_verification::verify_email));
+        .route("/auth/ethereum/verify", post(auth::ethereum_verify));
 
     Router::new()
         .merge(protected_routes)

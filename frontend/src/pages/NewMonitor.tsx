@@ -176,7 +176,7 @@ const NewMonitor = () => {
         notify: false,
         alertType: "all",
         managementOnly: false,
-        notifications: []
+        notificationChannels: []
       };
 
       // Create monitor via Rust API

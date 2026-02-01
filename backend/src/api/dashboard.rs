@@ -10,7 +10,6 @@ pub struct DashboardStats {
     pub total_transactions: i64,
     pub suspicious_transactions: i64,
     pub recent_alerts: i64,
-    pub email_alerts_enabled: bool,
     pub monitored_networks: Vec<String>,
 }
 
@@ -60,14 +59,6 @@ pub async fn get_dashboard_stats(
     .await
     .unwrap_or(0);
 
-    let email_alerts_enabled = sqlx::query_scalar::<_, bool>(
-        "SELECT email_alerts_enabled FROM users WHERE id = $1"
-    )
-    .bind(&user_id)
-    .fetch_one(pool)
-    .await
-    .unwrap_or(false);
-
     let monitored_networks: Vec<String> = sqlx::query_scalar::<_, String>(
         "SELECT DISTINCT network FROM monitors WHERE user_id = $1 ORDER BY network"
     )
@@ -81,7 +72,6 @@ pub async fn get_dashboard_stats(
         total_transactions,
         suspicious_transactions,
         recent_alerts,
-        email_alerts_enabled,
         monitored_networks,
     }))
 }

@@ -16,6 +16,7 @@ mod error;
 mod middleware;
 mod models;
 mod services;
+mod types;
 
 use config::Config;
 use api::AppState;

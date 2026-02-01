@@ -14,21 +14,13 @@ fn load_env() {
 async fn test_mailjet_api_keys() {
     load_env();
     
-    let api_key = match env::var("MAILJET_API_KEY") {
-        Ok(key) if !key.is_empty() => key,
-        _ => {
-            println!("Mailjet API key not configured - skipping test");
-            return;
-        }
-    };
+    let api_key = env::var("MAILJET_API_KEY")
+        .expect("MAILJET_API_KEY must be set in ../secrets/.env.backend.local");
+    assert!(!api_key.is_empty(), "MAILJET_API_KEY cannot be empty");
     
-    let secret_key = match env::var("MAILJET_SECRET_KEY") {
-        Ok(key) if !key.is_empty() => key,
-        _ => {
-            println!("Mailjet secret key not configured - skipping test");
-            return;
-        }
-    };
+    let secret_key = env::var("MAILJET_SECRET_KEY")
+        .expect("MAILJET_SECRET_KEY must be set in ../secrets/.env.backend.local");
+    assert!(!secret_key.is_empty(), "MAILJET_SECRET_KEY cannot be empty");
     
     let from_email = env::var("DEFAULT_FROM_EMAIL").unwrap_or_else(|_| "noreply@multisigmonitor.local".to_string());
     
@@ -39,7 +31,7 @@ async fn test_mailjet_api_keys() {
                 "Name": "Multisig Monitor Test"
             },
             "To": [{
-                "Email": from_email
+                "Email": "tomer@auditware.io"
             }],
             "Subject": "Mailjet API Test",
             "TextPart": "This is a test email to verify Mailjet API credentials are working correctly.",
@@ -75,6 +67,6 @@ async fn test_mailjet_api_keys() {
     
     assert_eq!(status, "success", "Expected message status to be 'success'");
     
-    println!("✓ Mailjet API test passed. Email queued successfully.");
+    println!("✓ Mailjet API test passed. Email sent successfully.");
     println!("  Message ID: {}", result["Messages"][0]["To"][0]["MessageID"]);
 }

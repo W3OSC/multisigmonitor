@@ -2,6 +2,8 @@ use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use utoipa::ToSchema;
 
+pub use crate::types::NotificationChannel;
+
 #[derive(Debug, Clone, FromRow, Serialize, Deserialize, ToSchema)]
 pub struct Monitor {
     pub id: String,
@@ -27,13 +29,8 @@ pub struct MonitorSettings {
     pub webhook_notifications: Option<bool>,
     pub telegram_notifications: Option<bool>,
     pub notification_channels: Option<Vec<NotificationChannel>>,
-}
-
-#[derive(Debug, Serialize, Deserialize, ToSchema)]
-pub struct NotificationChannel {
-    pub channel_type: String,
-    pub enabled: bool,
-    pub config: serde_json::Value,
+    pub notify_all: Option<bool>,
+    pub notify_management: Option<bool>,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]

@@ -1,5 +1,5 @@
 import { Helmet } from 'react-helmet-async'
-import { Bell, Shield, ShieldAlert, Settings as SettingsIcon, ExternalLink, Loader2, Mail, Send, MessageSquare, Webhook, CheckCircle2, AlertCircle } from 'lucide-react'
+import { Bell, Shield, ShieldAlert, Settings as SettingsIcon, ExternalLink, Loader2, Send, MessageSquare, Webhook, CheckCircle2, AlertCircle } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { notificationsApi, emailAlertsApi, monitorsApi, type NotificationRecord, type EmailAlertsStatus, type Monitor } from '@/lib/api'
+import { notificationsApi, monitorsApi, type NotificationRecord, type Monitor } from '@/lib/api'
 import { useToast } from '@/hooks/use-toast'
 
 export default function Alerts() {
@@ -18,11 +18,7 @@ export default function Alerts() {
   const navigate = useNavigate()
   const [notifications, setNotifications] = useState<NotificationRecord[]>([])
   const [isLoadingNotifications, setIsLoadingNotifications] = useState(false)
-  const [emailAlertsStatus, setEmailAlertsStatus] = useState<EmailAlertsStatus | null>(null)
-  const [isLoadingEmailStatus, setIsLoadingEmailStatus] = useState(false)
-  const [isSendingVerification, setIsSendingVerification] = useState(false)
-  const [isTogglingAlerts, setIsTogglingAlerts] = useState(false)
-  const [openModal, setOpenModal] = useState<'email' | 'telegram' | 'webhook' | null>(null)
+  const [openModal, setOpenModal] = useState<'telegram' | 'webhook' | null>(null)
   const [monitors, setMonitors] = useState<Monitor[]>([])
   const [hasTelegramConfigured, setHasTelegramConfigured] = useState(false)
   const [hasWebhookConfigured, setHasWebhookConfigured] = useState(false)
@@ -50,28 +46,6 @@ export default function Alerts() {
   }, [user])
 
   useEffect(() => {
-    async function fetchEmailAlertsStatus() {
-      if (!user) {
-        setEmailAlertsStatus(null)
-        return
-      }
-
-      setIsLoadingEmailStatus(true)
-      try {
-        const status = await emailAlertsApi.getStatus()
-        setEmailAlertsStatus(status)
-      } catch (error) {
-        console.error('Error fetching email alerts status:', error)
-        setEmailAlertsStatus(null)
-      } finally {
-        setIsLoadingEmailStatus(false)
-      }
-    }
-    
-    fetchEmailAlertsStatus()
-  }, [user])
-
-  useEffect(() => {
     async function fetchMonitors() {
       if (!user) {
         setMonitors([])
@@ -93,6 +67,15 @@ export default function Alerts() {
               ? JSON.parse(monitor.settings) 
               : monitor.settings
             
+            // Check new format (notification_channels)
+            if (settings?.notification_channels && Array.isArray(settings.notification_channels)) {
+              settings.notification_channels.forEach((channel: any) => {
+                if (channel.type === 'telegram') telegramFound = true
+                if (channel.type === 'webhook') webhookFound = true
+              })
+            }
+            
+            // Check old format for backwards compatibility
             if (settings?.notifications && Array.isArray(settings.notifications)) {
               settings.notifications.forEach((notif: any) => {
                 if (notif.method === 'telegram') telegramFound = true
@@ -114,47 +97,6 @@ export default function Alerts() {
     
     fetchMonitors()
   }, [user])
-
-  const handleSendVerification = async () => {
-    setIsSendingVerification(true)
-    try {
-      await emailAlertsApi.sendVerification()
-      toast({
-        title: 'Verification Email Sent',
-        description: 'Please check your email and click the verification link.',
-      })
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to send verification email. Please try again.',
-        variant: 'destructive',
-      })
-    } finally {
-      setIsSendingVerification(false)
-    }
-  }
-
-  const handleToggleEmailAlerts = async (enabled: boolean) => {
-    setIsTogglingAlerts(true)
-    try {
-      const status = await emailAlertsApi.updateAlerts(enabled)
-      setEmailAlertsStatus(status)
-      toast({
-        title: enabled ? 'Email Alerts Enabled' : 'Email Alerts Disabled',
-        description: enabled 
-          ? 'You will now receive email notifications for monitored wallets.'
-          : 'Email notifications have been disabled.',
-      })
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to update email alerts. Please try again.',
-        variant: 'destructive',
-      })
-    } finally {
-      setIsTogglingAlerts(false)
-    }
-  }
 
   const formatTimeAgo = (timestamp: number) => {
     const seconds = Math.floor((Date.now() - timestamp) / 1000)
@@ -183,23 +125,7 @@ export default function Alerts() {
 
         <div className="space-y-6">
           {/* Notification Channels Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-3xl mx-auto">
-            {/* Email Card */}
-            <Card 
-              className="animate-slide-up hover:shadow-xl hover:border-red-400 transition-all cursor-pointer group relative"
-              onClick={() => user && setOpenModal('email')}
-            >
-              <div className={`absolute bottom-3 right-3 w-2.5 h-2.5 rounded-full ${
-                emailAlertsStatus?.email_verified && emailAlertsStatus.email_alerts_enabled
-                  ? 'bg-green-500'
-                  : 'bg-gray-300'
-              }`} />
-              <CardContent className="pt-8 pb-6 flex flex-col items-center">
-                <Mail className="h-10 w-10 text-red-600 group-hover:text-red-700 transition-colors mb-3" />
-                <h3 className="font-semibold text-base text-center">Email</h3>
-              </CardContent>
-            </Card>
-
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto">
             {/* Telegram Card */}
             <Card 
               className="animate-slide-up hover:shadow-xl hover:border-cyan-400 transition-all cursor-pointer group relative"
@@ -231,116 +157,6 @@ export default function Alerts() {
             </Card>
           </div>
 
-          {/* Email Configuration Modal */}
-          <Dialog open={openModal === 'email'} onOpenChange={(open) => !open && setOpenModal(null)}>
-            <DialogContent className="max-w-lg border-red-500/20">
-              <DialogHeader>
-                <div className="flex items-center justify-center mb-2">
-                  <div className="p-4 bg-red-500/10 rounded-2xl">
-                    <Mail className="h-8 w-8 text-red-600 dark:text-red-400" />
-                  </div>
-                </div>
-                <DialogTitle className="text-center text-xl">
-                  Email Alerts
-                </DialogTitle>
-                <DialogDescription className="text-center">
-                  Get notified about wallet activity via email
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 py-4">
-                {isLoadingEmailStatus ? (
-                  <div className="flex justify-center py-8">
-                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                  </div>
-                ) : emailAlertsStatus ? (
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between p-4 bg-red-500/10 border border-red-500/20 rounded-xl hover:border-red-500/40 transition-colors">
-                      <div className="flex items-center gap-3 flex-1 min-w-0">
-                        <Mail className="h-5 w-5 text-red-600 dark:text-red-400 flex-shrink-0" />
-                        <div className="min-w-0 flex-1">
-                          <div className="font-medium truncate">{emailAlertsStatus.email}</div>
-                          <div className="text-sm flex items-center gap-2 mt-1">
-                            {emailAlertsStatus.email_verified ? (
-                              <>
-                                <CheckCircle2 className="h-4 w-4 text-green-500" />
-                                <span className="text-green-600 dark:text-green-400">Verified</span>
-                              </>
-                            ) : (
-                              <>
-                                <AlertCircle className="h-4 w-4 text-amber-500" />
-                                <span className="text-amber-600 dark:text-amber-400">Not verified</span>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                      {emailAlertsStatus.email_verified && (
-                        <div className="flex items-center gap-3 ml-2">
-                          <Label htmlFor="modal-email-alerts" className="text-sm font-medium cursor-pointer">
-                            {emailAlertsStatus.email_alerts_enabled ? 'On' : 'Off'}
-                          </Label>
-                          <Switch
-                            id="modal-email-alerts"
-                            checked={emailAlertsStatus.email_alerts_enabled}
-                            onCheckedChange={handleToggleEmailAlerts}
-                            disabled={isTogglingAlerts}
-                          />
-                        </div>
-                      )}
-                    </div>
-
-                    {!emailAlertsStatus.email_verified && (
-                      <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl space-y-3">
-                        <div className="flex items-start gap-3">
-                          <AlertCircle className="h-5 w-5 text-amber-500 mt-0.5 flex-shrink-0" />
-                          <div className="flex-1">
-                            <p className="text-sm font-medium">Email verification required</p>
-                            <p className="text-sm text-muted-foreground mt-1">
-                              Please verify your email address to enable email alerts for your monitored wallets.
-                            </p>
-                          </div>
-                        </div>
-                        <Button 
-                          onClick={handleSendVerification} 
-                          disabled={isSendingVerification}
-                          size="sm"
-                          className="w-full bg-amber-600 hover:bg-amber-700"
-                        >
-                          {isSendingVerification ? (
-                            <>
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              Sending...
-                            </>
-                          ) : (
-                            'Send Verification Email'
-                          )}
-                        </Button>
-                      </div>
-                    )}
-
-                    {emailAlertsStatus.email_verified && emailAlertsStatus.email_alerts_enabled && (
-                      <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-xl">
-                        <div className="flex items-start gap-3">
-                          <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
-                          <div className="flex-1">
-                            <p className="text-sm font-medium text-green-600 dark:text-green-400">Email alerts are active</p>
-                            <p className="text-sm text-muted-foreground mt-1">
-                              You'll receive email notifications when transactions are detected on your monitored wallets.
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <p>Unable to load email settings</p>
-                  </div>
-                )}
-              </div>
-            </DialogContent>
-          </Dialog>
-
           {/* Telegram Configuration Modal */}
           <Dialog open={openModal === 'telegram'} onOpenChange={(open) => !open && setOpenModal(null)}>
             <DialogContent className="max-w-lg border-cyan-500/20">
@@ -364,9 +180,9 @@ export default function Alerts() {
                       1
                     </div>
                     <div className="flex-1">
-                      <p className="text-sm font-medium mb-1">Start a chat with our bot</p>
+                      <p className="text-sm font-medium mb-1">Get your Chat ID</p>
                       <p className="text-sm text-muted-foreground mb-2">
-                        Search for <code className="px-2 py-0.5 bg-background/50 rounded text-cyan-600 dark:text-cyan-400 font-mono text-xs">@MultisigMonitorBot</code> on Telegram and start a conversation.
+                        Search for <code className="px-2 py-0.5 bg-background/50 rounded text-cyan-600 dark:text-cyan-400 font-mono text-xs">@userinfobot</code> on Telegram and send it any message to get your Chat ID.
                       </p>
                     </div>
                   </div>
@@ -374,18 +190,6 @@ export default function Alerts() {
                   <div className="flex items-start gap-3">
                     <div className="flex-shrink-0 w-6 h-6 rounded-full bg-cyan-600 dark:bg-cyan-500 text-white flex items-center justify-center text-xs font-bold">
                       2
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium mb-1">Get your Chat ID</p>
-                      <p className="text-sm text-muted-foreground mb-2">
-                        Send any message to the bot, then search for <code className="px-2 py-0.5 bg-background/50 rounded text-cyan-600 dark:text-cyan-400 font-mono text-xs">@userinfobot</code> on Telegram to get your Chat ID.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start gap-3">
-                    <div className="flex-shrink-0 w-6 h-6 rounded-full bg-cyan-600 dark:bg-cyan-500 text-white flex items-center justify-center text-xs font-bold">
-                      3
                     </div>
                     <div className="flex-1">
                       <p className="text-sm font-medium mb-1">Configure per wallet</p>
@@ -396,9 +200,48 @@ export default function Alerts() {
                   </div>
                 </div>
 
+                {monitors.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">Your Monitors ({monitors.length})</p>
+                    <div className="space-y-2">
+                      {monitors.map((monitor) => {
+                        const settings = typeof monitor.settings === 'string' 
+                          ? JSON.parse(monitor.settings) 
+                          : monitor.settings
+                        const hasTelegram = settings?.notification_channels?.some((ch: any) => ch.type === 'telegram')
+                        
+                        return (
+                          <div 
+                            key={monitor.id} 
+                            className="flex items-center justify-between p-3 bg-background border border-border rounded-lg hover:bg-muted/50 transition-colors"
+                          >
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium truncate">
+                                {settings?.alias || `${monitor.safe_address.slice(0, 6)}...${monitor.safe_address.slice(-4)}`}
+                              </p>
+                              <p className="text-xs text-muted-foreground capitalize">{monitor.network}</p>
+                            </div>
+                            {hasTelegram ? (
+                              <Badge variant="default" className="bg-cyan-600 text-white">
+                                <CheckCircle2 className="h-3 w-3 mr-1" />
+                                Configured
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-muted-foreground">
+                                <AlertCircle className="h-3 w-3 mr-1" />
+                                Not configured
+                              </Badge>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 <div className="p-3 bg-background border border-border rounded-lg">
                   <p className="text-xs text-muted-foreground">
-                    💡 <span className="font-medium">Pro tip:</span> You can configure different Chat IDs for different wallets to organize your notifications.
+                    💡 <span className="font-medium">Note:</span> We use a shared bot for all users, so you only need your Chat ID!
                   </p>
                 </div>
               </div>
@@ -461,6 +304,45 @@ export default function Alerts() {
                     </div>
                   </div>
                 </div>
+
+                {monitors.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">Your Monitors ({monitors.length})</p>
+                    <div className="space-y-2">
+                      {monitors.map((monitor) => {
+                        const settings = typeof monitor.settings === 'string' 
+                          ? JSON.parse(monitor.settings) 
+                          : monitor.settings
+                        const hasWebhook = settings?.notification_channels?.some((ch: any) => ch.type === 'webhook')
+                        
+                        return (
+                          <div 
+                            key={monitor.id} 
+                            className="flex items-center justify-between p-3 bg-background border border-border rounded-lg hover:bg-muted/50 transition-colors"
+                          >
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium truncate">
+                                {settings?.alias || `${monitor.safe_address.slice(0, 6)}...${monitor.safe_address.slice(-4)}`}
+                              </p>
+                              <p className="text-xs text-muted-foreground capitalize">{monitor.network}</p>
+                            </div>
+                            {hasWebhook ? (
+                              <Badge variant="default" className="bg-purple-600 text-white">
+                                <CheckCircle2 className="h-3 w-3 mr-1" />
+                                Configured
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-muted-foreground">
+                                <AlertCircle className="h-3 w-3 mr-1" />
+                                Not configured
+                              </Badge>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             </DialogContent>
           </Dialog>

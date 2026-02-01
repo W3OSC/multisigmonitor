@@ -258,31 +258,6 @@ export const apiKeysApi = {
   },
 };
 
-export interface EmailAlertsStatus {
-  email_verified: boolean;
-  email_alerts_enabled: boolean;
-  email: string;
-}
-
-export const emailAlertsApi = {
-  getStatus: async (): Promise<EmailAlertsStatus> => {
-    return fetchWithAuth(`${API_BASE_URL}/email/alerts/status`);
-  },
-
-  sendVerification: async (): Promise<{ message: string }> => {
-    return fetchWithAuth(`${API_BASE_URL}/email/send-verification`, {
-      method: 'POST',
-    });
-  },
-
-  updateAlerts: async (enabled: boolean): Promise<EmailAlertsStatus> => {
-    return fetchWithAuth(`${API_BASE_URL}/email/alerts`, {
-      method: 'PUT',
-      body: JSON.stringify({ enabled }),
-    });
-  },
-};
-
 function getChainId(network: string): number {
   const chainIds: { [key: string]: number } = {
     'ethereum': 1,
@@ -300,7 +275,6 @@ export interface DashboardStats {
   total_transactions: number;
   suspicious_transactions: number;
   recent_alerts: number;
-  email_alerts_enabled: boolean;
   monitored_networks: string[];
 }
 

@@ -188,12 +188,6 @@ export default function Dashboard() {
                     </div>
                   </div>
                   <div className="flex items-center justify-end gap-2">
-                    {stats.email_alerts_enabled && (
-                      <Badge className="bg-green-500/10 text-green-600 border-green-500/20">
-                        <Zap className="w-3 h-3 mr-1" />
-                        Alerts Active
-                      </Badge>
-                    )}
                     {stats.active_monitors > 0 && (
                       <Badge className="bg-blue-500/10 text-blue-600 border-blue-500/20">
                         <Shield className="w-3 h-3 mr-1" />
@@ -393,43 +387,6 @@ export default function Dashboard() {
                 </CardContent>
               </Card>
 
-              <Card
-                className="hover:shadow-xl transition-all duration-300 cursor-pointer bg-gradient-to-br from-indigo-500/10 to-blue-500/5 border-indigo-500/20"
-                onClick={() => navigate("/alerts")}
-              >
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <div
-                      className={`w-12 h-12 bg-gradient-to-br ${stats.email_alerts_enabled ? "from-indigo-500 to-blue-500" : "from-gray-400 to-gray-500"} rounded-xl flex items-center justify-center shadow-lg`}
-                    >
-                      <Bell
-                        className={`w-6 h-6 text-white ${stats.email_alerts_enabled ? "animate-pulse" : ""}`}
-                      />
-                    </div>
-                    <Badge
-                      className={`${stats.email_alerts_enabled ? "bg-indigo-500/10 text-indigo-600 border-indigo-500/20" : "bg-gray-500/10 text-gray-600 border-gray-500/20"} text-xs`}
-                    >
-                      {stats.email_alerts_enabled ? (
-                        <>
-                          <Zap className="w-3 h-3 mr-1" />
-                          Active
-                        </>
-                      ) : (
-                        "Inactive"
-                      )}
-                    </Badge>
-                  </div>
-                  <h3 className="text-sm font-bold text-foreground mb-1">
-                    Email Alerts
-                  </h3>
-                  <p className="text-xs text-muted-foreground">
-                    {stats.email_alerts_enabled
-                      ? "Receiving real-time notifications"
-                      : "Click to configure alerts"}
-                  </p>
-                </CardContent>
-              </Card>
-
               <Card className="hover:shadow-lg transition-shadow">
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between mb-4">
@@ -478,39 +435,6 @@ export default function Dashboard() {
                       </Badge>
                     )}
                   </div>
-                </CardContent>
-              </Card>
-
-              <Card
-                className="hover:shadow-lg transition-shadow cursor-pointer"
-                onClick={() => navigate("/alerts")}
-              >
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <div
-                      className={`w-12 h-12 ${stats.email_alerts_enabled ? "bg-green-500/20" : "bg-gray-500/20"} rounded-lg flex items-center justify-center`}
-                    >
-                      <Bell
-                        className={`w-6 h-6 ${stats.email_alerts_enabled ? "text-green-500" : "text-gray-500"}`}
-                      />
-                    </div>
-                    <Badge
-                      variant={
-                        stats.email_alerts_enabled ? "default" : "outline"
-                      }
-                      className="text-xs"
-                    >
-                      {stats.email_alerts_enabled ? "Active" : "Inactive"}
-                    </Badge>
-                  </div>
-                  <h3 className="text-sm font-medium text-muted-foreground">
-                    Email Alerts
-                  </h3>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {stats.email_alerts_enabled
-                      ? "Receiving notifications"
-                      : "Configure alerts"}
-                  </p>
                 </CardContent>
               </Card>
             </div>

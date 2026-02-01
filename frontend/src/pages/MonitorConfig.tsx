@@ -35,10 +35,7 @@ const SUPPORTED_NETWORKS = [
 ];
 
 const NOTIFICATION_METHODS = [
-  { id: "email", name: "Email" },
   { id: "telegram", name: "Telegram" },
-  { id: "discord", name: "Discord" },
-  { id: "slack", name: "Slack" },
   { id: "webhook", name: "Webhook" },
 ];
 
@@ -53,16 +50,8 @@ const ALERT_TYPES = [
 interface NotificationConfig {
   method: string;
   enabled: boolean;
-  // For email
-  email?: string;
-  // For telegram
-  telegramBotApiKey?: string;
   telegramChatId?: string;
-  // For discord, slack, webhook
   webhookUrl?: string;
-  // For discord
-  serverName?: string;
-  channelName?: string;
 }
 
 const MonitorConfig = () => {
@@ -171,81 +160,95 @@ const MonitorConfig = () => {
         throw new Error("Monitor not found");
       }
       
+      // Parse settings JSON string
+      const settings = typeof data.settings === 'string' 
+        ? JSON.parse(data.settings) 
+        : data.settings;
+      
       // Set the basic monitor data
       setAddress(data.safe_address);
-      setAlias(data.settings?.alias || "");
-      setNetwork(data.settings?.network || "ethereum");
-      setNotificationsEnabled(data.settings?.notify || false);
-      setAlertType(data.settings?.alertType || "suspicious");
-      setManagementOnly(data.settings?.managementOnly || false);
+      setAlias(settings?.alias || "");
+      setNetwork(data.network || "ethereum");
+      // Enable notifications if there are notification channels configured
+      const hasNotificationChannels = settings?.notification_channels && settings.notification_channels.length > 0;
+      setNotificationsEnabled(settings?.notify || hasNotificationChannels || false);
+      setAlertType(settings?.alertType || "suspicious");
+      setManagementOnly(settings?.managementOnly || false);
       
       // Create fresh notification configurations
       const updatedNotifications = NOTIFICATION_METHODS.map(method => ({
         method: method.id,
         enabled: false,
         email: '',
-        telegramBotApiKey: '',
         telegramChatId: '',
         webhookUrl: '',
         serverName: '',
         channelName: ''
       }));
       
-      // Handle different notification formats
-      if (data.settings?.notifications && Array.isArray(data.settings.notifications)) {
-        // Handle new multi-notification format
-        data.settings.notifications.forEach(notification => {
+      // Handle new backend format (notification_channels with snake_case)
+      if (settings?.notification_channels && Array.isArray(settings.notification_channels)) {
+        console.log('[MonitorConfig] Loading notification_channels:', settings.notification_channels);
+        settings.notification_channels.forEach((channel: any) => {
+          if (channel.type === "telegram") {
+            const notifConfig = updatedNotifications.find(n => n.method === "telegram");
+            if (notifConfig) {
+              notifConfig.enabled = true;
+              notifConfig.telegramChatId = channel.chat_id || '';
+              console.log('[MonitorConfig] Set telegram notification:', notifConfig);
+            }
+          } else if (channel.type === "webhook") {
+            const webhookType = channel.webhook_type;
+            let method = "webhook";
+            if (webhookType === "discord") method = "discord";
+            else if (webhookType === "slack") method = "slack";
+            
+            const notifConfig = updatedNotifications.find(n => n.method === method);
+            if (notifConfig) {
+              notifConfig.enabled = true;
+              notifConfig.webhookUrl = channel.url || '';
+            }
+          }
+        });
+      }
+      // Handle old frontend format (notifications with camelCase) for backward compatibility
+      else if (settings?.notifications && Array.isArray(settings.notifications)) {
+        settings.notifications.forEach(notification => {
           const notifConfig = updatedNotifications.find(n => n.method === notification.method);
           if (notifConfig) {
             notifConfig.enabled = true;
             
             // Set specific fields based on notification type
             switch (notification.method) {
-              case "email":
-                notifConfig.email = notification.email;
-                break;
               case "telegram":
-                notifConfig.telegramBotApiKey = notification.botApiKey;
                 notifConfig.telegramChatId = notification.chatId;
                 break;
-              case "discord":
-                notifConfig.webhookUrl = notification.webhookUrl;
-                notifConfig.serverName = notification.serverName;
-                notifConfig.channelName = notification.channelName;
-                break;
-              case "slack":
               case "webhook":
                 notifConfig.webhookUrl = notification.webhookUrl;
                 break;
             }
           }
         });
-      } else if (data.settings?.notificationMethod) {
+      } else if (settings?.notificationMethod) {
         // Handle legacy single notification format for backward compatibility
-        const method = data.settings.notificationMethod;
-        const target = data.settings.notificationTarget;
+        const method = settings.notificationMethod;
+        const target = settings.notificationTarget;
         
         const notifConfig = updatedNotifications.find(n => n.method === method);
         if (notifConfig) {
           notifConfig.enabled = true;
           
           switch (method) {
-            case "email":
-              notifConfig.email = target;
-              break;
             case "telegram":
-              // Can't reliably split legacy telegram target, use empty values
-              notifConfig.telegramBotApiKey = "";
-              notifConfig.telegramChatId = "";
+              notifConfig.telegramChatId = target || "";
               break;
-            case "discord":
-            case "slack":
             case "webhook":
               notifConfig.webhookUrl = target;
               break;
           }
         }
       }
+      console.log('[MonitorConfig] Final notifications state:', updatedNotifications);
       
       // Set notifications and finish loading
       setNotifications(updatedNotifications);
@@ -262,154 +265,7 @@ const MonitorConfig = () => {
   }
 
   // Function to open Discord OAuth popup
-  const connectDiscord = () => {
-    if (!id) return;
-    
-    // Open popup window for Discord OAuth
-    const width = 600;
-    const height = 800;
-    const left = window.screenX + (window.outerWidth - width) / 2;
-    const top = window.screenY + (window.outerHeight - height) / 2;
-    
-    // Use the Rust backend URL
-    const backendUrl = "http://localhost:7111";
-    
-    window.open(
-      `${backendUrl}/api/discord/oauth/start?monitorId=${id}`,
-      'discord-oauth',
-      `width=${width},height=${height},left=${left},top=${top}`
-    );
-    
-    // Listen for message from popup when complete
-    window.addEventListener('message', (event) => {
-      if (event.data === 'discord-webhook-success') {
-        // Reload the current monitor data
-        if (id && user) {
-          fetchMonitor();
-        }
-        toast({
-          title: "Discord Connected",
-          description: "Discord webhook has been successfully connected",
-        });
-      }
-    }, { once: true }); // Only listen once
-  };
-
-  const disconnectDiscord = async () => {
-    if (!id || !user) {
-      toast({
-        title: "Error",
-        description: "Missing required information to update monitor",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    setIsSubmitting(true);
-    
-    try {
-      // Find the Discord notification
-      const discordNotification = notifications.find(n => n.method === "discord");
-      const webhookUrl = discordNotification?.webhookUrl;
-      
-      if (webhookUrl) {
-        // First, delete the webhook from Discord's servers
-        try {
-          const response = await fetch(webhookUrl, {
-            method: 'DELETE',
-          });
-          
-          if (!response.ok) {
-            console.warn('Unable to delete webhook from Discord servers', response.status);
-            // Continue with the process even if Discord API call fails
-            // as we still want to remove it from our database
-          }
-        } catch (discordError) {
-          console.warn('Error deleting Discord webhook:', discordError);
-          // Continue with the process even if the API call fails
-        }
-      }
-      
-      // Update notifications in state - clear webhook URL and related fields
-      const updatedNotifications = notifications.map(notification =>
-        notification.method === "discord"
-          ? { ...notification, webhookUrl: "", serverName: "", channelName: "" }
-          : notification
-      );
-      
-      setNotifications(updatedNotifications);
-      
-      // Process enabled notifications for storage
-      const processedNotifications = updatedNotifications
-        .filter(n => n.enabled)
-        .map(notification => {
-          const result: Record<string, any> = { method: notification.method };
-          
-          switch (notification.method) {
-            case "email":
-              result.email = user?.email || notification.email;
-              break;
-            case "telegram":
-              result.botApiKey = notification.telegramBotApiKey;
-              result.chatId = notification.telegramChatId;
-              break;
-            case "discord":
-              result.webhookUrl = notification.webhookUrl;
-              result.serverName = notification.serverName;
-              result.channelName = notification.channelName;
-              break;
-            case "slack":
-            case "webhook":
-              result.webhookUrl = notification.webhookUrl;
-              break;
-          }
-          
-          return result;
-        });
-      
-      // Create settings object with all configuration
-      const settings = {
-        alias: alias || null,
-        network,
-        active: true,
-        alertType,
-        notify: notificationsEnabled,
-        managementOnly,
-        notifications: processedNotifications
-      };
-      
-      // Update the monitor via Rust API
-      await monitorsApi.update(id, {
-        settings
-      });
-    
-      toast({
-        title: "Discord Disconnected",
-        description: "Discord webhook has been completely removed",
-      });
-    } catch (error: any) {
-      console.error('Error disconnecting Discord webhook:', error);
-      toast({
-        title: "Error Disconnecting Discord",
-        description: error.message || "There was a problem disconnecting Discord webhook",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
   useEffect(() => {
-    // Initialize notification methods once
-    setNotifications(
-      NOTIFICATION_METHODS.map(method => ({
-        method: method.id,
-        enabled: false,
-        serverName: '',
-        channelName: ''
-      }))
-    );
-    
     // Fetch monitor data if ID is available
     if (!id) {
       navigate("/monitor");
@@ -418,21 +274,6 @@ const MonitorConfig = () => {
     
     fetchMonitor();
   }, [id, navigate, toast, user]);
-  
-  // Check for discord=success in URL params and show toast on initial load
-  useEffect(() => {
-    if (searchParams.get('discord') === 'success') {
-      toast({
-        title: "Discord Connected",
-        description: "Discord webhook has been successfully connected",
-      });
-      
-      // Clear the parameter from URL to prevent showing the toast on refresh
-      const newParams = new URLSearchParams(searchParams);
-      newParams.delete('discord');
-      navigate({ search: newParams.toString() }, { replace: true });
-    }
-  }, [searchParams, toast, navigate]);
   
   const toggleNotificationMethod = (methodId: string, enabled: boolean) => {
     setNotifications(prevState => 
@@ -470,12 +311,8 @@ const MonitorConfig = () => {
       // Check each enabled notification method has required fields
       const allValid = enabledNotifications.every(notification => {
         switch (notification.method) {
-          case "email":
-            return user?.email || (notification.email && notification.email.includes('@'));
           case "telegram":
-            return notification.telegramBotApiKey && notification.telegramChatId;
-          case "discord":
-          case "slack":
+            return notification.telegramChatId && notification.telegramChatId.length > 0;
           case "webhook":
             return notification.webhookUrl && notification.webhookUrl.startsWith('http');
           default:
@@ -525,43 +362,42 @@ const MonitorConfig = () => {
     setIsSubmitting(true);
     
     try {
-      // Process enabled notifications for storage
-      const processedNotifications = notifications
+      // Process enabled notifications for backend (snake_case format)
+      const notificationChannels = notifications
         .filter(n => n.enabled)
         .map(notification => {
-          const result: Record<string, any> = { method: notification.method };
-          
           switch (notification.method) {
-            case "email":
-              result.email = user?.email || notification.email;
-              break;
             case "telegram":
-              result.botApiKey = notification.telegramBotApiKey;
-              result.chatId = notification.telegramChatId;
-              break;
-            case "discord":
-              result.webhookUrl = notification.webhookUrl;
-              result.serverName = notification.serverName;
-              result.channelName = notification.channelName;
-              break;
-            case "slack":
+              return {
+                type: "telegram",
+                chat_id: notification.telegramChatId
+              };
             case "webhook":
-              result.webhookUrl = notification.webhookUrl;
-              break;
+              return {
+                type: "webhook",
+                url: notification.webhookUrl,
+                webhook_type: "generic"
+              };
+            default:
+              return null;
           }
-          
-          return result;
-        });
+        })
+        .filter(n => n !== null);
       
-        // Create settings object with all configuration
+      // Convert alertType to backend format
+      const notifyAll = alertType === "all";
+      const notifyManagement = alertType === "all" || alertType === "management";
+      
+      // Create settings object with all configuration (using snake_case for Rust backend)
       const settings = {
         alias: alias || null,
         network,
         active: true,
         alertType,
         notify: notificationsEnabled,
-        managementOnly,
-        notifications: processedNotifications
+        notifyAll,
+        notifyManagement,
+        notification_channels: notificationChannels
       };
         
         // Update the monitor via Rust API
@@ -589,40 +425,9 @@ const MonitorConfig = () => {
   
   const renderNotificationFields = (notification: NotificationConfig) => {
     switch (notification.method) {
-      case "email":
-        return (
-          <div className="pl-6 pt-2 space-y-2">
-            {user?.email ? (
-              <div className="flex items-center gap-2">
-                <Input
-                  value={user.email}
-                  readOnly
-                  className="bg-muted"
-                />
-                <p className="text-sm text-muted-foreground">Your account email</p>
-              </div>
-            ) : (
-              <Input
-                value={notification.email || ""}
-                onChange={(e) => updateNotificationField(notification.method, "email", e.target.value)}
-                placeholder="your@email.com"
-              />
-            )}
-          </div>
-        );
-
       case "telegram":
         return (
           <div className="pl-6 pt-2 space-y-2">
-            <div className="space-y-2">
-              <Label htmlFor="telegram-bot-api">Bot API Key</Label>
-              <Input
-                id="telegram-bot-api"
-                value={notification.telegramBotApiKey || ""}
-                onChange={(e) => updateNotificationField(notification.method, "telegramBotApiKey", e.target.value)}
-                placeholder="123456789:ABCDefGhIJklmNoPQRstUvwxYZ"
-              />
-            </div>
             <div className="space-y-2">
               <Label htmlFor="telegram-chat-id">Chat ID</Label>
               <Input
@@ -631,60 +436,26 @@ const MonitorConfig = () => {
                 onChange={(e) => updateNotificationField(notification.method, "telegramChatId", e.target.value)}
                 placeholder="123456789"
               />
+              <p className="text-xs text-muted-foreground">
+                Get your Chat ID from @userinfobot on Telegram
+              </p>
             </div>
-          </div>
-        );
-
-      case "discord":
-        return (
-          <div className="pl-6 pt-2 space-y-2">
-            {notification.webhookUrl ? (
-              <div className="flex flex-col gap-2">
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 bg-muted rounded-md px-3 py-2 text-sm">
-                    {/* {notification.serverName || 'Unknown Server'} */}
-                    {notification.channelName || 'Unknown Channel'}
-                  </div>
-                  <Button 
-                    type="button" 
-                    variant="destructive" 
-                    onClick={disconnectDiscord}
-                  >
-                    Disconnect
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <Button 
-                type="button" 
-                onClick={connectDiscord}
-                className="w-full"
-              >
-                Connect Discord Channel
-              </Button>
-            )}
-          </div>
-        );
-
-      case "slack":
-        return (
-          <div className="pl-6 pt-2 space-y-2">
-            <Input
-              value={notification.webhookUrl || ""}
-              onChange={(e) => updateNotificationField(notification.method, "webhookUrl", e.target.value)}
-              placeholder="https://hooks.slack.com/services/..."
-            />
           </div>
         );
 
       case "webhook":
         return (
           <div className="pl-6 pt-2 space-y-2">
+            <Label htmlFor="webhook-url">Webhook URL</Label>
             <Input
+              id="webhook-url"
               value={notification.webhookUrl || ""}
               onChange={(e) => updateNotificationField(notification.method, "webhookUrl", e.target.value)}
               placeholder="https://your-webhook-url.com"
             />
+            <p className="text-xs text-muted-foreground">
+              Supports Discord, Slack, or any custom webhook endpoint
+            </p>
           </div>
         );
 
@@ -740,6 +511,25 @@ const MonitorConfig = () => {
                 {/* Only show basic monitor info when editing an existing monitor */}
                 {!isNewMonitor && (
                   <>
+                    <div className="space-y-2">
+                      <Label htmlFor="network">Network</Label>
+                      <Select
+                        value={network}
+                        onValueChange={setNetwork}
+                      >
+                        <SelectTrigger id="network">
+                          <SelectValue placeholder="Select network" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {SUPPORTED_NETWORKS.map((net) => (
+                            <SelectItem key={net.id} value={net.id}>
+                              {net.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
                     <AddressInput
                       value={address}
                       onChange={setAddress}
@@ -778,25 +568,6 @@ const MonitorConfig = () => {
                         onChange={(e) => setAlias(e.target.value)}
                         placeholder="Our Treasury Multisignature Wallet"
                       />
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label htmlFor="network">Network</Label>
-                      <Select
-                        value={network}
-                        onValueChange={setNetwork}
-                      >
-                        <SelectTrigger id="network">
-                          <SelectValue placeholder="Select network" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {SUPPORTED_NETWORKS.map((net) => (
-                            <SelectItem key={net.id} value={net.id}>
-                              {net.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
                     </div>
                   </>
                 )}

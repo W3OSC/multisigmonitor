@@ -19,9 +19,7 @@ pub struct Config {
     pub github_redirect_uri: String,
     pub chainalysis_api_key: Option<String>,
     pub infura_api_key: String,
-    pub default_from_email: String,
-    pub mailjet_api_key: Option<String>,
-    pub mailjet_secret_key: Option<String>,
+    pub telegram_bot_token: Option<String>,
     pub cookie_domain: Option<String>,
     pub cookie_secure: bool,
 }
@@ -105,11 +103,9 @@ impl Config {
         let github_redirect_uri = Self::require_var("GITHUB_REDIRECT_URI")?;
 
         let infura_api_key = Self::require_var("INFURA_API_KEY")?;
-        let default_from_email = Self::require_var("DEFAULT_FROM_EMAIL")?;
 
+        let telegram_bot_token = env::var("TELEGRAM_BOT_TOKEN").ok();
         let chainalysis_api_key = env::var("CHAINALYSIS_API_KEY").ok();
-        let mailjet_api_key = env::var("MAILJET_API_KEY").ok();
-        let mailjet_secret_key = env::var("MAILJET_SECRET_KEY").ok();
         let cookie_domain = env::var("COOKIE_DOMAIN").ok();
         
         let cookie_secure = env::var("COOKIE_SECURE")
@@ -133,9 +129,7 @@ impl Config {
             github_redirect_uri,
             chainalysis_api_key,
             infura_api_key,
-            default_from_email,
-            mailjet_api_key,
-            mailjet_secret_key,
+            telegram_bot_token,
             cookie_domain,
             cookie_secure,
         })

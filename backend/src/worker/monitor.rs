@@ -18,15 +18,13 @@ pub struct MonitorWorker {
 impl MonitorWorker {
     pub fn new(
         pool: SqlitePool,
-        from_email: String,
-        mailjet_api_key: Option<String>,
-        mailjet_secret_key: Option<String>,
+        telegram_bot_token: Option<String>,
         concurrency: usize,
     ) -> Self {
         Self {
             pool,
             safe_api: SafeApiClient::new(),
-            notification_service: NotificationService::new(from_email, mailjet_api_key, mailjet_secret_key),
+            notification_service: NotificationService::new(telegram_bot_token),
             security_service: SecurityAnalysisService::new(),
             concurrency,
         }
@@ -185,8 +183,11 @@ impl MonitorWorker {
 
             for monitor in monitors {
                 if self.should_notify(&alert_type, &monitor.settings) {
+                    tracing::info!("Sending notification for {:?} transaction {} to monitor {}", alert_type, transaction.safe_tx_hash, monitor.id);
                     self.send_notifications(&alert, &monitor).await?;
                     self.record_notification(&transaction.safe_tx_hash, safe_address, network, &monitor.id, &alert_type).await?;
+                } else {
+                    tracing::debug!("Skipping notification for {:?} transaction {} (monitor {} settings)", alert_type, transaction.safe_tx_hash, monitor.id);
                 }
             }
         }
@@ -509,7 +510,7 @@ impl MonitorWorker {
     }
 
     fn parse_notification_channels(&self, settings: &serde_json::Value) -> Result<Vec<NotificationChannel>, Box<dyn std::error::Error>> {
-        let channels_value = settings.get("notificationChannels")
+        let channels_value = settings.get("notification_channels")
             .ok_or("No notification channels configured")?;
 
         let channels: Vec<NotificationChannel> = serde_json::from_value(channels_value.clone())?;

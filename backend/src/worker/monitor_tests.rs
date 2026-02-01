@@ -34,7 +34,7 @@ fn create_test_transaction() -> SafeTransaction {
 #[tokio::test]
 async fn test_determine_alert_type_suspicious() {
     let pool = sqlx::SqlitePool::connect(":memory:").await.unwrap();
-    let worker = MonitorWorker::new(pool, "test@example.com".to_string(), None, None, 10);
+    let worker = MonitorWorker::new(pool, None, 10);
     let tx = create_test_transaction();
     
     let alert_type = worker.determine_alert_type(&RiskLevel::Critical, &tx);
@@ -47,7 +47,7 @@ async fn test_determine_alert_type_suspicious() {
 #[tokio::test]
 async fn test_determine_alert_type_management() {
     let pool = sqlx::SqlitePool::connect(":memory:").await.unwrap();
-    let worker = MonitorWorker::new(pool, "test@example.com".to_string(), None, None, 10);
+    let worker = MonitorWorker::new(pool, None, 10);
     
     let management_methods = vec![
         "addOwnerWithThreshold",
@@ -80,7 +80,7 @@ async fn test_determine_alert_type_management() {
 #[tokio::test]
 async fn test_determine_alert_type_normal() {
     let pool = sqlx::SqlitePool::connect(":memory:").await.unwrap();
-    let worker = MonitorWorker::new(pool, "test@example.com".to_string(), None, None, 10);
+    let worker = MonitorWorker::new(pool, None, 10);
     let tx = create_test_transaction();
     
     let alert_type = worker.determine_alert_type(&RiskLevel::Low, &tx);
@@ -90,7 +90,7 @@ async fn test_determine_alert_type_normal() {
 #[tokio::test]
 async fn test_generate_description_with_decoded_method() {
     let pool = sqlx::SqlitePool::connect(":memory:").await.unwrap();
-    let worker = MonitorWorker::new(pool, "test@example.com".to_string(), None, None, 10);
+    let worker = MonitorWorker::new(pool, None, 10);
     
     let mut tx = create_test_transaction();
     tx.data_decoded = Some(DataDecoded {
@@ -119,7 +119,7 @@ async fn test_generate_description_with_decoded_method() {
 #[tokio::test]
 async fn test_generate_description_value_transfer() {
     let pool = sqlx::SqlitePool::connect(":memory:").await.unwrap();
-    let worker = MonitorWorker::new(pool, "test@example.com".to_string(), None, None, 10);
+    let worker = MonitorWorker::new(pool, None, 10);
     
     let mut tx = create_test_transaction();
     tx.value = Some(Value::String("1000000000000000000".to_string())); // 1 ETH
@@ -172,14 +172,19 @@ fn test_parse_notification_channels() {
     let settings = serde_json::json!({
         "notificationChannels": [
             {
-                "type": "email",
-                "email": "test@example.com"
+                "type": "telegram",
+                "chat_id": "123456"
+            },
+            {
+                "type": "webhook",
+                "url": "https://example.com/webhook",
+                "webhook_type": "discord"
             }
         ]
     });
     
     let channels: Result<Vec<NotificationChannel>, _> = serde_json::from_value(settings["notificationChannels"].clone());
     assert!(channels.is_ok());
-    assert_eq!(channels.unwrap().len(), 1);
+    assert_eq!(channels.unwrap().len(), 2);
 }
 

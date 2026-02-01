@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-pub mod email;
+pub use crate::types::{NotificationChannel, WebhookType};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Alert {
@@ -21,43 +21,14 @@ pub enum AlertType {
     Normal,
 }
 
-#[derive(Debug, Clone, Deserialize)]
-#[serde(tag = "type", rename_all = "lowercase")]
-pub enum NotificationChannel {
-    Email {
-        email: String,
-    },
-    Telegram {
-        bot_api_key: String,
-        chat_id: String,
-    },
-    Webhook {
-        url: String,
-        webhook_type: WebhookType,
-    },
-}
-
-#[derive(Debug, Clone, Deserialize, PartialEq)]
-#[serde(rename_all = "lowercase")]
-pub enum WebhookType {
-    Discord,
-    Slack,
-    Generic,
-}
 
 pub struct NotificationService {
-    from_email: String,
-    mailjet_api_key: Option<String>,
-    mailjet_secret_key: Option<String>,
+    telegram_bot_token: Option<String>,
 }
 
 impl NotificationService {
-    pub fn new(from_email: String, mailjet_api_key: Option<String>, mailjet_secret_key: Option<String>) -> Self {
-        Self {
-            from_email,
-            mailjet_api_key,
-            mailjet_secret_key,
-        }
+    pub fn new(telegram_bot_token: Option<String>) -> Self {
+        Self { telegram_bot_token }
     }
 
     pub async fn send_notification(
@@ -66,68 +37,15 @@ impl NotificationService {
         channel: &NotificationChannel,
     ) -> Result<(), Box<dyn std::error::Error>> {
         match channel {
-            NotificationChannel::Email { email } => {
-                self.send_email(alert, email).await?;
-            }
-            NotificationChannel::Telegram { bot_api_key, chat_id } => {
-                self.send_telegram(alert, bot_api_key, chat_id).await?;
+            NotificationChannel::Telegram { chat_id } => {
+                let bot_token = self.telegram_bot_token.as_ref()
+                    .ok_or("Telegram bot token not configured")?;
+                self.send_telegram(alert, bot_token, chat_id).await?;
             }
             NotificationChannel::Webhook { url, webhook_type } => {
                 self.send_webhook(alert, url, webhook_type).await?;
             }
         }
-        Ok(())
-    }
-
-    async fn send_email(
-        &self,
-        alert: &Alert,
-        to_email: &str,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        let api_key = self.mailjet_api_key.as_ref()
-            .ok_or("MAILJET_API_KEY not configured")?;
-        let secret_key = self.mailjet_secret_key.as_ref()
-            .ok_or("MAILJET_SECRET_KEY not configured")?;
-
-        let subject = match alert.alert_type {
-            AlertType::Suspicious => format!("⚠️ SUSPICIOUS TRANSACTION - {}", alert.network),
-            AlertType::Management => format!("🔧 Safe Configuration Change - {}", alert.network),
-            AlertType::Normal => format!("📝 New Transaction - {}", alert.network),
-        };
-
-        let html_body = email::generate_email_html(alert);
-        let text_body = email::generate_email_text(alert);
-
-        let payload = serde_json::json!({
-            "Messages": [{
-                "From": {
-                    "Email": self.from_email,
-                    "Name": "Multisig Monitor"
-                },
-                "To": [{
-                    "Email": to_email
-                }],
-                "Subject": subject,
-                "TextPart": text_body,
-                "HTMLPart": html_body
-            }]
-        });
-
-        let client = reqwest::Client::new();
-        let response = client
-            .post("https://api.mailjet.com/v3.1/send")
-            .basic_auth(api_key, Some(secret_key))
-            .header("Content-Type", "application/json")
-            .json(&payload)
-            .send()
-            .await?;
-
-        if !response.status().is_success() {
-            let error_text = response.text().await?;
-            return Err(format!("Mailjet API error: {}", error_text).into());
-        }
-
-        tracing::info!("Email sent to {} for transaction {}", to_email, alert.transaction_hash);
         Ok(())
     }
 

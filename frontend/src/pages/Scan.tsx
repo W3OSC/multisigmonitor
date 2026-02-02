@@ -1,5 +1,5 @@
 import { Helmet } from 'react-helmet-async'
-import { Search as SearchIcon, Shield, AlertCircle, Network, Loader2, AlertTriangle, Clock, ExternalLink } from 'lucide-react'
+import { Search as SearchIcon, Shield, AlertCircle, Network, Loader2, AlertTriangle, Clock, ExternalLink, Trash2 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
@@ -16,6 +16,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 
 export default function Scan() {
   const [address, setAddress] = useState('')
@@ -24,6 +34,8 @@ export default function Scan() {
   const [isValidatingSafe, setIsValidatingSafe] = useState(false)
   const [pastScans, setPastScans] = useState<SecurityAnalysisResult[]>([])
   const [loadingScans, setLoadingScans] = useState(false)
+  const [showClearDialog, setShowClearDialog] = useState(false)
+  const [isClearingScans, setIsClearingScans] = useState(false)
   const navigate = useNavigate()
   const { toast } = useToast()
   const { isAuthenticated } = useAuth()
@@ -75,6 +87,28 @@ export default function Scan() {
       setPastScans([])
     } finally {
       setLoadingScans(false)
+    }
+  }
+
+  const handleClearAllScans = async () => {
+    setIsClearingScans(true)
+    try {
+      await securityApi.deleteAllAnalyses()
+      setPastScans([])
+      setShowClearDialog(false)
+      toast({
+        title: 'Success',
+        description: 'All scan history has been cleared',
+      })
+    } catch (error) {
+      console.error('Failed to clear scans:', error)
+      toast({
+        title: 'Error',
+        description: 'Failed to clear scan history',
+        variant: 'destructive',
+      })
+    } finally {
+      setIsClearingScans(false)
     }
   }
 
@@ -255,10 +289,24 @@ export default function Scan() {
           <div className="mt-8 animate-slide-up" style={{ animationDelay: '100ms' }}>
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Clock className="h-5 w-5" />
-                  Recent Scans
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <Clock className="h-5 w-5" />
+                    Recent Scans
+                  </CardTitle>
+                  {pastScans.length > 0 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowClearDialog(true)}
+                      disabled={isClearingScans}
+                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Clear All
+                    </Button>
+                  )}
+                </div>
               </CardHeader>
               <CardContent>
                 {loadingScans ? (
@@ -315,6 +363,34 @@ export default function Scan() {
           </div>
         )}
       </div>
+
+      <AlertDialog open={showClearDialog} onOpenChange={setShowClearDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Clear All Scan History?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete all your past security scans. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isClearingScans}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleClearAllScans}
+              disabled={isClearingScans}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isClearingScans ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Clearing...
+                </>
+              ) : (
+                'Clear All'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

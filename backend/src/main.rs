@@ -10,13 +10,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
-mod api;
-mod config;
-mod error;
-mod middleware;
-mod models;
-mod services;
-mod types;
+use multisigmonitor_backend::{api, config, models, services};
 
 use config::Config;
 use api::AppState;

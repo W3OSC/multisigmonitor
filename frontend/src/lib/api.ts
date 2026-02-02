@@ -2,35 +2,33 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:7111/api'
 
 export interface Monitor {
   id: string;
-  user_id: string;
-  safe_address: string;
+  userId: string;
+  safeAddress: string;
   network: string;
   settings: string;
-  created_at: string;
-  updated_at: string;
-  last_checked_at?: string;
+  createdAt: string;
+  updatedAt: string;
+  lastCheckedAt?: string;
 }
 
 export interface CreateMonitorRequest {
-  safe_address: string;
+  safeAddress: string;
   network: string;
   settings: {
     active: boolean;
-    notification_channels?: NotificationChannel[];
+    notificationChannels?: NotificationChannel[];
   };
 }
 
 export interface NotificationChannel {
-  channel_type: string;
-  enabled: boolean;
-  config: Record<string, unknown>;
+  type: 'telegram' | 'webhook';
+  chat_id?: string;
+  url?: string;
+  webhook_type?: 'discord' | 'slack' | 'generic';
 }
 
 export interface UpdateMonitorRequest {
-  settings: {
-    active: boolean;
-    notification_channels?: NotificationChannel[];
-  };
+  settings: Record<string, any>;
 }
 
 async function fetchWithAuth(url: string, options: RequestInit = {}) {
@@ -44,8 +42,23 @@ async function fetchWithAuth(url: string, options: RequestInit = {}) {
   });
 
   if (!response.ok) {
-    const error = await response.text();
-    throw new Error(error || `HTTP ${response.status}`);
+    let errorMessage = `HTTP ${response.status}`;
+    try {
+      const errorText = await response.text();
+      if (errorText) {
+        try {
+          const errorData = JSON.parse(errorText);
+          if (errorData.error) {
+            errorMessage = errorData.error;
+          }
+        } catch {
+          errorMessage = errorText;
+        }
+      }
+    } catch {
+      // Keep default error message
+    }
+    throw new Error(errorMessage);
   }
 
   if (response.status === 204) {
@@ -87,12 +100,12 @@ export const monitorsApi = {
 
 export interface NotificationRecord {
   id: number;
-  transaction_hash: string;
-  safe_address: string;
+  transactionHash: string;
+  safeAddress: string;
   network: string;
-  monitor_id: string;
-  transaction_type: string;
-  notified_at: string;
+  monitorId: string;
+  transactionType: string;
+  notifiedAt: string;
 }
 
 export const notificationsApi = {
@@ -103,22 +116,22 @@ export const notificationsApi = {
 
 export interface TransactionRecord {
   id: string;
-  monitor_id: string;
-  safe_tx_hash: string;
+  monitorId: string;
+  safeTxHash: string;
   network: string;
-  safe_address: string;
-  to_address: string;
+  safeAddress: string;
+  toAddress: string;
   value?: string;
   data?: string;
   operation?: number;
   nonce: number;
-  is_executed: boolean;
-  submission_date?: string;
-  execution_date?: string;
-  transaction_data?: any;
-  created_at: string;
-  updated_at: string;
-  security_analysis?: {
+  isExecuted: boolean;
+  submissionDate?: string;
+  executionDate?: string;
+  transactionData?: any;
+  createdAt: string;
+  updatedAt: string;
+  securityAnalysis?: {
     id: string;
     isSuspicious: boolean;
     riskLevel: string;
@@ -127,7 +140,7 @@ export interface TransactionRecord {
 }
 
 export interface TransactionListQuery {
-  safe_address?: string;
+  safeAddress?: string;
   network?: string;
   limit?: number;
   offset?: number;
@@ -136,7 +149,7 @@ export interface TransactionListQuery {
 export const transactionsApi = {
   list: async (query?: TransactionListQuery): Promise<TransactionRecord[]> => {
     const params = new URLSearchParams();
-    if (query?.safe_address) params.append('safe_address', query.safe_address);
+    if (query?.safeAddress) params.append('safeAddress', query.safeAddress);
     if (query?.network) params.append('network', query.network);
     if (query?.limit) params.append('limit', query.limit.toString());
     if (query?.offset) params.append('offset', query.offset.toString());
@@ -192,8 +205,22 @@ export const securityApi = {
     return fetchWithAuth(`${API_BASE_URL}/security/analyses/${id}`);
   },
 
-  analyzeSafe: async (safeAddress: string, network: string, assessmentData: any): Promise<any> => {
+  assessSafe: async (request: {
+    safeAddress: string;
+    network: string;
+    safeInfo: any;
+    creationInfo?: any;
+    sanctionsResults?: any;
+    multisigInfo?: any;
+  }): Promise<any> => {
     return fetchWithAuth(`${API_BASE_URL}/security/safe-review`, {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
+  },
+
+  analyzeSafe: async (safeAddress: string, network: string, assessmentData: any): Promise<any> => {
+    return fetchWithAuth(`${API_BASE_URL}/security/safe-review-legacy`, {
       method: 'POST',
       body: JSON.stringify({
         safeAddress,
@@ -219,11 +246,11 @@ export const securityApi = {
 export interface ApiKey {
   id: string;
   name: string;
-  key_prefix: string;
-  created_at: string;
-  expires_at: string;
-  last_used_at: string | null;
-  is_revoked: boolean;
+  keyPrefix: string;
+  createdAt: string;
+  expiresAt: string;
+  lastUsedAt: string | null;
+  isRevoked: boolean;
 }
 
 export interface CreateApiKeyRequest {
@@ -234,9 +261,9 @@ export interface CreateApiKeyResponse {
   id: string;
   name: string;
   key: string;
-  key_prefix: string;
-  created_at: string;
-  expires_at: string;
+  keyPrefix: string;
+  createdAt: string;
+  expiresAt: string;
 }
 
 export const apiKeysApi = {
@@ -271,11 +298,11 @@ function getChainId(network: string): number {
 }
 
 export interface DashboardStats {
-  active_monitors: number;
-  total_transactions: number;
-  suspicious_transactions: number;
-  recent_alerts: number;
-  monitored_networks: string[];
+  activeMonitors: number;
+  totalTransactions: number;
+  suspiciousTransactions: number;
+  recentAlerts: number;
+  monitoredNetworks: string[];
 }
 
 export const dashboardApi = {

@@ -9,6 +9,7 @@ use sqlx::FromRow;
 use super::AppState;
 
 #[derive(Debug, Serialize, Deserialize, FromRow)]
+#[serde(rename_all = "camelCase")]
 pub struct NotificationRecord {
     pub id: i64,
     pub transaction_hash: String,

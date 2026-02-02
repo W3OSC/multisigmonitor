@@ -44,6 +44,7 @@ urlencoding = "2.1"
 rand = "0.8"
 bs58 = "0.5"
 sha2 = "0.10"
+regex = "1.10"
 
 [profile.release]
 opt-level = 3

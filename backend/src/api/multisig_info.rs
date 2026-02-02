@@ -21,6 +21,7 @@ pub struct MultisigInfoRequest {
 }
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct MultisigInfoResponse {
     pub creator: Option<String>,
     pub proxy: Option<String>,

@@ -10,6 +10,7 @@ use utoipa::ToSchema;
 use super::AppState;
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct TransactionRecord {
     pub id: String,
     pub monitor_id: String,
@@ -72,6 +73,7 @@ struct TransactionRow {
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct TransactionListQuery {
     pub safe_address: Option<String>,
     pub network: Option<String>,

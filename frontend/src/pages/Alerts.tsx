@@ -67,8 +67,15 @@ export default function Alerts() {
               ? JSON.parse(monitor.settings) 
               : monitor.settings
             
-            // Check new format (notification_channels)
-            if (settings?.notification_channels && Array.isArray(settings.notification_channels)) {
+            // Check camelCase format (notificationChannels)
+            if (settings?.notificationChannels && Array.isArray(settings.notificationChannels)) {
+              settings.notificationChannels.forEach((channel: any) => {
+                if (channel.type === 'telegram') telegramFound = true
+                if (channel.type === 'webhook') webhookFound = true
+              })
+            }
+            // Check snake_case format (notification_channels) for backwards compatibility
+            else if (settings?.notification_channels && Array.isArray(settings.notification_channels)) {
               settings.notification_channels.forEach((channel: any) => {
                 if (channel.type === 'telegram') telegramFound = true
                 if (channel.type === 'webhook') webhookFound = true
@@ -217,7 +224,7 @@ export default function Alerts() {
                           >
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-medium truncate">
-                                {settings?.alias || `${monitor.safe_address.slice(0, 6)}...${monitor.safe_address.slice(-4)}`}
+                                {settings?.alias || `${monitor.safeAddress.slice(0, 6)}...${monitor.safeAddress.slice(-4)}`}
                               </p>
                               <p className="text-xs text-muted-foreground capitalize">{monitor.network}</p>
                             </div>
@@ -322,7 +329,7 @@ export default function Alerts() {
                           >
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-medium truncate">
-                                {settings?.alias || `${monitor.safe_address.slice(0, 6)}...${monitor.safe_address.slice(-4)}`}
+                                {settings?.alias || `${monitor.safeAddress.slice(0, 6)}...${monitor.safeAddress.slice(-4)}`}
                               </p>
                               <p className="text-xs text-muted-foreground capitalize">{monitor.network}</p>
                             </div>
@@ -405,7 +412,7 @@ export default function Alerts() {
                           </div>
                           
                           <p className="text-sm mt-1">
-                            {notification.safe_address.slice(0, 6)}...{notification.safe_address.slice(-4)} on {notification.network}
+                            {notification.safeAddress.slice(0, 6)}...{notification.safeAddress.slice(-4)} on {notification.network}
                           </p>
                           
                           <a

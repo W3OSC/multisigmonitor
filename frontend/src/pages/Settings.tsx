@@ -255,7 +255,7 @@ export default function Settings() {
                             )}
                           </CardTitle>
                           <CardDescription className="text-xs mt-1">
-                            Created {getKeyAge(key.created_at)}
+                            Created {getKeyAge(key.createdAt)}
                             {key.last_used_at && ` • Last used ${getKeyAge(key.last_used_at)}`}
                           </CardDescription>
                         </div>
@@ -430,7 +430,7 @@ export default function Settings() {
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between items-center p-2 bg-secondary/30 rounded">
                   <span className="text-muted-foreground">Created:</span>
-                  <span className="font-medium">{new Date(createdKey.created_at).toLocaleDateString()}</span>
+                  <span className="font-medium">{new Date(createdKey.createdAt).toLocaleDateString()}</span>
                 </div>
                 <div className="flex justify-between items-center p-2 bg-secondary/30 rounded">
                   <span className="text-muted-foreground">Expires:</span>

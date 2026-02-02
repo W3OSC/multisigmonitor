@@ -5,6 +5,7 @@ use crate::api::AppState;
 use crate::error::AppError;
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DashboardStats {
     pub active_monitors: i64,
     pub total_transactions: i64,

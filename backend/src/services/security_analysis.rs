@@ -1,27 +1,9 @@
 use crate::models::security_analysis::*;
 use crate::services::hash_verification;
+use crate::constants::SafeAddressRegistry;
 use std::collections::HashMap;
 
 const ZERO_ADDRESS: &str = "0x0000000000000000000000000000000000000000";
-
-lazy_static::lazy_static! {
-    static ref TRUSTED_DELEGATE_CALL_ADDRESSES: HashMap<&'static str, &'static str> = {
-        let mut m = HashMap::new();
-        m.insert("0x40A2aCCbd92BCA938b02010E17A5b8929b49130D", "MultiSendCallOnly v1.3.0 (canonical)");
-        m.insert("0xA1dabEF33b3B82c7814B6D82A79e50F4AC44102B", "MultiSendCallOnly v1.3.0 (eip155)");
-        m.insert("0xf220D3b4DFb23C4ade8C88E526C1353AbAcbC38F", "MultiSendCallOnly v1.3.0 (zksync)");
-        m.insert("0x9641d764fc13c8B624c04430C7356C1C7C8102e2", "MultiSendCallOnly v1.4.1 (canonical)");
-        m.insert("0x0408EF011960d02349d50286D20531229BCef773", "MultiSendCallOnly v1.4.1 (zksync)");
-        m.insert("0x526643F69b81B008F46d95CD5ced5eC0edFFDaC6", "SafeMigration v1.4.1 (canonical)");
-        m.insert("0x817756C6c555A94BCEE39eB5a102AbC1678b09A7", "SafeMigration v1.4.1 (zksync)");
-        m.insert("0xA65387F16B013cf2Af4605Ad8aA5ec25a2cbA3a2", "SignMessageLib v1.3.0 (canonical)");
-        m.insert("0x98FFBBF51bb33A056B08ddf711f289936AafF717", "SignMessageLib v1.3.0 (eip155)");
-        m.insert("0x357147caf9C0cCa67DfA0CF5369318d8193c8407", "SignMessageLib v1.3.0 (zksync)");
-        m.insert("0xd53cd0aB83D845Ac265BE939c57F53AD838012c9", "SignMessageLib v1.4.1 (canonical)");
-        m.insert("0xAca1ec0a1A575CDCCF1DC3d5d296202Eb6061888", "SignMessageLib v1.4.1 (zksync)");
-        m
-    };
-}
 
 pub struct SecurityAnalysisService;
 
@@ -194,9 +176,9 @@ impl SecurityAnalysisService {
         let to_address = &transaction.to;
 
         if operation == 1 {
-            let trusted_address = TRUSTED_DELEGATE_CALL_ADDRESSES.get(to_address.as_str());
+            let trusted_address = SafeAddressRegistry::is_trusted_delegate_call_target(to_address);
 
-            if let Some(&trusted_name) = trusted_address {
+            if let Some(trusted_name) = trusted_address {
                 analysis.details.push(AnalysisDetail {
                     r#type: "trusted_delegate_call".to_string(),
                     severity: "low".to_string(),
@@ -225,9 +207,9 @@ impl SecurityAnalysisService {
         analysis.call_type = Some(CallType {
             is_call: operation == 0,
             is_delegate_call: operation == 1,
-            is_trusted_delegate: operation == 1 && TRUSTED_DELEGATE_CALL_ADDRESSES.contains_key(to_address.as_str()),
+            is_trusted_delegate: operation == 1 && SafeAddressRegistry::is_trusted_delegate_call_target(to_address).is_some(),
             contract_address: to_address.clone(),
-            contract_name: TRUSTED_DELEGATE_CALL_ADDRESSES.get(to_address.as_str()).map(|s| s.to_string()),
+            contract_name: SafeAddressRegistry::is_trusted_delegate_call_target(to_address).map(|s| s.to_string()),
         });
     }
 

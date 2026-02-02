@@ -2,8 +2,10 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
     Extension, Json,
+    response::{IntoResponse, Response},
 };
 use uuid::Uuid;
+use serde_json::json;
 
 use crate::models::monitor::{CreateMonitorRequest, Monitor, MonitorWithLastCheck, UpdateMonitorRequest};
 use crate::api::AppState;
@@ -12,10 +14,15 @@ pub async fn create_monitor(
     State(state): State<AppState>,
     Extension(user_id): Extension<String>,
     Json(payload): Json<CreateMonitorRequest>,
-) -> Result<Json<Monitor>, StatusCode> {
+) -> Result<Json<Monitor>, Response> {
     let id = Uuid::new_v4().to_string();
     let settings_json = serde_json::to_string(&payload.settings)
-        .map_err(|_| StatusCode::BAD_REQUEST)?;
+        .map_err(|_| {
+            (
+                StatusCode::BAD_REQUEST,
+                Json(json!({"error": "Invalid settings format"}))
+            ).into_response()
+        })?;
     let now = chrono::Utc::now().to_rfc3339();
 
     let monitor = sqlx::query_as::<_, Monitor>(
@@ -36,10 +43,16 @@ pub async fn create_monitor(
         let err_msg = e.to_string();
         if err_msg.contains("UNIQUE constraint failed") {
             tracing::warn!("Monitor already exists for safe_address: {}, network: {}", payload.safe_address, payload.network);
-            StatusCode::CONFLICT
+            (
+                StatusCode::CONFLICT,
+                Json(json!({"error": "A monitor already exists for this address on this network"}))
+            ).into_response()
         } else {
             tracing::error!("Failed to create monitor: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": "Failed to create monitor"}))
+            ).into_response()
         }
     })?;
 
@@ -58,7 +71,10 @@ pub async fn create_monitor(
     .await
     .map_err(|e| {
         tracing::error!("Failed to initialize last_checks: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": "Failed to initialize monitor checks"}))
+        ).into_response()
     })?;
 
     Ok(Json(monitor))

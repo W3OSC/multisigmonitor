@@ -13,6 +13,7 @@ pub struct CheckSanctionsRequest {
 }
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SanctionsResponse {
     pub sanctioned: bool,
     pub data: Vec<serde_json::Value>,

@@ -1242,16 +1242,102 @@ const Review = () => {
     setAssessment(null);
 
     try {
-      const assessment = await performSecurityAssessment(addr, selectedNetwork);
-      setAssessment(assessment);
+      const safeApiUrl = getSafeApiUrl(selectedNetwork);
+      if (!safeApiUrl) {
+        throw new Error("Unsupported network");
+      }
+
+      const safeInfoResponse = await fetch(
+        `${safeApiUrl}/api/v1/safes/${addr}/`,
+      );
+      if (!safeInfoResponse.ok) {
+        throw new Error("Failed to fetch Safe information");
+      }
+      const safeInfo = await safeInfoResponse.json();
+
+      let creationInfo = null;
+      try {
+        const creationResponse = await fetch(
+          `${safeApiUrl}/api/v1/safes/${addr}/creation/`,
+        );
+        if (creationResponse.ok) {
+          const creationData = await creationResponse.json();
+          creationInfo = {
+            creator: creationData.creator,
+            transactionHash: creationData.transactionHash,
+            factoryAddress: creationData.factoryAddress,
+          };
+        }
+      } catch (error) {
+        console.warn("Could not fetch creation info:", error);
+      }
+
+      const addressesToCheck: string[] = [addr];
+      if (creationInfo?.creator) {
+        addressesToCheck.push(creationInfo.creator);
+      }
+      if (safeInfo.owners && safeInfo.owners.length > 0) {
+        addressesToCheck.push(...safeInfo.owners);
+      }
+
+      let sanctionsResults = null;
+      try {
+        const uniqueAddresses = [...new Set(addressesToCheck)].filter(
+          (a) => a && a !== "0x0000000000000000000000000000000000000000",
+        );
+        if (uniqueAddresses.length > 0) {
+          const results = await checkMultipleSanctions(uniqueAddresses);
+          sanctionsResults = {
+            overallSanctioned: results.overallSanctioned,
+            sanctionedAddresses: results.sanctionedAddresses,
+            results: results.results,
+          };
+        }
+      } catch (error) {
+        console.warn("Sanctions check failed:", error);
+      }
+
+      let multisigInfo = null;
+      if (creationInfo?.transaction_hash) {
+        try {
+          const multisigInfoResult = await getMultisigInfo(
+            creationInfo.transaction_hash,
+            getBackendNetworkName(selectedNetwork),
+          );
+          if (!multisigInfoResult.error) {
+            multisigInfo = multisigInfoResult;
+          }
+        } catch (error) {
+          console.warn("Multisig info fetch failed:", error);
+        }
+      }
+
+      const assessmentRequest = {
+        safeAddress: addr,
+        network: selectedNetwork,
+        safeInfo: {
+          address: safeInfo.address,
+          nonce: typeof safeInfo.nonce === 'string' ? parseInt(safeInfo.nonce, 10) : safeInfo.nonce,
+          threshold: typeof safeInfo.threshold === 'string' ? parseInt(safeInfo.threshold, 10) : safeInfo.threshold,
+          owners: safeInfo.owners || [],
+          masterCopy: safeInfo.masterCopy,
+          modules: safeInfo.modules,
+          fallbackHandler: safeInfo.fallbackHandler,
+          guard: safeInfo.guard,
+          version: safeInfo.version,
+        },
+        creationInfo: creationInfo,
+        sanctionsResults: sanctionsResults,
+        multisigInfo: multisigInfo,
+      };
 
       if (isAuthenticated) {
-        try {
-          await securityApi.analyzeSafe(addr, selectedNetwork, assessment);
-          console.log("Security analysis saved to database");
-        } catch (saveError) {
-          console.error("Failed to save security analysis:", saveError);
-        }
+        const backendAssessment = await securityApi.assessSafe(assessmentRequest);
+        setAssessment(backendAssessment);
+        console.log("Security assessment completed by backend");
+      } else {
+        const fallbackAssessment = await performSecurityAssessment(addr, selectedNetwork);
+        setAssessment(fallbackAssessment);
       }
     } catch (error) {
       console.error("Error performing security assessment:", error);

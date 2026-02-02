@@ -181,7 +181,7 @@ const NewMonitor = () => {
 
       // Create monitor via Rust API
       const monitor = await monitorsApi.create({
-        safe_address: address,
+        safeAddress: address,
         network: network.toLowerCase(),
         settings
       });
@@ -356,7 +356,7 @@ const NewMonitor = () => {
                       Creating...
                     </>
                   ) : (
-                    "Create Monitor & Configure Notifications"
+                    "Create Monitor"
                   )}
                 </Button>
               </CardFooter>

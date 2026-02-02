@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import axios from "axios";
-import { Header } from "@/components/Header";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -166,11 +165,11 @@ const MonitorConfig = () => {
         : data.settings;
       
       // Set the basic monitor data
-      setAddress(data.safe_address);
+      setAddress(data.safeAddress);
       setAlias(settings?.alias || "");
       setNetwork(data.network || "ethereum");
       // Enable notifications if there are notification channels configured
-      const hasNotificationChannels = settings?.notification_channels && settings.notification_channels.length > 0;
+      const hasNotificationChannels = settings?.notificationChannels && settings.notificationChannels.length > 0;
       setNotificationsEnabled(settings?.notify || hasNotificationChannels || false);
       setAlertType(settings?.alertType || "suspicious");
       setManagementOnly(settings?.managementOnly || false);
@@ -186,8 +185,33 @@ const MonitorConfig = () => {
         channelName: ''
       }));
       
-      // Handle new backend format (notification_channels with snake_case)
-      if (settings?.notification_channels && Array.isArray(settings.notification_channels)) {
+      // Handle camelCase format (notificationChannels)
+      if (settings?.notificationChannels && Array.isArray(settings.notificationChannels)) {
+        console.log('[MonitorConfig] Loading notificationChannels:', settings.notificationChannels);
+        settings.notificationChannels.forEach((channel: any) => {
+          if (channel.type === "telegram") {
+            const notifConfig = updatedNotifications.find(n => n.method === "telegram");
+            if (notifConfig) {
+              notifConfig.enabled = true;
+              notifConfig.telegramChatId = channel.chat_id || '';
+              console.log('[MonitorConfig] Set telegram notification:', notifConfig);
+            }
+          } else if (channel.type === "webhook") {
+            const webhookType = channel.webhook_type;
+            let method = "webhook";
+            if (webhookType === "discord") method = "discord";
+            else if (webhookType === "slack") method = "slack";
+            
+            const notifConfig = updatedNotifications.find(n => n.method === method);
+            if (notifConfig) {
+              notifConfig.enabled = true;
+              notifConfig.webhookUrl = channel.url || '';
+            }
+          }
+        });
+      }
+      // Handle snake_case format (notification_channels) for backwards compatibility
+      else if (settings?.notification_channels && Array.isArray(settings.notification_channels)) {
         console.log('[MonitorConfig] Loading notification_channels:', settings.notification_channels);
         settings.notification_channels.forEach((channel: any) => {
           if (channel.type === "telegram") {
@@ -211,7 +235,7 @@ const MonitorConfig = () => {
           }
         });
       }
-      // Handle old frontend format (notifications with camelCase) for backward compatibility
+      // Handle old frontend format (notifications) for backward compatibility
       else if (settings?.notifications && Array.isArray(settings.notifications)) {
         settings.notifications.forEach(notification => {
           const notifConfig = updatedNotifications.find(n => n.method === notification.method);
@@ -297,7 +321,7 @@ const MonitorConfig = () => {
 
   const isFormValid = () => {
     // Address must be a valid ETH address and confirmed as a supported multisignature wallet (when editing existing monitors)
-    const addressValid = address.match(/^0x[a-fA-F0-9]{40}$/);
+    const addressValid = address && address.match(/^0x[a-fA-F0-9]{40}$/);
     const safeValid = isNewMonitor || isValidSafe === true; // Skip Safe validation for new monitors
     const baseValid = addressValid && network && safeValid;
     
@@ -388,16 +412,12 @@ const MonitorConfig = () => {
       const notifyAll = alertType === "all";
       const notifyManagement = alertType === "all" || alertType === "management";
       
-      // Create settings object with all configuration (using snake_case for Rust backend)
+      // Create settings object matching backend MonitorSettings structure
       const settings = {
-        alias: alias || null,
-        network,
-        active: true,
-        alertType,
-        notify: notificationsEnabled,
+        active: notificationsEnabled,
         notifyAll,
         notifyManagement,
-        notification_channels: notificationChannels
+        notificationChannels: notificationChannels.length > 0 ? notificationChannels : null
       };
         
         // Update the monitor via Rust API
@@ -467,8 +487,6 @@ const MonitorConfig = () => {
   if (isLoading) {
     return (
       <div className="min-h-screen flex flex-col">
-        <Header />
-        
         <main className="flex-1 container py-12 flex flex-col items-center justify-center">
           <div className="animate-spin">
             <Loader2 className="h-8 w-8 text-muted-foreground" />
@@ -481,8 +499,6 @@ const MonitorConfig = () => {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <Header />
-      
       <main className="flex-1 container py-12">
         <div className="max-w-2xl mx-auto">
           <Button

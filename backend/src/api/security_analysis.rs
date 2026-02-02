@@ -10,7 +10,10 @@ use crate::{
     models::{
         security_analysis::*,
     },
-    services::security_analysis::{SecurityAnalysisService, AnalysisOptions},
+    services::{
+        security_analysis::{SecurityAnalysisService, AnalysisOptions},
+        safe_assessment::{SafeAssessmentService, SafeAssessmentRequest},
+    },
     api::AppState,
 };
 
@@ -104,6 +107,62 @@ pub async fn analyze_transaction(
 #[utoipa::path(
     post,
     path = "/api/security/safe-review",
+    request_body = SafeAssessmentRequest,
+    responses(
+        (status = 200, description = "Safe assessment completed successfully", body = SafeAssessmentResponse),
+        (status = 400, description = "Invalid request"),
+        (status = 401, description = "Unauthorized"),
+        (status = 500, description = "Internal server error")
+    ),
+    tag = "security",
+    security(("jwt" = []))
+)]
+pub async fn assess_safe(
+    State(state): State<AppState>,
+    Extension(user_id): Extension<String>,
+    Json(request): Json<SafeAssessmentRequest>,
+) -> Result<impl IntoResponse, StatusCode> {
+    let service = SafeAssessmentService::new();
+    
+    let assessment = service.assess_safe(request);
+
+    let result_id = Uuid::new_v4().to_string();
+    let now = chrono::Utc::now().to_rfc3339();
+
+    let is_suspicious = assessment.overall_risk == "high" || assessment.overall_risk == "critical";
+    
+    let assessment_json = serde_json::to_value(&assessment)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    sqlx::query(
+        r#"
+        INSERT INTO security_analyses 
+        (id, safe_address, network, is_suspicious, risk_level, warnings, details, 
+         assessment, analyzed_at, user_id)
+        VALUES (?, ?, ?, ?, ?, '[]', '{}', ?, ?, ?)
+        "#
+    )
+    .bind(&result_id)
+    .bind(&assessment.safe_address)
+    .bind(&assessment.network)
+    .bind(is_suspicious)
+    .bind(&assessment.overall_risk)
+    .bind(assessment_json.to_string())
+    .bind(&now)
+    .bind(&user_id)
+    .execute(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to store safe assessment: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    Ok(Json(assessment))
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/security/safe-review-legacy",
     request_body = serde_json::Value,
     responses(
         (status = 200, description = "Safe review saved successfully", body = SecurityAnalysisResult),

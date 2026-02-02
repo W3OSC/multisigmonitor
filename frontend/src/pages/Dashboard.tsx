@@ -54,21 +54,21 @@ export default function Dashboard() {
           const progress = currentStep / steps;
 
           setAnimatedStats({
-            monitors: Math.floor(statsData.active_monitors * progress),
-            transactions: Math.floor(statsData.total_transactions * progress),
+            monitors: Math.floor(statsData.activeMonitors * progress),
+            transactions: Math.floor(statsData.totalTransactions * progress),
             suspicious: Math.floor(
-              statsData.suspicious_transactions * progress,
+              statsData.suspiciousTransactions * progress,
             ),
-            alerts: Math.floor(statsData.recent_alerts * progress),
+            alerts: Math.floor(statsData.recentAlerts * progress),
           });
 
           if (currentStep >= steps) {
             clearInterval(timer);
             setAnimatedStats({
-              monitors: statsData.active_monitors,
-              transactions: statsData.total_transactions,
-              suspicious: statsData.suspicious_transactions,
-              alerts: statsData.recent_alerts,
+              monitors: statsData.activeMonitors,
+              transactions: statsData.totalTransactions,
+              suspicious: statsData.suspiciousTransactions,
+              alerts: statsData.recentAlerts,
             });
           }
         }, interval);
@@ -83,11 +83,11 @@ export default function Dashboard() {
   }, [user]);
 
   const safeWallets = stats
-    ? stats.total_transactions - stats.suspicious_transactions
+    ? stats.totalTransactions - stats.suspiciousTransactions
     : 0;
   const securityScore =
-    stats && stats.total_transactions > 0
-      ? Math.round((safeWallets / stats.total_transactions) * 100)
+    stats && stats.totalTransactions > 0
+      ? Math.round((safeWallets / stats.totalTransactions) * 100)
       : 100;
 
   const getSecurityLevel = (score: number) => {
@@ -340,14 +340,14 @@ export default function Dashboard() {
                       <div
                         className="bg-gradient-to-r from-green-500 to-emerald-500 h-1.5 rounded-full transition-all duration-1000"
                         style={{
-                          width: `${stats.total_transactions > 0 ? (safeWallets / stats.total_transactions) * 100 : 0}%`,
+                          width: `${stats.totalTransactions > 0 ? (safeWallets / stats.totalTransactions) * 100 : 0}%`,
                         }}
                       />
                     </div>
                     <span className="text-xs font-medium text-green-600">
-                      {stats.total_transactions > 0
+                      {stats.totalTransactions > 0
                         ? Math.round(
-                            (safeWallets / stats.total_transactions) * 100,
+                            (safeWallets / stats.totalTransactions) * 100,
                           )
                         : 0}
                       %
@@ -363,14 +363,14 @@ export default function Dashboard() {
                       <Network className="w-6 h-6 text-white" />
                     </div>
                     <span className="text-3xl font-bold text-purple-600">
-                      {stats.monitored_networks.length}
+                      {stats.monitoredNetworks.length}
                     </span>
                   </div>
                   <h3 className="text-sm font-bold text-foreground mb-1">
                     Networks Monitored
                   </h3>
                   <div className="flex flex-wrap gap-1.5 mt-3">
-                    {stats.monitored_networks.slice(0, 3).map((network) => (
+                    {stats.monitoredNetworks.slice(0, 3).map((network) => (
                       <Badge
                         key={network}
                         className="bg-purple-500/10 text-purple-600 border-purple-500/20 text-xs"
@@ -378,9 +378,9 @@ export default function Dashboard() {
                         {network}
                       </Badge>
                     ))}
-                    {stats.monitored_networks.length > 3 && (
+                    {stats.monitoredNetworks.length > 3 && (
                       <Badge className="bg-purple-500/10 text-purple-600 border-purple-500/20 text-xs">
-                        +{stats.monitored_networks.length - 3} more
+                        +{stats.monitoredNetworks.length - 3} more
                       </Badge>
                     )}
                   </div>
@@ -413,14 +413,14 @@ export default function Dashboard() {
                       <Network className="w-6 h-6 text-purple-500" />
                     </div>
                     <span className="text-3xl font-bold text-foreground">
-                      {stats.monitored_networks.length}
+                      {stats.monitoredNetworks.length}
                     </span>
                   </div>
                   <h3 className="text-sm font-medium text-muted-foreground">
                     Networks Monitored
                   </h3>
                   <div className="flex flex-wrap gap-1 mt-2">
-                    {stats.monitored_networks.slice(0, 3).map((network) => (
+                    {stats.monitoredNetworks.slice(0, 3).map((network) => (
                       <Badge
                         key={network}
                         variant="outline"
@@ -429,9 +429,9 @@ export default function Dashboard() {
                         {network}
                       </Badge>
                     ))}
-                    {stats.monitored_networks.length > 3 && (
+                    {stats.monitoredNetworks.length > 3 && (
                       <Badge variant="outline" className="text-xs">
-                        +{stats.monitored_networks.length - 3}
+                        +{stats.monitoredNetworks.length - 3} more
                       </Badge>
                     )}
                   </div>

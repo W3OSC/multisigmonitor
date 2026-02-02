@@ -3,6 +3,7 @@ use sqlx::FromRow;
 use utoipa::ToSchema;
 
 #[derive(Debug, Clone, FromRow, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct User {
     pub id: String,
     pub email: String,
@@ -19,6 +20,7 @@ pub struct User {
 }
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct UserResponse {
     pub id: String,
     pub email: String,

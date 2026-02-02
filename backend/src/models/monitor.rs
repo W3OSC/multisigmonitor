@@ -5,6 +5,7 @@ use utoipa::ToSchema;
 pub use crate::types::NotificationChannel;
 
 #[derive(Debug, Clone, FromRow, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct Monitor {
     pub id: String,
     pub user_id: String,
@@ -16,6 +17,7 @@ pub struct Monitor {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct MonitorWithLastCheck {
     #[serde(flatten)]
     pub monitor: Monitor,
@@ -23,6 +25,7 @@ pub struct MonitorWithLastCheck {
 }
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct MonitorSettings {
     pub active: bool,
     pub email_notifications: Option<bool>,
@@ -34,6 +37,7 @@ pub struct MonitorSettings {
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct CreateMonitorRequest {
     pub safe_address: String,
     pub network: String,
@@ -41,6 +45,7 @@ pub struct CreateMonitorRequest {
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct UpdateMonitorRequest {
     pub settings: MonitorSettings,
 }

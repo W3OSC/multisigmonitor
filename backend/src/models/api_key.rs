@@ -3,6 +3,7 @@ use sqlx::FromRow;
 use utoipa::ToSchema;
 
 #[derive(Debug, Clone, FromRow, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct ApiKey {
     pub id: String,
     pub user_id: String,
@@ -17,6 +18,7 @@ pub struct ApiKey {
 }
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct ApiKeyResponse {
     pub id: String,
     pub name: String,
@@ -28,11 +30,13 @@ pub struct ApiKeyResponse {
 }
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct CreateApiKeyRequest {
     pub name: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct CreateApiKeyResponse {
     pub id: String,
     pub name: String,

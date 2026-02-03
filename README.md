@@ -10,19 +10,22 @@ Monitoring management transactions means you can detect and respond to:
 - Maintain auditable records of all governance changes for compliance or transparency requirements 
 
 
-## alert modes
-
-- all txs (default)
-- management + suspicious only
-- suspicious only
-
 ## why
 
-governance attacks happen at the config layer. by the time you see a malicious transfer, it's too late. monitoring owner additions, threshold changes, and module enables gives you lead time to respond.
+Governance attacks happen at the config layer. by the time you see a malicious transfer, it's too late. monitoring owner additions, threshold changes, and module enables gives you lead time to respond.
 
-## stack
+## setup
 
-rust backend, react frontend. email/telegram/discord/slack/webhook notifications.
+Until the monitoring system is fully built, you can run the analysis engine locally to assess the risk of your Safe's current configuration:
+
+```
+git clone https://github.com/W3OSC/multisigmonitor
+make setup
+make start
+```
+
+You then should be able to access the local dashboard at http://localhost:7110
+
 
 ## Contributors
 

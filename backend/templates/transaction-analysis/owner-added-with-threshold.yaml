@@ -1,0 +1,19 @@
+id: owner-added-with-threshold
+name: Owner Added with Threshold Change Detection
+type: transaction-analysis
+severity: critical
+priority: P0
+
+conditions:
+  - type: method-match
+    field: dataDecoded.method
+    methods:
+      - addOwnerWithThreshold
+
+output:
+  warning: Owner Added with Threshold Change
+  message: "CRITICAL: New owner added and threshold changed. Double verification required."
+  type: owner_added_with_threshold
+  extra-fields:
+    - dataDecoded.method
+    - dataDecoded.parameters

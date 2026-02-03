@@ -1,0 +1,20 @@
+id: owner-removed
+name: Owner Removal Detection
+type: transaction-analysis
+severity: critical
+priority: P0
+
+conditions:
+  - type: method-match
+    field: dataDecoded.method
+    methods:
+      - removeOwner
+      - RemovedOwner
+
+output:
+  warning: Owner Removed
+  message: "CRITICAL: Owner removed from Safe. This affects Safe control."
+  type: owner_removed
+  extra-fields:
+    - dataDecoded.method
+    - dataDecoded.parameters

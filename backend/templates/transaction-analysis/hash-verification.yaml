@@ -1,0 +1,13 @@
+---
+id: hash-verification
+name: Transaction Hash Verification
+type: transaction-analysis
+description: Verifies that the Safe transaction hash matches the calculated hash
+builtin: verify-transaction-hash
+severity: critical
+enabled: true
+
+output:
+  type: hash_verification
+  warning: Hash Verification Failed
+  message: Transaction hash mismatch detected

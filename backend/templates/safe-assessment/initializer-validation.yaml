@@ -1,0 +1,24 @@
+id: initializer-validation
+name: Initializer Address Validation
+type: safe-assessment
+check-name: initializer_validation
+
+conditions:
+  - type: whitelist-lookup
+    field: multisigInfo.initializer
+    whitelist:
+      "0xbd89a1ce4dde368ffab0ec35506eece0b1ffdc54": "Safe: Initializer 1.4.1"
+      "0x4e1dcf7ad4e460cfd30791ccc4f9c8a4f820ec67": "Safe: Initializer 1.4.1 (Alt)"
+      "0xa6b71e26c5e0845f74c812102ca7114b6a896ab2": "Safe: Initializer 1.3.0"
+      "0x12302fe9c02ff50939baaaaf415fc226c078613c": "Safe: Initializer 1.3.0 (L2)"
+      "0x76e2cfc1f5fa8f6a5b3fc4c8f4788f0116861f9b": "Safe: Initializer 1.1.1"
+      "0x8942595a2dc5181df0465af0d7be08c8f23c93af": "Safe: Initializer (Legacy)"
+    on_match:
+      severity: pass
+      canonical-name: "{{whitelist_name}}"
+      score-modifier: 5
+    on_no_match:
+      severity: high
+      warning: "Unknown initializer - potential manipulation"
+      risk-factor: "HIGH RISK: Non-canonical initializer detected"
+      score-modifier: -15

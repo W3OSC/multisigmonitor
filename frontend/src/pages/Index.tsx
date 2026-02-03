@@ -37,7 +37,7 @@ const Index = () => {
     <div className="min-h-screen flex flex-col">
       <Header />
       
-      <main className="flex-1 container max-w-6xl">
+      <main className="flex-1 container max-w-7xl">
         <div className="py-12 md:py-20">
           <div className="flex flex-col items-center text-center">
             <div className="relative mb-8">

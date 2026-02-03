@@ -1,0 +1,26 @@
+id: factory-validation
+name: Factory Address Validation
+type: safe-assessment
+check-name: factory_validation
+
+conditions:
+  - type: whitelist-lookup
+    field: creationInfo.factoryAddress
+    whitelist:
+      "0x76e2cfc1f5fa8f6a5b3fc4c8f4788f0116861f9b": "Safe: Proxy Factory 1.1.1"
+      "0x50e55af101c777ba7a3d560a2aab3b64d6b2b6a5": "Safe: Proxy Factory 1.3.0+"
+      "0xa6b71e26c5e0845f74c812102ca7114b6a896ab2": "Safe: Proxy Factory 1.3.0"
+      "0x4e1dcf7ad4e460cfd30791ccc4f9c8a4f820ec67": "Safe: Proxy Factory 1.4.1"
+      "0xc22834581ebc8527d974f8a1c97e1bea4ef910bc": "Safe: Proxy Factory 1.4.1+"
+      "0x12302fe9c02ff50939baaaaf415fc226c078613c": "Safe: Proxy Factory 1.3.0 (L2)"
+      "0x0000000000ffe8b47b3e2130213b802212439497": "Safe: Proxy Factory (Legacy)"
+      "0x8942595a2dc5181df0465af0d7be08c8f23c93af": "Safe: Proxy Factory 1.1.1 (Legacy)"
+    on_match:
+      severity: pass
+      canonical-name: "{{whitelist_name}}"
+      score-modifier: 5
+    on_no_match:
+      severity: high
+      warning: "Unknown proxy factory implementation"
+      risk-factor: "Non-canonical proxy factory detected"
+      score-modifier: -15

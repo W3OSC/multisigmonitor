@@ -1,0 +1,20 @@
+id: fallback-handler-changed
+name: Fallback Handler Change Detection
+type: transaction-analysis
+severity: critical
+priority: P0
+
+conditions:
+  - type: method-match
+    field: dataDecoded.method
+    methods:
+      - setFallbackHandler
+      - ChangedFallbackHandler
+
+output:
+  warning: Fallback Handler Changed
+  message: "CRITICAL: Fallback handler changed. This affects how Safe handles unknown calls."
+  type: fallback_handler_changed
+  extra-fields:
+    - dataDecoded.method
+    - dataDecoded.parameters

@@ -1,0 +1,20 @@
+id: owner-added
+name: Owner Addition Detection
+type: transaction-analysis
+severity: critical
+priority: P0
+
+conditions:
+  - type: method-match
+    field: dataDecoded.method
+    methods:
+      - addOwner
+      - AddedOwner
+
+output:
+  warning: Owner Added
+  message: "CRITICAL: New owner added to Safe. Verify this action is authorized."
+  type: owner_added
+  extra-fields:
+    - dataDecoded.method
+    - dataDecoded.parameters

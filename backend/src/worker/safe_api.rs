@@ -13,6 +13,7 @@ pub struct SafeApiClient {
 struct NetworkConfig {
     tx_service_url: String,
     chain_id: u64,
+    #[allow(dead_code)]
     name: String,
 }
 
@@ -76,42 +77,41 @@ impl SafeApiClient {
         let mut network_configs = HashMap::new();
 
         network_configs.insert("ethereum".to_string(), NetworkConfig {
-            tx_service_url: "https://safe-transaction-mainnet.safe.global".to_string(),
+            tx_service_url: "https://api.safe.global/tx-service/eth".to_string(),
             chain_id: 1,
             name: "Ethereum Mainnet".to_string(),
         });
 
         network_configs.insert("sepolia".to_string(), NetworkConfig {
-            tx_service_url: "https://safe-transaction-sepolia.safe.global".to_string(),
+            tx_service_url: "https://api.safe.global/tx-service/sep".to_string(),
             chain_id: 11155111,
             name: "Sepolia Testnet".to_string(),
         });
 
         network_configs.insert("polygon".to_string(), NetworkConfig {
-            tx_service_url: "https://safe-transaction-polygon.safe.global".to_string(),
+            tx_service_url: "https://api.safe.global/tx-service/pol".to_string(),
             chain_id: 137,
             name: "Polygon".to_string(),
         });
 
         network_configs.insert("arbitrum".to_string(), NetworkConfig {
-            tx_service_url: "https://safe-transaction-arbitrum.safe.global".to_string(),
+            tx_service_url: "https://api.safe.global/tx-service/arb1".to_string(),
             chain_id: 42161,
             name: "Arbitrum".to_string(),
         });
 
         network_configs.insert("optimism".to_string(), NetworkConfig {
-            tx_service_url: "https://safe-transaction-optimism.safe.global".to_string(),
+            tx_service_url: "https://api.safe.global/tx-service/oeth".to_string(),
             chain_id: 10,
             name: "Optimism".to_string(),
         });
 
         network_configs.insert("base".to_string(), NetworkConfig {
-            tx_service_url: "https://safe-transaction-base.safe.global".to_string(),
+            tx_service_url: "https://api.safe.global/tx-service/base".to_string(),
             chain_id: 8453,
             name: "Base".to_string(),
         });
 
-        // Build HTTP client with redirect policy
         let client = Client::builder()
             .redirect(reqwest::redirect::Policy::limited(10))
             .build()

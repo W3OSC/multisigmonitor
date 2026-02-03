@@ -17,19 +17,21 @@ import { Badge } from "@/components/ui/badge";
 import {
   AlertTriangle,
   CheckCircle,
+  ChevronRight,
+  Clock,
+  ExternalLink,
+  Factory,
+  FileCheck,
+  Home,
+  Key,
   Loader2,
+  Network,
+  Settings,
   Shield,
   ShieldAlert,
   ShieldCheck,
   ShieldX,
-  ExternalLink,
   Users,
-  Key,
-  Factory,
-  Settings,
-  Clock,
-  Network,
-  FileCheck,
 } from "lucide-react";
 import {
   Select,
@@ -40,1023 +42,34 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 
-const CANONICAL_PROXY_FACTORIES: { [key: string]: string } = {
-  // Mainnet Safe Proxy Factories
-  "0x76E2cFc1F5Fa8F6a5b3fC4c8F4788F0116861F9B": "Safe: Proxy Factory 1.1.1",
-  "0x50e55Af101C777bA7A3d560a2aAB3b64D6b2b6A5": "Safe: Proxy Factory 1.3.0+",
-  "0xa6B71E26C5e0845f74c812102Ca7114b6a896AB2": "Safe: Proxy Factory 1.3.0",
-  "0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67": "Safe: Proxy Factory 1.4.1",
-  "0xC22834581EbC8527d974F8a1c97E1bEA4EF910BC": "Safe: Proxy Factory 1.4.1+",
 
-  // L2 Safe Proxy Factories
-  "0x12302fE9c02ff50939BaAaaf415fc226C078613C":
-    "Safe: Proxy Factory 1.3.0 (L2)",
 
-  // Additional known factories
-  "0x0000000000FFe8B47B3e2130213B802212439497": "Safe: Proxy Factory (Legacy)",
-  "0x8942595A2dC5181Df0465AF0D7be08c8f23C93af":
-    "Safe: Proxy Factory 1.1.1 (Legacy)",
-};
-
-const CANONICAL_MASTERCOPIES: { [key: string]: string } = {
-  // Mainnet Safe contracts
-  "0x34CfAC646f301356fAa8B21e94227e3583Fe3F5F": "Safe: Master Copy 1.3.0+",
-  "0xd9Db270c1B5E3Bd161E8c8503c55cEABeE709552": "Safe: Master Copy 1.3.0",
-  "0x6851D6fDFAfD08c0295C392436245E5bc78B0185": "Safe: Master Copy 1.2.0",
-  "0xAE32496491b53841efb51829d6f886387708F99B": "Safe: Master Copy 1.1.1",
-  "0xb6029EA3B2c51D09a50B53CA8012FeEB05bDa35A": "Safe: Master Copy 1.0.0",
-
-  // L2 Safe contracts
-  "0x3E5c63644E683549055b9Be8653de26E0B4CD36E": "Safe: Master Copy 1.3.0 (L2)",
-  "0x29fcB43b46531BcA003ddC8FCB67FFE91900C762": "Safe: Master Copy 1.4.1 (L2)",
-  "0xfb1bffC9d739B8D520DaF37dF666da4C687191EA":
-    "Safe: Master Copy 1.3.0 (L2 Alt)",
-  "0x69f4D1788e39c87893C980c06EdF4b7f686e2938":
-    "Safe: Master Copy 1.3.0 (zkSync)",
-
-  // Additional official Safe contracts
-  "0x41675C099F32341bf84BFc5382aF534df5C7461a": "Safe: Master Copy 1.4.1",
-  "0x017062a1dE2FE6b99BE3d9d37841FeD19F573804":
-    "Safe: Master Copy 1.3.0 (Gnosis)",
-  "0x8942595A2dC5181Df0465AF0D7be08c8f23C93af":
-    "Safe: Master Copy 1.1.1 (Gnosis)",
-
-  // Additional known Safe implementations
-  "0x76E2cFc1F5Fa8F6a5b3fC4c8F4788F0116861F9B": "Safe: Master Copy (Legacy)",
-};
-
-const CANONICAL_INITIALIZERS: { [key: string]: string } = {
-  // Known Safe initializers
-  "0xBD89A1CE4DDe368FFAb0eC35506eEcE0b1fFdc54": "Safe: Initializer 1.4.1",
-  "0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67": "Safe: Initializer 1.4.1 (Alt)",
-  "0xa6B71E26C5e0845f74c812102Ca7114b6a896AB2": "Safe: Initializer 1.3.0",
-  "0x12302fE9c02ff50939BaAaaf415fc226C078613C": "Safe: Initializer 1.3.0 (L2)",
-  "0x76E2cFc1F5Fa8F6a5b3fC4c8F4788F0116861F9B": "Safe: Initializer 1.1.1",
-  "0x8942595A2dC5181Df0465AF0D7be08c8f23C93af": "Safe: Initializer (Legacy)",
-};
-
-const CANONICAL_FALLBACK_HANDLERS: { [key: string]: string } = {
-  // Known Safe fallback handlers
-  "0xfd0732Dc9E303f09fCEf3a7388Ad10A83459Ec99": "Safe: Fallback Handler 1.4.1",
-  "0x1AC114C2099aFAf5261731655Dc6c306bFcd4Dbd": "Safe: Fallback Handler 1.3.0",
-  "0x2f870a80647BbC554F3a0EBD093f11B4d2a7492A":
-    "Safe: Fallback Handler (Compatibility)",
-  "0x0000000000000000000000000000000000000000": "No Fallback Handler",
-};
-
-function getSafeApiUrl(network: string): string | null {
-  const apiUrls: { [key: string]: string } = {
-    ethereum: "https://safe-transaction-mainnet.safe.global",
-    sepolia: "https://safe-transaction-sepolia.safe.global",
-    polygon: "https://safe-transaction-polygon.safe.global",
-    arbitrum: "https://safe-transaction-arbitrum.safe.global",
-    optimism: "https://safe-transaction-optimism.safe.global",
-    base: "https://safe-transaction-base.safe.global",
-  };
-
-  return apiUrls[network.toLowerCase()] || null;
-}
-
-function getBackendNetworkName(network: string): string {
-  // Map frontend network names to backend expected names for Infura.io endpoints
-  const networkMap: { [key: string]: string } = {
-    ethereum: "mainnet",
-    sepolia: "sepolia",
-    polygon: "polygon-mainnet",
-    arbitrum: "arbitrum-mainnet",
-    optimism: "optimism-mainnet",
-    base: "base-mainnet",
-  };
-
-  return networkMap[network.toLowerCase()] || network;
-}
-
-async function checkSanctions(address: string): Promise<{
-  sanctioned: boolean;
-  data?: any[];
-  error?: string;
-}> {
-  try {
-    const response = await fetch("http://localhost:7111/api/sanctions/check", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      credentials: "include",
-      body: JSON.stringify({
-        address: address,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      return {
-        sanctioned: false,
-        error: `Failed to check sanctions: ${response.status} ${errorText}`,
-      };
-    }
-
-    const data = await response.json();
-    return {
-      sanctioned: data.sanctioned || false,
-      data: data.data || [],
-      error: undefined,
-    };
-  } catch (error) {
-    console.error("Error calling sanctions check function:", error);
-    return {
-      sanctioned: false,
-      error: `Network error: ${error.message}`,
-    };
-  }
-}
-
-async function checkMultipleSanctions(addresses: string[]): Promise<{
-  results: {
-    [address: string]: { sanctioned: boolean; data?: any[]; error?: string };
-  };
-  overallSanctioned: boolean;
-  sanctionedAddresses: string[];
-  errors: string[];
-}> {
-  const results: {
-    [address: string]: { sanctioned: boolean; data?: any[]; error?: string };
-  } = {};
-  const sanctionedAddresses: string[] = [];
-  const errors: string[] = [];
-
-  // Check each address individually
-  for (const address of addresses) {
-    if (!address || address === "0x0000000000000000000000000000000000000000") {
-      continue; // Skip invalid or zero addresses
-    }
-
-    try {
-      const result = await checkSanctions(address);
-      results[address] = result;
-
-      if (result.error) {
-        errors.push(`${address}: ${result.error}`);
-      } else if (result.sanctioned) {
-        sanctionedAddresses.push(address);
-      }
-
-      // Add a small delay between requests to avoid rate limiting
-      await new Promise((resolve) => setTimeout(resolve, 100));
-    } catch (error) {
-      const errorMsg = `${address}: ${error.message}`;
-      results[address] = { sanctioned: false, error: errorMsg };
-      errors.push(errorMsg);
-    }
-  }
-
-  return {
-    results,
-    overallSanctioned: sanctionedAddresses.length > 0,
-    sanctionedAddresses,
-    errors,
-  };
-}
-
-async function getMultisigInfo(
-  txHash: string,
-  network: string,
-): Promise<{
-  masterCopy?: string;
-  initializer?: string;
-  fallbackHandler?: string;
-  creator?: string;
-  proxy?: string;
-  proxyFactory?: string;
-  initiator?: string;
-  owners?: string[];
-  threshold?: string;
-  guard?: string | null;
-  fallbackHandlerRuntime?: string | null;
-  modules?: string[];
-  version?: string;
-  error?: string;
-}> {
-  try {
-    network = getBackendNetworkName(network);
-    const response = await fetch("http://localhost:7111/api/multisig/info", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      credentials: "include",
-      body: JSON.stringify({
-        txhash: txHash,
-        network: network,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      return {
-        error: `Failed to fetch multisig info: ${response.status} ${errorText}`,
-      };
-    }
-
-    const data = await response.json();
-    return {
-      masterCopy: data.masterCopy,
-      initializer: data.initializer,
-      fallbackHandler: data.fallbackHandler,
-      creator: data.creator,
-      proxy: data.proxy,
-      proxyFactory: data.proxyFactory,
-      initiator: data.initiator,
-      owners: data.owners,
-      threshold: data.threshold,
-      guard: data.guard,
-      fallbackHandlerRuntime: data.fallbackHandlerRuntime,
-      modules: data.modules,
-      version: data.version,
-      error: undefined,
-    };
-  } catch (error) {
-    console.error("Error calling multisig-info function:", error);
-    return {
-      error: `Network error: ${error.message}`,
-    };
-  }
-}
 
 async function performSecurityAssessment(
   safeAddress: string,
   network: string,
 ): Promise<SafeAssessment> {
-  const assessment: SafeAssessment = {
-    safeAddress,
-    network,
-    timestamp: new Date().toISOString(),
-    overallRisk: "medium",
-    riskFactors: [],
-    securityScore: 70,
-    checks: {
-      addressValidation: { isValid: false, isChecksummed: false },
-      factoryValidation: { isCanonical: false, warnings: [] },
-      mastercopyValidation: { isCanonical: false, warnings: [] },
-      creationTransaction: { isValid: false, warnings: [] },
-      safeConfiguration: { isValid: false, warnings: [] },
-      ownershipValidation: { isValid: false, warnings: [] },
-      moduleValidation: { isValid: false, warnings: [] },
-      proxyValidation: { isValid: false, warnings: [] },
-      initializerValidation: { isValid: false, warnings: [] },
-      fallbackHandlerValidation: { isValid: false, warnings: [] },
-      sanctionsValidation: { isValid: false, warnings: [] },
-      multisigInfoValidation: { isValid: false, warnings: [] },
+  const response = await fetch("http://localhost:7111/api/safe/assess", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
     },
-    details: {
-      creator: null,
-      factory: null,
-      mastercopy: null,
-      version: null,
-      owners: [],
-      threshold: null,
-      modules: [],
-      nonce: null,
-      creationTx: null,
-      initializer: null,
-      fallbackHandler: null,
-      guard: null,
-      sanctionsData: [],
-      multisigInfoData: null,
-    },
-  };
-
-  try {
-    // Address validation
-    const addressRegex = /^0x[a-fA-F0-9]{40}$/;
-    assessment.checks.addressValidation.isValid =
-      addressRegex.test(safeAddress);
-
-    if (!assessment.checks.addressValidation.isValid) {
-      assessment.riskFactors.push("Invalid address format");
-      assessment.overallRisk = "high";
-      assessment.securityScore = 20;
-      return assessment;
-    }
-
-    // Get Safe information from Safe API
-    const safeApiUrl = getSafeApiUrl(network);
-    if (!safeApiUrl) {
-      assessment.riskFactors.push("Unsupported network");
-      assessment.overallRisk = "critical";
-      assessment.securityScore = 0; // Cannot verify anything on unsupported network
-      return assessment;
-    }
-
-    const safeInfoResponse = await fetch(
-      `${safeApiUrl}/api/v1/safes/${safeAddress}/`,
-    );
-
-    if (!safeInfoResponse.ok) {
-      if (safeInfoResponse.status === 404) {
-        assessment.riskFactors.push("Safe not found on this network");
-      } else {
-        assessment.riskFactors.push("Unable to fetch Safe information");
-      }
-      assessment.overallRisk = "critical";
-      assessment.securityScore = 0; // Cannot verify anything - zero security confidence
-      return assessment;
-    }
-
-    const safeInfo = await safeInfoResponse.json();
-
-    // Update details
-    assessment.details.mastercopy = safeInfo.masterCopy;
-    assessment.details.owners = safeInfo.owners || [];
-    assessment.details.threshold = safeInfo.threshold;
-    assessment.details.modules = safeInfo.modules || [];
-    assessment.details.nonce = safeInfo.nonce;
-    assessment.details.version = safeInfo.version;
-    assessment.details.fallbackHandler = safeInfo.fallbackHandler;
-    assessment.details.guard = safeInfo.guard;
-
-    // Try to get creation transaction information
-    try {
-      const creationResponse = await fetch(
-        `${safeApiUrl}/api/v1/safes/${safeAddress}/creation/`,
-      );
-      if (creationResponse.ok) {
-        const creationInfo = await creationResponse.json();
-        assessment.details.creator = creationInfo.creator;
-        assessment.details.factory = creationInfo.factoryAddress;
-        assessment.details.creationTx = creationInfo.transactionHash;
-
-        // Mark creation transaction as verified if we found it
-        assessment.checks.creationTransaction.isValid = true;
-
-        // Extract initializer from creation transaction using multisig-info endpoint
-        if (creationInfo.transactionHash) {
-          try {
-            const multisigInfoResult = await getMultisigInfo(
-              creationInfo.transactionHash,
-              getBackendNetworkName(network),
-            );
-
-            if (multisigInfoResult.error) {
-              console.warn(
-                "Could not extract initializer:",
-                multisigInfoResult.error,
-              );
-              assessment.checks.initializerValidation.warnings?.push(
-                `Unable to extract initializer: ${multisigInfoResult.error}`,
-              );
-            } else {
-              // Set the initializer from multisig info
-              assessment.details.initializer = multisigInfoResult.initializer;
-            }
-          } catch (error) {
-            console.warn(
-              "Error extracting initializer from transaction:",
-              error,
-            );
-            assessment.checks.initializerValidation.warnings?.push(
-              "Failed to extract initializer from creation transaction",
-            );
-          }
-        }
-      } else {
-        assessment.checks.creationTransaction.warnings?.push(
-          "Creation transaction not found in Safe API",
-        );
-      }
-    } catch (error) {
-      console.warn("Could not fetch creation transaction info:", error);
-      assessment.checks.creationTransaction.warnings?.push(
-        "Unable to fetch creation transaction",
-      );
-    }
-
-    // Factory validation
-    if (
-      assessment.details.factory &&
-      CANONICAL_PROXY_FACTORIES[assessment.details.factory]
-    ) {
-      assessment.checks.factoryValidation.isCanonical = true;
-      assessment.checks.factoryValidation.canonicalName =
-        CANONICAL_PROXY_FACTORIES[assessment.details.factory];
-    } else if (assessment.details.factory) {
-      assessment.riskFactors.push("Non-canonical proxy factory detected");
-      assessment.checks.factoryValidation.warnings?.push(
-        "Unknown proxy factory implementation",
-      );
-    }
-
-    // Mastercopy validation
-    if (
-      assessment.details.mastercopy &&
-      CANONICAL_MASTERCOPIES[assessment.details.mastercopy]
-    ) {
-      assessment.checks.mastercopyValidation.isCanonical = true;
-      assessment.checks.mastercopyValidation.canonicalName =
-        CANONICAL_MASTERCOPIES[assessment.details.mastercopy];
-    } else {
-      assessment.riskFactors.push("Non-canonical mastercopy detected");
-      assessment.checks.mastercopyValidation.warnings?.push(
-        "Unknown mastercopy implementation",
-      );
-    }
-
-    // Fallback Handler validation
-    if (assessment.details.fallbackHandler) {
-      if (CANONICAL_FALLBACK_HANDLERS[assessment.details.fallbackHandler]) {
-        assessment.checks.fallbackHandlerValidation.isValid = true;
-        assessment.checks.fallbackHandlerValidation.canonicalName =
-          CANONICAL_FALLBACK_HANDLERS[assessment.details.fallbackHandler];
-      } else {
-        assessment.riskFactors.push(
-          "HIGH RISK: Non-canonical fallback handler detected",
-        );
-        assessment.checks.fallbackHandlerValidation.warnings?.push(
-          "Unknown fallback handler - potential security risk",
-        );
-        if (assessment.overallRisk !== "critical") {
-          assessment.overallRisk = "high";
-        }
-      }
-    } else {
-      // No fallback handler is actually safer in most cases
-      assessment.checks.fallbackHandlerValidation.isValid = true;
-      assessment.checks.fallbackHandlerValidation.canonicalName =
-        "No Fallback Handler";
-    }
-
-    // Initializer validation
-    if (assessment.details.initializer) {
-      // Convert to lowercase for case-insensitive comparison
-      const initializerLower = assessment.details.initializer.toLowerCase();
-      const matchedCanonical = Object.keys(CANONICAL_INITIALIZERS).find(
-        (key) => key.toLowerCase() === initializerLower,
-      );
-
-      if (matchedCanonical) {
-        assessment.checks.initializerValidation.isValid = true;
-        assessment.checks.initializerValidation.canonicalName =
-          CANONICAL_INITIALIZERS[matchedCanonical];
-      } else {
-        assessment.riskFactors.push(
-          "CRITICAL RISK: Non-canonical initializer detected",
-        );
-        assessment.checks.initializerValidation.warnings?.push(
-          "Unknown initializer - CRITICAL security risk",
-        );
-        assessment.overallRisk = "critical";
-      }
-    } else {
-      // If we couldn't extract the initializer, it's still a warning but not critical
-      assessment.checks.initializerValidation.isValid = false;
-      if (
-        !assessment.checks.initializerValidation.warnings?.some((w) =>
-          w.includes("Unable to extract"),
-        )
-      ) {
-        assessment.checks.initializerValidation.warnings?.push(
-          "Initializer could not be extracted from creation transaction",
-        );
-      }
-    }
-
-    // Ownership validation
-    console.log("Validating ownership structure:", {
-      owners: assessment.details.owners,
-      threshold: assessment.details.threshold,
-    });
-
-    const owners = assessment.details.owners || [];
-    const threshold = assessment.details.threshold;
-    let ownershipIsValid = true;
-
-    // Critical checks
-    if (owners.length === 0) {
-      assessment.riskFactors.push("CRITICAL: Safe has no owners!");
-      assessment.overallRisk = "critical";
-      ownershipIsValid = false;
-    }
-
-    if (!threshold || threshold === 0) {
-      assessment.riskFactors.push("CRITICAL: Safe has zero threshold!");
-      assessment.overallRisk = "critical";
-      ownershipIsValid = false;
-    }
-
-    if (threshold && threshold > owners.length) {
-      assessment.riskFactors.push(
-        "CRITICAL: Threshold exceeds number of owners!",
-      );
-      assessment.overallRisk = "critical";
-      ownershipIsValid = false;
-    }
-
-    // Check for duplicate owners
-    const uniqueOwners = new Set(owners.map((owner) => owner.toLowerCase()));
-    if (uniqueOwners.size !== owners.length) {
-      assessment.riskFactors.push("CRITICAL: Duplicate owners detected!");
-      assessment.overallRisk = "critical";
-      ownershipIsValid = false;
-    }
-
-    // Check for zero address owners
-    const hasZeroAddress = owners.some(
-      (owner) =>
-        owner.toLowerCase() === "0x0000000000000000000000000000000000000000",
-    );
-    if (hasZeroAddress) {
-      assessment.riskFactors.push("CRITICAL: Zero address is an owner!");
-      assessment.overallRisk = "critical";
-      ownershipIsValid = false;
-    }
-
-    // High risk checks
-    if (owners.length === 1 && threshold === 1) {
-      assessment.riskFactors.push(
-        "HIGH RISK: Single-owner Safe with 1-of-1 threshold",
-      );
-      if (assessment.overallRisk !== "critical") {
-        assessment.overallRisk = "high";
-      }
-      ownershipIsValid = false;
-    }
-
-    // Medium risk checks
-    if (threshold === 1 && owners.length > 1) {
-      assessment.riskFactors.push(
-        "MEDIUM RISK: Low threshold detected - single signature required",
-      );
-      if (
-        assessment.overallRisk !== "critical" &&
-        assessment.overallRisk !== "high"
-      ) {
-        assessment.overallRisk = "medium";
-      }
-      ownershipIsValid = false;
-    }
-
-    assessment.checks.ownershipValidation.isValid = ownershipIsValid;
-
-    // Enhanced Sanctions validation - Check Safe address, creator, and all owners
-    try {
-      const addressesToCheck: string[] = [];
-
-      // Add Safe address itself
-      addressesToCheck.push(assessment.safeAddress);
-
-      // Add creator address if available
-      if (assessment.details.creator) {
-        addressesToCheck.push(assessment.details.creator);
-      }
-
-      // Add all owner addresses
-      if (assessment.details.owners && assessment.details.owners.length > 0) {
-        addressesToCheck.push(...assessment.details.owners);
-      }
-
-      // Remove duplicates and filter out invalid addresses
-      const uniqueAddresses = [...new Set(addressesToCheck)].filter(
-        (addr) => addr && addr !== "0x0000000000000000000000000000000000000000",
-      );
-
-      if (uniqueAddresses.length > 0) {
-        console.log("Checking sanctions for addresses:", uniqueAddresses);
-        const sanctionsResult = await checkMultipleSanctions(uniqueAddresses);
-
-        // Store all results for detailed display
-        assessment.details.sanctionsData = [];
-
-        // Process results
-        let hasSanctionedAddresses = false;
-        const sanctionedDetails: string[] = [];
-
-        if (sanctionsResult.errors.length > 0) {
-          console.warn("Sanctions check errors:", sanctionsResult.errors);
-          assessment.checks.sanctionsValidation.warnings?.push(
-            `Some sanctions checks failed: ${sanctionsResult.errors.join("; ")}`,
-          );
-        }
-
-        if (sanctionsResult.overallSanctioned) {
-          hasSanctionedAddresses = true;
-
-          // Check each type of address for sanctions
-          sanctionsResult.sanctionedAddresses.forEach((sanctionedAddr) => {
-            const result = sanctionsResult.results[sanctionedAddr];
-
-            if (
-              sanctionedAddr.toLowerCase() ===
-              assessment.safeAddress.toLowerCase()
-            ) {
-              assessment.riskFactors.push(
-                "CRITICAL RISK: Safe wallet address is on sanctions list!",
-              );
-              sanctionedDetails.push(
-                `Safe wallet (${sanctionedAddr}): ${result.data?.[0]?.name || "Sanctioned"}`,
-              );
-            } else if (
-              assessment.details.creator &&
-              sanctionedAddr.toLowerCase() ===
-                assessment.details.creator.toLowerCase()
-            ) {
-              assessment.riskFactors.push(
-                "CRITICAL RISK: Safe creator is on sanctions list!",
-              );
-              sanctionedDetails.push(
-                `Creator (${sanctionedAddr}): ${result.data?.[0]?.name || "Sanctioned"}`,
-              );
-            } else if (
-              assessment.details.owners.some(
-                (owner) => owner.toLowerCase() === sanctionedAddr.toLowerCase(),
-              )
-            ) {
-              assessment.riskFactors.push(
-                "CRITICAL RISK: Safe owner is on sanctions list!",
-              );
-              sanctionedDetails.push(
-                `Owner (${sanctionedAddr}): ${result.data?.[0]?.name || "Sanctioned"}`,
-              );
-            }
-
-            // Add to sanctions data for display
-            if (result.data) {
-              assessment.details.sanctionsData.push(...result.data);
-            }
-          });
-
-          assessment.checks.sanctionsValidation.isValid = false;
-          assessment.checks.sanctionsValidation.warnings?.push(
-            `Sanctioned addresses found: ${sanctionedDetails.join("; ")}`,
-          );
-          assessment.overallRisk = "critical";
-        } else {
-          // All addresses are clear
-          assessment.checks.sanctionsValidation.isValid = true;
-          const checkedCount = uniqueAddresses.length;
-          const ownerCount = assessment.details.owners.length;
-          const hasCreator = !!assessment.details.creator;
-
-          let clearMessage = `All addresses clear from sanctions (Safe`;
-          if (hasCreator) clearMessage += `, creator`;
-          if (ownerCount > 0)
-            clearMessage += `, ${ownerCount} owner${ownerCount > 1 ? "s" : ""}`;
-          clearMessage += `)`;
-
-          assessment.checks.sanctionsValidation.canonicalName = clearMessage;
-        }
-
-        // Add summary to warnings if there were any issues but not complete failures
-        if (sanctionsResult.errors.length > 0 && !hasSanctionedAddresses) {
-          assessment.checks.sanctionsValidation.isValid = false;
-        }
-      } else {
-        // No addresses available to check
-        assessment.checks.sanctionsValidation.isValid = false;
-        assessment.checks.sanctionsValidation.warnings?.push(
-          "No addresses available for sanctions check",
-        );
-      }
-    } catch (error) {
-      console.warn("Error during enhanced sanctions check:", error);
-      assessment.checks.sanctionsValidation.warnings?.push(
-        "Failed to verify sanctions status",
-      );
-      assessment.checks.sanctionsValidation.isValid = false;
-    }
-
-    // Multisig Info Cross-Validation - CRITICAL SECURITY CHECK
-    if (assessment.details.creationTx) {
-      try {
-        const multisigInfoResult = await getMultisigInfo(
-          assessment.details.creationTx,
-          getBackendNetworkName(network),
-        );
-
-        if (multisigInfoResult.error) {
-          console.warn(
-            "Could not fetch multisig info:",
-            multisigInfoResult.error,
-          );
-          assessment.checks.multisigInfoValidation.warnings?.push(
-            `Unable to fetch multisig info: ${multisigInfoResult.error}`,
-          );
-          assessment.checks.multisigInfoValidation.isValid = false;
-        } else {
-          assessment.details.multisigInfoData = multisigInfoResult;
-
-          // Compare Safe API data with multisig-info endpoint data
-          let hasDiscrepancies = false;
-          const discrepancies: string[] = [];
-
-          // Compare mastercopy
-          if (multisigInfoResult.masterCopy && assessment.details.mastercopy) {
-            if (
-              multisigInfoResult.masterCopy.toLowerCase() !==
-              assessment.details.mastercopy.toLowerCase()
-            ) {
-              hasDiscrepancies = true;
-              discrepancies.push(
-                `Mastercopy mismatch: Safe API reports ${assessment.details.mastercopy}, blockchain reports ${multisigInfoResult.masterCopy}`,
-              );
-            }
-          }
-
-          // Compare creator
-          if (multisigInfoResult.creator && assessment.details.creator) {
-            if (
-              multisigInfoResult.creator.toLowerCase() !==
-              assessment.details.creator.toLowerCase()
-            ) {
-              hasDiscrepancies = true;
-              discrepancies.push(
-                `Creator mismatch: Safe API reports ${assessment.details.creator}, blockchain reports ${multisigInfoResult.creator}`,
-              );
-            }
-          }
-
-          // Compare proxy factory
-          if (multisigInfoResult.proxyFactory && assessment.details.factory) {
-            if (
-              multisigInfoResult.proxyFactory.toLowerCase() !==
-              assessment.details.factory.toLowerCase()
-            ) {
-              hasDiscrepancies = true;
-              discrepancies.push(
-                `Proxy factory mismatch: Safe API reports ${assessment.details.factory}, blockchain reports ${multisigInfoResult.proxyFactory}`,
-              );
-            }
-          }
-
-          // Compare initializer
-          if (
-            multisigInfoResult.initializer &&
-            assessment.details.initializer
-          ) {
-            if (
-              multisigInfoResult.initializer.toLowerCase() !==
-              assessment.details.initializer.toLowerCase()
-            ) {
-              hasDiscrepancies = true;
-              discrepancies.push(
-                `Initializer mismatch: Safe API reports ${assessment.details.initializer}, blockchain reports ${multisigInfoResult.initializer}`,
-              );
-            }
-          }
-
-          // Compare fallback handler
-          if (
-            multisigInfoResult.fallbackHandler &&
-            assessment.details.fallbackHandler
-          ) {
-            if (
-              multisigInfoResult.fallbackHandler.toLowerCase() !==
-              assessment.details.fallbackHandler.toLowerCase()
-            ) {
-              hasDiscrepancies = true;
-              discrepancies.push(
-                `Fallback handler mismatch: Safe API reports ${assessment.details.fallbackHandler}, blockchain reports ${multisigInfoResult.fallbackHandler}`,
-              );
-            }
-          }
-
-          // Compare proxy address (Safe address should match the proxy)
-          if (multisigInfoResult.proxy && assessment.safeAddress) {
-            if (
-              multisigInfoResult.proxy.toLowerCase() !==
-              assessment.safeAddress.toLowerCase()
-            ) {
-              hasDiscrepancies = true;
-              discrepancies.push(
-                `Proxy address mismatch: Expected ${assessment.safeAddress}, blockchain reports ${multisigInfoResult.proxy}`,
-              );
-            }
-          }
-
-          // Compare owners
-          if (multisigInfoResult.owners && assessment.details.owners) {
-            const blockchainOwners = multisigInfoResult.owners
-              .map((owner) => owner.toLowerCase())
-              .sort();
-            const apiOwners = assessment.details.owners
-              .map((owner) => owner.toLowerCase())
-              .sort();
-
-            if (
-              blockchainOwners.length !== apiOwners.length ||
-              !blockchainOwners.every(
-                (owner, index) => owner === apiOwners[index],
-              )
-            ) {
-              hasDiscrepancies = true;
-              discrepancies.push(
-                `Owners mismatch: Safe API reports [${assessment.details.owners.join(", ")}], blockchain reports [${multisigInfoResult.owners.join(", ")}]`,
-              );
-            }
-          }
-
-          // Compare threshold
-          if (multisigInfoResult.threshold && assessment.details.threshold) {
-            const blockchainThreshold = parseInt(multisigInfoResult.threshold);
-            if (blockchainThreshold !== assessment.details.threshold) {
-              hasDiscrepancies = true;
-              discrepancies.push(
-                `Threshold mismatch: Safe API reports ${assessment.details.threshold}, blockchain reports ${blockchainThreshold}`,
-              );
-            }
-          }
-
-          // Compare guard
-          if (
-            multisigInfoResult.guard !== undefined &&
-            assessment.details.guard !== undefined
-          ) {
-            const blockchainGuard =
-              multisigInfoResult.guard ||
-              "0x0000000000000000000000000000000000000000";
-            const apiGuard =
-              assessment.details.guard ||
-              "0x0000000000000000000000000000000000000000";
-
-            if (blockchainGuard.toLowerCase() !== apiGuard.toLowerCase()) {
-              hasDiscrepancies = true;
-              discrepancies.push(
-                `Guard mismatch: Safe API reports ${apiGuard}, blockchain reports ${blockchainGuard}`,
-              );
-            }
-          }
-
-          // Compare modules
-          if (multisigInfoResult.modules && assessment.details.modules) {
-            const blockchainModules = multisigInfoResult.modules
-              .map((module) => module.toLowerCase())
-              .sort();
-            const apiModules = assessment.details.modules
-              .map((module) => module.toLowerCase())
-              .sort();
-
-            if (
-              blockchainModules.length !== apiModules.length ||
-              !blockchainModules.every(
-                (module, index) => module === apiModules[index],
-              )
-            ) {
-              hasDiscrepancies = true;
-              discrepancies.push(
-                `Modules mismatch: Safe API reports [${assessment.details.modules.join(", ")}], blockchain reports [${multisigInfoResult.modules.join(", ")}]`,
-              );
-            }
-          }
-
-          // Compare version
-          if (multisigInfoResult.version && assessment.details.version) {
-            if (multisigInfoResult.version !== assessment.details.version) {
-              hasDiscrepancies = true;
-              discrepancies.push(
-                `Version mismatch: Safe API reports ${assessment.details.version}, blockchain reports ${multisigInfoResult.version}`,
-              );
-            }
-          }
-
-          if (hasDiscrepancies) {
-            assessment.riskFactors.push(
-              "CRITICAL SECURITY ALERT: Data discrepancies detected between Safe API and blockchain!",
-            );
-            // Add each specific discrepancy as a separate risk factor for visibility
-            discrepancies.forEach((discrepancy) => {
-              assessment.riskFactors.push(`⚠️ ${discrepancy}`);
-            });
-            assessment.checks.multisigInfoValidation.isValid = false;
-            assessment.checks.multisigInfoValidation.warnings = discrepancies;
-            assessment.overallRisk = "critical";
-            console.error(
-              "CRITICAL: Multisig info discrepancies detected:",
-              discrepancies,
-            );
-          } else {
-            assessment.checks.multisigInfoValidation.isValid = true;
-            assessment.checks.multisigInfoValidation.canonicalName =
-              "Data Verified";
-          }
-        }
-      } catch (error) {
-        console.warn("Error fetching multisig info:", error);
-        assessment.checks.multisigInfoValidation.warnings?.push(
-          "Failed to verify multisig info from blockchain",
-        );
-        assessment.checks.multisigInfoValidation.isValid = false;
-      }
-    } else {
-      // No creation transaction available to check
-      assessment.checks.multisigInfoValidation.isValid = false;
-      assessment.checks.multisigInfoValidation.warnings?.push(
-        "No creation transaction available for cross-validation",
-      );
-    }
-
-    // Calculate final risk and score based on actual check results
-    const checksPerformed = [
-      assessment.checks.addressValidation.isValid,
-      assessment.checks.factoryValidation.isCanonical,
-      assessment.checks.mastercopyValidation.isCanonical,
-      assessment.checks.creationTransaction.isValid,
-      assessment.checks.safeConfiguration.isValid,
-      assessment.checks.ownershipValidation.isValid,
-      assessment.checks.moduleValidation.isValid,
-      assessment.checks.initializerValidation.isValid,
-      assessment.checks.fallbackHandlerValidation.isValid,
-      assessment.checks.sanctionsValidation.isValid,
-    ];
-
-    const passedChecks = checksPerformed.filter(
-      (check) => check === true,
-    ).length;
-    const totalChecks = checksPerformed.length;
-
-    // Calculate score based on passed checks and risk factors
-    let baseScore = Math.round((passedChecks / totalChecks) * 100);
-
-    // Deduct points for risk factors
-    const riskPenalty = assessment.riskFactors.length * 10;
-    assessment.securityScore = Math.max(0, baseScore - riskPenalty);
-
-    // Determine overall risk level
-    if (assessment.riskFactors.length === 0 && passedChecks === totalChecks) {
-      assessment.overallRisk = "low";
-      assessment.securityScore = 100; // Perfect score for perfect results
-    } else if (
-      assessment.riskFactors.length === 0 &&
-      passedChecks >= totalChecks * 0.8
-    ) {
-      assessment.overallRisk = "low";
-      assessment.securityScore = Math.max(85, assessment.securityScore);
-    } else if (
-      assessment.riskFactors.length <= 2 &&
-      passedChecks >= totalChecks * 0.6
-    ) {
-      assessment.overallRisk = "medium";
-    } else {
-      assessment.overallRisk = "high";
-    }
-
-    // Mark configuration and other checks as valid if we got this far
-    assessment.checks.safeConfiguration.isValid = true;
-    assessment.checks.moduleValidation.isValid =
-      assessment.details.modules.length === 0; // No modules is safer
-
-    // Recalculate score after setting all checks
-    const finalChecksPerformed = [
-      assessment.checks.addressValidation.isValid,
-      assessment.checks.factoryValidation.isCanonical,
-      assessment.checks.mastercopyValidation.isCanonical,
-      assessment.checks.creationTransaction.isValid,
-      assessment.checks.safeConfiguration.isValid,
-      assessment.checks.ownershipValidation.isValid,
-      assessment.checks.moduleValidation.isValid,
-      assessment.checks.initializerValidation.isValid,
-      assessment.checks.fallbackHandlerValidation.isValid,
-      assessment.checks.sanctionsValidation.isValid,
-      assessment.checks.multisigInfoValidation.isValid,
-    ];
-
-    const finalPassedChecks = finalChecksPerformed.filter(
-      (check) => check === true,
-    ).length;
-    const finalTotalChecks = finalChecksPerformed.length;
-
-    // Recalculate final score
-    let finalBaseScore = Math.round(
-      (finalPassedChecks / finalTotalChecks) * 100,
-    );
-    const finalRiskPenalty = assessment.riskFactors.length * 10;
-    assessment.securityScore = Math.max(0, finalBaseScore - finalRiskPenalty);
-
-    // Determine final risk level
-    if (
-      assessment.riskFactors.length === 0 &&
-      finalPassedChecks === finalTotalChecks
-    ) {
-      assessment.overallRisk = "low";
-      assessment.securityScore = 100; // Perfect score for perfect results
-    } else if (
-      assessment.riskFactors.length === 0 &&
-      finalPassedChecks >= finalTotalChecks * 0.8
-    ) {
-      assessment.overallRisk = "low";
-      assessment.securityScore = Math.max(85, assessment.securityScore);
-    } else if (
-      assessment.riskFactors.length <= 2 &&
-      finalPassedChecks >= finalTotalChecks * 0.6
-    ) {
-      assessment.overallRisk = "medium";
-    } else {
-      assessment.overallRisk = "high";
-    }
-  } catch (error) {
-    console.error("Assessment error:", error);
+    credentials: "include",
+    body: JSON.stringify({
+      safe_address: safeAddress,
+      network: network,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ message: response.statusText }));
+    const error: any = new Error(errorData.message || `Assessment failed: ${response.status}`);
+    error.status = response.status;
+    error.data = errorData;
     throw error;
   }
 
-  return assessment;
+  return await response.json();
 }
 
 interface SafeAssessment {
@@ -1109,7 +122,6 @@ const Review = () => {
   const [loadingStep, setLoadingStep] = useState(0);
   const [assessment, setAssessment] = useState<SafeAssessment | null>(null);
   const [safeExists, setSafeExists] = useState<boolean | null>(null);
-  const [isValidatingSafe, setIsValidatingSafe] = useState(false);
 
   // Animate loading steps
   useEffect(() => {
@@ -1122,68 +134,7 @@ const Review = () => {
     }
   }, [loading]);
 
-  // Validate Safe exists when address or network changes
-  useEffect(() => {
-    if (address && address.match(/^0x[a-fA-F0-9]{40}$/) && network) {
-      validateSafeExists(address, network);
-    } else {
-      setSafeExists(null);
-    }
-  }, [address, network]);
 
-  const validateSafeExists = async (
-    safeAddress: string,
-    selectedNetwork: string,
-  ) => {
-    setIsValidatingSafe(true);
-    setSafeExists(null);
-
-    try {
-      const safeApiUrl = getSafeApiUrl(selectedNetwork);
-      if (!safeApiUrl) {
-        setSafeExists(false);
-        toast({
-          title: "Unsupported Network",
-          description: "This network is not supported for Safe validation",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      const response = await fetch(
-        `${safeApiUrl}/api/v1/safes/${safeAddress}/`,
-      );
-
-      if (response.ok) {
-        setSafeExists(true);
-      } else if (response.status === 404) {
-        setSafeExists(false);
-        toast({
-          title: "Safe Not Found",
-          description:
-            "No Safe wallet found at this address on the selected network",
-          variant: "destructive",
-        });
-      } else {
-        setSafeExists(false);
-        toast({
-          title: "Validation Error",
-          description: "Unable to validate Safe existence. Please try again.",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
-      console.error("Error validating Safe:", error);
-      setSafeExists(false);
-      toast({
-        title: "Network Error",
-        description: "Unable to connect to Safe API for validation",
-        variant: "destructive",
-      });
-    } finally {
-      setIsValidatingSafe(false);
-    }
-  };
 
   useEffect(() => {
     const searchParams = new URLSearchParams(location.search);
@@ -1240,115 +191,39 @@ const Review = () => {
   ) => {
     setLoading(true);
     setAssessment(null);
+    setSafeExists(null);
 
     try {
-      const safeApiUrl = getSafeApiUrl(selectedNetwork);
-      if (!safeApiUrl) {
-        throw new Error("Unsupported network");
-      }
-
-      const safeInfoResponse = await fetch(
-        `${safeApiUrl}/api/v1/safes/${addr}/`,
-      );
-      if (!safeInfoResponse.ok) {
-        throw new Error("Failed to fetch Safe information");
-      }
-      const safeInfo = await safeInfoResponse.json();
-
-      let creationInfo = null;
-      try {
-        const creationResponse = await fetch(
-          `${safeApiUrl}/api/v1/safes/${addr}/creation/`,
-        );
-        if (creationResponse.ok) {
-          const creationData = await creationResponse.json();
-          creationInfo = {
-            creator: creationData.creator,
-            transactionHash: creationData.transactionHash,
-            factoryAddress: creationData.factoryAddress,
-          };
-        }
-      } catch (error) {
-        console.warn("Could not fetch creation info:", error);
-      }
-
-      const addressesToCheck: string[] = [addr];
-      if (creationInfo?.creator) {
-        addressesToCheck.push(creationInfo.creator);
-      }
-      if (safeInfo.owners && safeInfo.owners.length > 0) {
-        addressesToCheck.push(...safeInfo.owners);
-      }
-
-      let sanctionsResults = null;
-      try {
-        const uniqueAddresses = [...new Set(addressesToCheck)].filter(
-          (a) => a && a !== "0x0000000000000000000000000000000000000000",
-        );
-        if (uniqueAddresses.length > 0) {
-          const results = await checkMultipleSanctions(uniqueAddresses);
-          sanctionsResults = {
-            overallSanctioned: results.overallSanctioned,
-            sanctionedAddresses: results.sanctionedAddresses,
-            results: results.results,
-          };
-        }
-      } catch (error) {
-        console.warn("Sanctions check failed:", error);
-      }
-
-      let multisigInfo = null;
-      if (creationInfo?.transaction_hash) {
-        try {
-          const multisigInfoResult = await getMultisigInfo(
-            creationInfo.transaction_hash,
-            getBackendNetworkName(selectedNetwork),
-          );
-          if (!multisigInfoResult.error) {
-            multisigInfo = multisigInfoResult;
-          }
-        } catch (error) {
-          console.warn("Multisig info fetch failed:", error);
-        }
-      }
-
-      const assessmentRequest = {
-        safeAddress: addr,
-        network: selectedNetwork,
-        safeInfo: {
-          address: safeInfo.address,
-          nonce: typeof safeInfo.nonce === 'string' ? parseInt(safeInfo.nonce, 10) : safeInfo.nonce,
-          threshold: typeof safeInfo.threshold === 'string' ? parseInt(safeInfo.threshold, 10) : safeInfo.threshold,
-          owners: safeInfo.owners || [],
-          masterCopy: safeInfo.masterCopy,
-          modules: safeInfo.modules,
-          fallbackHandler: safeInfo.fallbackHandler,
-          guard: safeInfo.guard,
-          version: safeInfo.version,
-        },
-        creationInfo: creationInfo,
-        sanctionsResults: sanctionsResults,
-        multisigInfo: multisigInfo,
-      };
-
-      if (isAuthenticated) {
-        const backendAssessment = await securityApi.assessSafe(assessmentRequest);
-        setAssessment(backendAssessment);
-        console.log("Security assessment completed by backend");
-      } else {
-        const fallbackAssessment = await performSecurityAssessment(addr, selectedNetwork);
-        setAssessment(fallbackAssessment);
-      }
-    } catch (error) {
+      const assessment = await performSecurityAssessment(addr, selectedNetwork);
+      setAssessment(assessment);
+      setSafeExists(true);
+      console.log("Security assessment completed");
+    } catch (error: any) {
       console.error("Error performing security assessment:", error);
-      toast({
-        title: "Assessment Failed",
-        description:
-          error instanceof Error
-            ? error.message
-            : "Unable to perform security assessment. Please try again.",
-        variant: "destructive",
-      });
+      
+      if (error.status === 404) {
+        setSafeExists(false);
+        toast({
+          title: "Safe Not Found",
+          description: "No Safe wallet found at this address on the selected network",
+          variant: "destructive",
+        });
+      } else if (error.status === 400) {
+        setSafeExists(false);
+        toast({
+          title: "Invalid Request",
+          description: error.message || "The network or address provided is not valid",
+          variant: "destructive",
+        });
+      } else {
+        setSafeExists(false);
+        toast({
+          title: "Assessment Failed",
+          description:
+            error.message || "Unable to perform security assessment. Please try again.",
+          variant: "destructive",
+        });
+      }
       setAssessment(null);
     } finally {
       setLoading(false);
@@ -1403,18 +278,76 @@ const Review = () => {
   const getCheckIcon = (check: any) => {
     if (!check) return <Shield className="w-4 h-4 text-gray-400" />;
 
-    if (check.isValid === true || check.isCanonical === true) {
-      return <CheckCircle className="w-4 h-4 text-green-600" />;
-    } else if (check.isValid === false || check.isCanonical === false) {
-      return <AlertTriangle className="w-4 h-4 text-red-600" />;
+    const severity = check.severity;
+    
+    switch (severity) {
+      case "pass":
+        return <CheckCircle className="w-4 h-4 text-green-600" />;
+      case "info":
+        return <Shield className="w-4 h-4 text-blue-500" />;
+      case "low":
+        return <AlertTriangle className="w-4 h-4 text-yellow-400" />;
+      case "medium":
+        return <AlertTriangle className="w-4 h-4 text-yellow-600" />;
+      case "high":
+        return <AlertTriangle className="w-4 h-4 text-orange-500" />;
+      case "critical":
+        return <AlertTriangle className="w-4 h-4 text-red-600" />;
+      default:
+        if (check.isValid === true || check.isCanonical === true) {
+          return <CheckCircle className="w-4 h-4 text-green-600" />;
+        } else if (check.isValid === false || check.isCanonical === false) {
+          return <AlertTriangle className="w-4 h-4 text-red-600" />;
+        }
+        return <Shield className="w-4 h-4 text-yellow-600" />;
     }
-
-    return <Shield className="w-4 h-4 text-yellow-600" />;
   };
 
-  const truncateAddress = (addr: string) => {
-    if (!addr) return "—";
-    return `${addr.substring(0, 6)}...${addr.substring(addr.length - 4)}`;
+  const getSeverityLabel = (check: any): string => {
+    if (!check) return "Unknown";
+    
+    const severity = check.severity;
+    switch (severity) {
+      case "pass":
+        return "Clear";
+      case "info":
+        return "Info";
+      case "low":
+        return "Low";
+      case "medium":
+        return "Medium";
+      case "high":
+        return "High";
+      case "critical":
+        return "Critical";
+      default:
+        if (check.isValid === true || check.isCanonical === true) {
+          return "Clear";
+        } else if (check.isValid === false || check.isCanonical === false) {
+          return "Issues";
+        }
+        return "Unknown";
+    }
+  };
+
+  const getSeverityBadgeVariant = (check: any): "default" | "secondary" | "destructive" | "outline" => {
+    if (!check) return "outline";
+    
+    const severity = check.severity;
+    switch (severity) {
+      case "pass":
+        return "outline";
+      case "info":
+        return "secondary";
+      case "low":
+      case "medium":
+        return "secondary";
+      case "high":
+      case "critical":
+        return "destructive";
+      default:
+        return "outline";
+    }
   };
 
   // Map network names to Safe App network identifiers
@@ -1448,7 +381,16 @@ const Review = () => {
       <Header />
 
       <main className="flex-1 container py-12">
-        <div className="max-w-6xl mx-auto">
+        <div className="w-full">
+          <div className="flex items-center gap-2 mb-6 text-sm text-muted-foreground">
+            <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")}>
+              <Home className="h-4 w-4 mr-1" />
+              Dashboard
+            </Button>
+            <ChevronRight className="h-4 w-4" />
+            <span className="text-foreground">Security Assessment</span>
+          </div>
+
           <h1 className="text-3xl font-bold mb-6">
             Multisignature Wallet Security Assessment
           </h1>
@@ -1489,7 +431,6 @@ const Review = () => {
                 disabled={
                   loading ||
                   !address.match(/^0x[a-fA-F0-9]{40}$/) ||
-                  isValidatingSafe ||
                   safeExists === false
                 }
                 className="jsr-button w-full sm:w-auto"
@@ -1498,11 +439,6 @@ const Review = () => {
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Analyzing Multisig Wallet...
-                  </>
-                ) : isValidatingSafe ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Validating Safe...
                   </>
                 ) : safeExists === false ? (
                   <>
@@ -1794,7 +730,7 @@ const Review = () => {
                           {assessment.details.guard &&
                           assessment.details.guard !==
                             "0x0000000000000000000000000000000000000000"
-                            ? truncateAddress(assessment.details.guard)
+                            ? assessment.details.guard || "—"
                             : "None"}
                         </div>
                       </div>
@@ -1836,8 +772,8 @@ const Review = () => {
                           {getCheckIcon(assessment.checks.addressValidation)}
                           <span className="text-sm">Address Validation</span>
                         </div>
-                        <Badge variant="outline" className="text-xs">
-                          {assessment.checks.addressValidation?.isValid ? 'Clear' : 'Invalid'}
+                        <Badge variant={getSeverityBadgeVariant(assessment.checks.addressValidation)} className="text-xs">
+                          {getSeverityLabel(assessment.checks.addressValidation)}
                         </Badge>
                       </div> */}
 
@@ -1846,10 +782,8 @@ const Review = () => {
                           {getCheckIcon(assessment.checks.factoryValidation)}
                           <span className="text-sm">Proxy Factory</span>
                         </div>
-                        <Badge variant="outline" className="text-xs">
-                          {assessment.checks.factoryValidation?.isCanonical
-                            ? "Clear"
-                            : "Issues"}
+                        <Badge variant={getSeverityBadgeVariant(assessment.checks.factoryValidation)} className="text-xs">
+                          {getSeverityLabel(assessment.checks.factoryValidation)}
                         </Badge>
                       </div>
 
@@ -1858,10 +792,8 @@ const Review = () => {
                           {getCheckIcon(assessment.checks.mastercopyValidation)}
                           <span className="text-sm">Mastercopy</span>
                         </div>
-                        <Badge variant="outline" className="text-xs">
-                          {assessment.checks.mastercopyValidation?.isCanonical
-                            ? "Clear"
-                            : "Issues"}
+                        <Badge variant={getSeverityBadgeVariant(assessment.checks.mastercopyValidation)} className="text-xs">
+                          {getSeverityLabel(assessment.checks.mastercopyValidation)}
                         </Badge>
                       </div>
 
@@ -1870,10 +802,8 @@ const Review = () => {
                           {getCheckIcon(assessment.checks.ownershipValidation)}
                           <span className="text-sm">Ownership Structure</span>
                         </div>
-                        <Badge variant="outline" className="text-xs">
-                          {assessment.checks.ownershipValidation?.isValid
-                            ? "Clear"
-                            : "Issues"}
+                        <Badge variant={getSeverityBadgeVariant(assessment.checks.ownershipValidation)} className="text-xs">
+                          {getSeverityLabel(assessment.checks.ownershipValidation)}
                         </Badge>
                       </div>
 
@@ -1884,10 +814,8 @@ const Review = () => {
                           )}
                           <span className="text-sm">Initializer</span>
                         </div>
-                        <Badge variant="outline" className="text-xs">
-                          {assessment.checks.initializerValidation?.isValid
-                            ? "Clear"
-                            : "Issues"}
+                        <Badge variant={getSeverityBadgeVariant(assessment.checks.initializerValidation)} className="text-xs">
+                          {getSeverityLabel(assessment.checks.initializerValidation)}
                         </Badge>
                       </div>
 
@@ -1898,10 +826,8 @@ const Review = () => {
                           )}
                           <span className="text-sm">Fallback Handler</span>
                         </div>
-                        <Badge variant="outline" className="text-xs">
-                          {assessment.checks.fallbackHandlerValidation?.isValid
-                            ? "Clear"
-                            : "Issues"}
+                        <Badge variant={getSeverityBadgeVariant(assessment.checks.fallbackHandlerValidation)} className="text-xs">
+                          {getSeverityLabel(assessment.checks.fallbackHandlerValidation)}
                         </Badge>
                       </div>
 
@@ -1910,10 +836,8 @@ const Review = () => {
                           {getCheckIcon(assessment.checks.sanctionsValidation)}
                           <span className="text-sm">Sanctions Check</span>
                         </div>
-                        <Badge variant="outline" className="text-xs">
-                          {assessment.checks.sanctionsValidation?.isValid
-                            ? "Clear"
-                            : "Issues"}
+                        <Badge variant={getSeverityBadgeVariant(assessment.checks.sanctionsValidation)} className="text-xs">
+                          {getSeverityLabel(assessment.checks.sanctionsValidation)}
                         </Badge>
                       </div>
 
@@ -1922,10 +846,8 @@ const Review = () => {
                           {getCheckIcon(assessment.checks.moduleValidation)}
                           <span className="text-sm">Module Configuration</span>
                         </div>
-                        <Badge variant="outline" className="text-xs">
-                          {assessment.checks.moduleValidation?.isValid
-                            ? "Clear"
-                            : "Unknown"}
+                        <Badge variant={getSeverityBadgeVariant(assessment.checks.moduleValidation)} className="text-xs">
+                          {getSeverityLabel(assessment.checks.moduleValidation)}
                         </Badge>
                       </div>
 
@@ -1936,10 +858,8 @@ const Review = () => {
                           )}
                           <span className="text-sm">Data Cross-Validation</span>
                         </div>
-                        <Badge variant="outline" className="text-xs">
-                          {assessment.checks.multisigInfoValidation?.isValid
-                            ? "Verified"
-                            : "Issues"}
+                        <Badge variant={getSeverityBadgeVariant(assessment.checks.multisigInfoValidation)} className="text-xs">
+                          {getSeverityLabel(assessment.checks.multisigInfoValidation)}
                         </Badge>
                       </div>
                     </div>
@@ -1970,22 +890,21 @@ const Review = () => {
                               rel="noopener noreferrer"
                               className="text-blue-600 hover:text-blue-800 flex items-center gap-1"
                             >
-                              {truncateAddress(assessment.details.creator)}
+                              {assessment.details.creator || "—"}
                               <ExternalLink className="h-3 w-3" />
                             </a>
                           ) : (
                             "—"
                           )}
                         </div>
-                        {assessment.checks.sanctionsValidation?.isValid && (
+                        {assessment.checks.sanctionsValidation?.severity === "pass" && (
                           <div className="text-xs text-green-600 mt-1">
                             {assessment.checks.sanctionsValidation
                               .canonicalName ||
                               "All addresses clear - No Sanctions"}
                           </div>
                         )}
-                        {assessment.checks.sanctionsValidation?.isValid ===
-                          false &&
+                        {assessment.checks.sanctionsValidation?.severity === "critical" &&
                           assessment.details.sanctionsData?.length > 0 && (
                             <div className="text-xs text-red-600 mt-1">
                               {assessment.details.sanctionsData[0]?.name ||
@@ -2016,7 +935,7 @@ const Review = () => {
                               rel="noopener noreferrer"
                               className="text-blue-600 hover:text-blue-800 flex items-center gap-1"
                             >
-                              {truncateAddress(assessment.details.factory)}
+                              {assessment.details.factory || "—"}
                               <ExternalLink className="h-3 w-3" />
                             </a>
                           ) : (
@@ -2042,7 +961,7 @@ const Review = () => {
                               rel="noopener noreferrer"
                               className="text-blue-600 hover:text-blue-800 flex items-center gap-1"
                             >
-                              {truncateAddress(assessment.details.initializer)}
+                              {assessment.details.initializer || "—"}
                               <ExternalLink className="h-3 w-3" />
                             </a>
                           ) : (
@@ -2074,7 +993,7 @@ const Review = () => {
                               rel="noopener noreferrer"
                               className="text-blue-600 hover:text-blue-800 flex items-center gap-1"
                             >
-                              {truncateAddress(assessment.details.mastercopy)}
+                              {assessment.details.mastercopy || "—"}
                               <ExternalLink className="h-3 w-3" />
                             </a>
                           ) : (
@@ -2106,9 +1025,7 @@ const Review = () => {
                               rel="noopener noreferrer"
                               className="text-blue-600 hover:text-blue-800 flex items-center gap-1"
                             >
-                              {truncateAddress(
-                                assessment.details.fallbackHandler,
-                              )}
+                              {assessment.details.fallbackHandler || "—"}
                               <ExternalLink className="h-3 w-3" />
                             </a>
                           ) : (
@@ -2138,7 +1055,7 @@ const Review = () => {
                               rel="noopener noreferrer"
                               className="text-blue-600 hover:text-blue-800 flex items-center gap-1"
                             >
-                              {truncateAddress(assessment.details.creationTx)}
+                              {assessment.details.creationTx || "—"}
                               <ExternalLink className="h-3 w-3" />
                             </a>
                           ) : (

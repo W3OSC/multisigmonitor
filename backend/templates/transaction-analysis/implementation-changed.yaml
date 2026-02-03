@@ -1,0 +1,20 @@
+id: implementation-changed
+name: Implementation Change Detection
+type: transaction-analysis
+severity: critical
+priority: P0
+
+conditions:
+  - type: method-match
+    field: dataDecoded.method
+    methods:
+      - changeMasterCopy
+      - ChangedMasterCopy
+
+output:
+  warning: Implementation Changed
+  message: "CRITICAL: Safe implementation upgraded/changed. Verify the new implementation."
+  type: implementation_changed
+  extra-fields:
+    - dataDecoded.method
+    - dataDecoded.parameters

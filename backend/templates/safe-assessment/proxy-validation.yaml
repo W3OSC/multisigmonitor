@@ -1,0 +1,28 @@
+id: proxy-validation
+name: Proxy Implementation Validation
+type: safe-assessment
+check-name: proxy_validation
+
+conditions:
+  - type: field-validation
+    field: safeAddress
+    validation: address-format
+    on_valid:
+      severity: pass
+      canonical-name: "Proxy address valid"
+    on_invalid:
+      severity: critical
+      warning: "Invalid proxy address"
+      score-modifier: -100
+  
+  - type: cross-field-comparison
+    field_a: safeInfo.masterCopy
+    field_b: safeAddress
+    comparison: ne
+    on_match:
+      severity: pass
+    on_mismatch:
+      severity: critical
+      warning: "Proxy points to itself"
+      risk-factor: "Invalid proxy configuration"
+      score-modifier: -100

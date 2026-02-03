@@ -1,0 +1,16 @@
+id: high-safe-tx-gas
+name: High SafeTxGas Detection
+type: transaction-analysis
+severity: medium
+
+conditions:
+  - type: numeric-greater-than
+    field: safeTxGas
+    threshold: 1000000
+
+output:
+  warning: ""
+  message: "Transaction has unusually high safeTxGas."
+  type: high_safe_tx_gas
+  extra-fields:
+    - safeTxGas

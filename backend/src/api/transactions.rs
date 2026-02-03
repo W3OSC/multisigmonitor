@@ -107,7 +107,7 @@ pub async fn list_transactions(
     let mut params: Vec<String> = vec![user_id];
 
     if let Some(safe_address) = &query.safe_address {
-        sql.push_str(" AND t.safe_address = ?");
+        sql.push_str(" AND LOWER(t.safe_address) = LOWER(?)");
         params.push(safe_address.clone());
     }
 
@@ -203,7 +203,7 @@ pub async fn get_transaction(
          FROM transactions t
          INNER JOIN monitors m ON t.monitor_id = m.id
          LEFT JOIN security_analyses sa ON t.safe_tx_hash = sa.safe_tx_hash 
-            AND t.safe_address = sa.safe_address
+            AND LOWER(t.safe_address) = LOWER(sa.safe_address)
          WHERE t.id = ? AND m.user_id = ?"
     )
     .bind(&id)

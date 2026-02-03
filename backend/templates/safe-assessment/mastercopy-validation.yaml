@@ -1,0 +1,31 @@
+id: mastercopy-validation
+name: Mastercopy Address Validation
+type: safe-assessment
+check-name: mastercopy_validation
+
+conditions:
+  - type: whitelist-lookup
+    field: safeInfo.masterCopy
+    whitelist:
+      "0x34cfac646f301356faa8b21e94227e3583fe3f5f": "Safe: Master Copy 1.3.0+"
+      "0xd9db270c1b5e3bd161e8c8503c55ceabee709552": "Safe: Master Copy 1.3.0"
+      "0x6851d6fdfafd08c0295c392436245e5bc78b0185": "Safe: Master Copy 1.2.0"
+      "0xae32496491b53841efb51829d6f886387708f99b": "Safe: Master Copy 1.1.1"
+      "0xb6029ea3b2c51d09a50b53ca8012feeb05bda35a": "Safe: Master Copy 1.0.0"
+      "0x3e5c63644e683549055b9be8653de26e0b4cd36e": "Safe: Master Copy 1.3.0 (L2)"
+      "0x29fcb43b46531bca003ddc8fcb67ffe91900c762": "Safe: Master Copy 1.4.1 (L2)"
+      "0xfb1bffc9d739b8d520daf37df666da4c687191ea": "Safe: Master Copy 1.3.0 (L2 Alt)"
+      "0x69f4d1788e39c87893c980c06edf4b7f686e2938": "Safe: Master Copy 1.3.0 (zkSync)"
+      "0x41675c099f32341bf84bfc5382af534df5c7461a": "Safe: Master Copy 1.4.1"
+      "0x017062a1de2fe6b99be3d9d37841fed19f573804": "Safe: Master Copy 1.3.0 (Gnosis)"
+      "0x8942595a2dc5181df0465af0d7be08c8f23c93af": "Safe: Master Copy 1.1.1 (Gnosis)"
+      "0x76e2cfc1f5fa8f6a5b3fc4c8f4788f0116861f9b": "Safe: Master Copy (Legacy)"
+    on_match:
+      severity: pass
+      canonical-name: "{{whitelist_name}}"
+      score-modifier: 10
+    on_no_match:
+      severity: high
+      warning: "Unknown mastercopy implementation"
+      risk-factor: "Non-canonical mastercopy detected"
+      score-modifier: -20

@@ -310,3 +310,44 @@ export const dashboardApi = {
     return fetchWithAuth(`${API_BASE_URL}/dashboard/stats`);
   },
 };
+
+export interface WorkerActivity {
+  id: string;
+  userId: string;
+  monitorId: string | null;
+  eventType: string;
+  safeAddress: string | null;
+  network: string | null;
+  message: string;
+  metadata: string | null;
+  createdAt: string;
+}
+
+export interface ActivityResponse {
+  activities: WorkerActivity[];
+  total: number;
+}
+
+export interface ActivityQuery {
+  limit?: number;
+  eventType?: string;
+  monitorId?: string;
+}
+
+export const activityApi = {
+  list: async (query?: ActivityQuery): Promise<ActivityResponse> => {
+    const params = new URLSearchParams();
+    if (query?.limit) params.append('limit', query.limit.toString());
+    if (query?.eventType) params.append('eventType', query.eventType);
+    if (query?.monitorId) params.append('monitorId', query.monitorId);
+    
+    const queryString = params.toString();
+    const url = queryString 
+      ? `${API_BASE_URL}/activity?${queryString}` 
+      : `${API_BASE_URL}/activity`;
+    return fetchWithAuth(url);
+  },
+  clear: async (): Promise<void> => {
+    await fetchWithAuth(`${API_BASE_URL}/activity`, { method: 'DELETE' });
+  },
+};

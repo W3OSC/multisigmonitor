@@ -1,0 +1,15 @@
+id: address-validation
+name: Address Format Validation
+type: safe-assessment
+check-name: address_validation
+
+conditions:
+  - type: field-validation
+    field: safeAddress
+    validation: address-format
+    on_valid:
+      severity: pass
+    on_invalid:
+      severity: critical
+      risk-factor: "Invalid address format"
+      score-modifier: -100

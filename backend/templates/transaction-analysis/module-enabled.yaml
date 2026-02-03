@@ -1,0 +1,20 @@
+id: module-enabled
+name: Module Enabled Detection
+type: transaction-analysis
+severity: critical
+priority: P0
+
+conditions:
+  - type: method-match
+    field: dataDecoded.method
+    methods:
+      - enableModule
+      - EnabledModule
+
+output:
+  warning: Module Enabled
+  message: "CRITICAL: New module enabled. Modules can execute transactions without signatures."
+  type: module_enabled
+  extra-fields:
+    - dataDecoded.method
+    - dataDecoded.parameters

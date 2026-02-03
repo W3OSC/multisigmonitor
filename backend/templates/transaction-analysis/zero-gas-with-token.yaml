@@ -1,0 +1,20 @@
+id: zero-gas-with-token
+name: Zero Gas Price with Token Detection
+type: transaction-analysis
+severity: medium
+
+conditions:
+  - type: numeric-equals
+    field: gasPrice
+    value: 0
+  - type: address-not-equals
+    field: gasToken
+    address: "0x0000000000000000000000000000000000000000"
+
+output:
+  warning: Zero Gas Price with Token
+  message: "Transaction uses zero gas price with a gas token. This could indicate gas manipulation."
+  type: zero_gas_with_token
+  extra-fields:
+    - gasPrice
+    - gasToken

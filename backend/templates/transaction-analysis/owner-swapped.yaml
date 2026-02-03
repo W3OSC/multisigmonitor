@@ -1,0 +1,19 @@
+id: owner-swapped
+name: Owner Swap Detection
+type: transaction-analysis
+severity: critical
+priority: P0
+
+conditions:
+  - type: method-match
+    field: dataDecoded.method
+    methods:
+      - swapOwner
+
+output:
+  warning: Owner Replaced
+  message: "CRITICAL: Safe owner replaced. Verify the new owner address."
+  type: owner_swapped
+  extra-fields:
+    - dataDecoded.method
+    - dataDecoded.parameters

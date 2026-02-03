@@ -1,0 +1,19 @@
+id: custom-gas-token
+name: Custom Gas Token Detection
+type: transaction-analysis
+severity: medium
+
+conditions:
+  - type: address-not-equals
+    field: gasToken
+    address: "0x0000000000000000000000000000000000000000"
+  - type: address-equals
+    field: refundReceiver
+    address: "0x0000000000000000000000000000000000000000"
+
+output:
+  warning: Custom Gas Token
+  message: "Transaction uses a custom gas token. Verify this is intended."
+  type: custom_gas_token
+  extra-fields:
+    - gasToken

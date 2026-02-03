@@ -1,0 +1,35 @@
+id: safe-configuration-validation
+name: Safe Configuration Validation  
+type: safe-assessment
+check-name: safe_configuration
+
+conditions:
+  - type: field-validation
+    field: safeInfo.version
+    validation: non-empty
+    on_valid:
+      severity: pass
+    on_invalid:
+      severity: critical
+      warning: "Safe version not detected"
+      risk-factor: "Unable to determine Safe version"
+      score-modifier: -50
+  
+  - type: numeric-validation
+    field: safeInfo.nonce
+    rules:
+      - condition: equals-zero
+        result:
+          severity: info
+          canonical-name: "Newly created Safe (no transactions)"
+      - condition: greater-than
+        threshold: 10000
+        result:
+          severity: info
+          warning: "Extremely high nonce detected"
+          canonical-name: "High-activity Safe (10,000+ transactions)"
+      - condition: greater-than
+        threshold: 0
+        result:
+          severity: pass
+          canonical-name: "Active Safe with transaction history"

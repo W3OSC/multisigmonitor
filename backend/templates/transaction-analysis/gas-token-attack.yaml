@@ -1,0 +1,21 @@
+id: gas-token-attack
+name: Gas Token Attack Detection
+type: transaction-analysis
+severity: high
+
+conditions:
+  - type: address-not-equals
+    field: gasToken
+    address: "0x0000000000000000000000000000000000000000"
+  - type: address-not-equals
+    field: refundReceiver
+    address: "0x0000000000000000000000000000000000000000"
+
+output:
+  warning: Gas Token Attack Risk
+  message: "Transaction uses both a custom gas token and custom refund receiver. This combination can hide fund rerouting through gas refunds."
+  type: gas_token_attack
+  extra-fields:
+    - gasToken
+    - refundReceiver
+    - gasPrice

@@ -1,0 +1,20 @@
+id: high-base-gas
+name: Suspicious BaseGas Detection
+type: transaction-analysis
+severity: low
+
+conditions:
+  - type: numeric-greater-than
+    field: baseGas
+    threshold: 5000000
+
+output:
+  warning: Extremely High Base Gas
+  message: "Transaction specifies baseGas > 5M, which is unusually high even for complex operations. This could indicate: (1) gas griefing attempt, (2) intentional gas inflation to make transaction expensive, or (3) legitimate complex operation like large batch transaction. Verify the operation justifies this gas requirement. Normal Safe operations rarely exceed 1M baseGas."
+  type: high_base_gas
+  score-modifier: -5
+  extra-fields:
+    - baseGas
+    - operation
+    - to
+    - dataDecoded.method

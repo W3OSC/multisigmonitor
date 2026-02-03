@@ -1,0 +1,19 @@
+id: safe-tx-gas-set
+name: Safe Tx Gas Set Detection
+type: transaction-analysis
+severity: info
+
+conditions:
+  - type: field-not-equals
+    field: safeTxGas
+    value: "0"
+  - type: numeric-less-than
+    field: safeTxGas
+    threshold: 1000000
+
+output:
+  warning: Safe Tx Gas Set
+  message: "Custom gas limit set - verify this is intentional."
+  type: safe_tx_gas_set
+  extra-fields:
+    - safeTxGas

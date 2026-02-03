@@ -1,5 +1,5 @@
 import { Helmet } from 'react-helmet-async'
-import { Bell, Shield, ShieldAlert, Settings as SettingsIcon, ExternalLink, Loader2, Send, MessageSquare, Webhook, CheckCircle2, AlertCircle } from 'lucide-react'
+import { Bell, ChevronRight, Home, Shield, ShieldAlert, Settings as SettingsIcon, ExternalLink, Loader2, Send, MessageSquare, Webhook, CheckCircle2, AlertCircle } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -116,15 +116,24 @@ export default function Alerts() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-secondary/20 p-8">
+    <div className="min-h-screen bg-background flex flex-col">
       <Helmet>
         <title>Alerts - Multisig Monitor</title>
         <meta name="description" content="Manage notification settings and view alert history." />
         <meta name="robots" content="noindex" />
       </Helmet>
-      <div className="max-w-5xl mx-auto">
-        <div className="mb-8 animate-slide-down">
-          <h1 className="text-4xl font-bold text-foreground mb-2">Alerts</h1>
+      <main className="flex-1 container py-12">
+        <div className="flex items-center gap-2 mb-6 text-sm text-muted-foreground">
+          <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")}>
+            <Home className="h-4 w-4 mr-1" />
+            Dashboard
+          </Button>
+          <ChevronRight className="h-4 w-4" />
+          <span className="text-foreground">Alerts</span>
+        </div>
+
+        <div className="mb-8">
+          <h1 className="text-3xl sm:text-4xl font-bold text-foreground mb-2">Alerts</h1>
           <p className="text-muted-foreground">
             Configure alert settings and view notification history
           </p>
@@ -224,7 +233,7 @@ export default function Alerts() {
                           >
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-medium truncate">
-                                {settings?.alias || `${monitor.safeAddress.slice(0, 6)}...${monitor.safeAddress.slice(-4)}`}
+                                {settings?.alias || `${monitor.safeAddress}`}
                               </p>
                               <p className="text-xs text-muted-foreground capitalize">{monitor.network}</p>
                             </div>
@@ -329,7 +338,7 @@ export default function Alerts() {
                           >
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-medium truncate">
-                                {settings?.alias || `${monitor.safeAddress.slice(0, 6)}...${monitor.safeAddress.slice(-4)}`}
+                                {settings?.alias || `${monitor.safeAddress}`}
                               </p>
                               <p className="text-xs text-muted-foreground capitalize">{monitor.network}</p>
                             </div>
@@ -412,7 +421,7 @@ export default function Alerts() {
                           </div>
                           
                           <p className="text-sm mt-1">
-                            {notification.safeAddress.slice(0, 6)}...{notification.safeAddress.slice(-4)} on {notification.network}
+                            {notification.safeAddress} on {notification.network}
                           </p>
                           
                           <a
@@ -434,7 +443,7 @@ export default function Alerts() {
             </CardContent>
           </Card>
         </div>
-      </div>
+      </main>
     </div>
   )
 }

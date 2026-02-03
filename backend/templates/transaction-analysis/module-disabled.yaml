@@ -1,0 +1,20 @@
+id: module-disabled
+name: Module Disabled Detection
+type: transaction-analysis
+severity: critical
+priority: P0
+
+conditions:
+  - type: method-match
+    field: dataDecoded.method
+    methods:
+      - disableModule
+      - DisabledModule
+
+output:
+  warning: Module Disabled
+  message: "CRITICAL: Module disabled. Verify this doesn't break existing automations."
+  type: module_disabled
+  extra-fields:
+    - dataDecoded.method
+    - dataDecoded.parameters

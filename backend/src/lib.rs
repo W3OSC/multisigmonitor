@@ -5,5 +5,6 @@ pub mod error;
 pub mod middleware;
 pub mod models;
 pub mod services;
+pub mod template_engine;
 pub mod types;
 pub mod worker;

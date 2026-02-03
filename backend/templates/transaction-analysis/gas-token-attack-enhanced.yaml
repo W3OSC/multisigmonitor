@@ -1,0 +1,24 @@
+id: gas-token-attack-enhanced
+name: Enhanced Gas Token Attack Detection
+type: transaction-analysis
+severity: critical
+
+conditions:
+  - type: address-not-equals
+    field: gasToken
+    address: "0x0000000000000000000000000000000000000000"
+  - type: address-not-equals
+    field: refundReceiver
+    address: "0x0000000000000000000000000000000000000000"
+  - type: field-not-equals
+    field: gasPrice
+    value: "0"
+
+output:
+  warning: Gas Token Attack Risk
+  message: "Non-zero gas price increases potential for hidden value transfers through gas refunds."
+  type: gas_token_attack_enhanced
+  extra-fields:
+    - gasPrice
+    - gasToken
+    - refundReceiver

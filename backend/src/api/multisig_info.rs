@@ -11,6 +11,7 @@ use ethers::{
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use reqwest::Url;
 
 use super::AppState;
 
@@ -18,6 +19,8 @@ use super::AppState;
 pub struct MultisigInfoRequest {
     pub txhash: String,
     pub network: String,
+    #[serde(rename = "safeAddress")]
+    pub safe_address: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -40,15 +43,34 @@ pub struct MultisigInfoResponse {
     pub guard: Option<String>,
     pub modules: Vec<String>,
     pub version: Option<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub errors: Vec<String>,
 }
 
 pub async fn get_multisig_info(
     State(state): State<AppState>,
     Json(payload): Json<MultisigInfoRequest>,
 ) -> Result<Json<MultisigInfoResponse>, StatusCode> {
+    let response = get_multisig_info_internal(
+        &state,
+        &payload.txhash,
+        &payload.network,
+        payload.safe_address.as_deref(),
+    )
+    .await?;
+    
+    Ok(Json(response))
+}
+
+pub async fn get_multisig_info_internal(
+    state: &AppState,
+    txhash: &str,
+    network: &str,
+    safe_address: Option<&str>,
+) -> Result<MultisigInfoResponse, StatusCode> {
     let infura_api_key = &state.config.infura_api_key;
 
-    let infura_network = match payload.network.as_str() {
+    let infura_network = match network {
         "ethereum" => "mainnet",
         "goerli" => "goerli",
         "sepolia" => "sepolia",
@@ -59,13 +81,15 @@ pub async fn get_multisig_info(
     
     tracing::debug!("Creating provider with URL: {}", infura_url);
     
-    let provider = Provider::<Http>::try_from(&infura_url[..])
-        .map_err(|e| {
-            tracing::error!("Failed to create provider for URL '{}': {}", infura_url, e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
+    let url = Url::parse(&infura_url).map_err(|e| {
+        tracing::error!("Failed to parse URL '{}': {:?}", infura_url, e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    
+    let http_provider = Http::new(url);
+    let provider = Provider::new(http_provider);
 
-    let tx_hash: H256 = payload.txhash.parse()
+    let tx_hash: H256 = txhash.parse()
         .map_err(|_| StatusCode::BAD_REQUEST)?;
 
     let receipt = provider.get_transaction_receipt(tx_hash)
@@ -90,6 +114,7 @@ pub async fn get_multisig_info(
         guard: None,
         modules: Vec::new(),
         version: None,
+        errors: Vec::new(),
     };
 
     // Parse event logs for SafeSetup and ProxyCreation events
@@ -101,12 +126,15 @@ pub async fn get_multisig_info(
     // ProxyCreation event signature: ProxyCreation(address indexed proxy, address singleton)
     let proxy_creation_topic = "0x4f51faf6c4561ff95f067657e43439f0f856d97c04d9ec9070a6199ad418e235";
 
+    tracing::debug!("Transaction receipt has {} logs", receipt.logs.len());
+    
     for log in &receipt.logs {
         if log.topics.is_empty() {
             continue;
         }
 
         let topic = format!("{:?}", log.topics[0]);
+        tracing::debug!("Log topic: {}, from address: {:?}", topic, log.address);
         
         if topic == safe_setup_topic {
             // Parse SafeSetup event
@@ -157,9 +185,15 @@ pub async fn get_multisig_info(
         }
     }
 
-    // If no proxy address found in events, use receipt data
+    // If no proxy address found in events and safeAddress provided, use it
     if proxy_address.is_none() {
-        if let Some(contract_addr) = receipt.contract_address {
+        if let Some(addr_str) = safe_address {
+            if let Ok(addr) = addr_str.parse::<Address>() {
+                proxy_address = Some(addr);
+                response.proxy = Some(format!("{:?}", addr));
+                tracing::debug!("Using provided Safe address: {:?}", addr);
+            }
+        } else if let Some(contract_addr) = receipt.contract_address {
             proxy_address = Some(contract_addr);
             response.proxy = Some(format!("{:?}", contract_addr));
         } else if let Some(to_addr) = receipt.to {
@@ -181,41 +215,119 @@ pub async fn get_multisig_info(
 
         let contract = Contract::new(safe_addr, safe_abi, Arc::new(provider.clone()));
 
-        // Get owners
-        if let Ok(result) = contract.method::<_, Vec<Address>>("getOwners", ()).unwrap().call().await {
-            response.owners = result.iter().map(|a| format!("{:?}", a)).collect();
+        match contract.method::<_, Vec<Address>>("getOwners", ()) {
+            Ok(call) => match call.call().await {
+                Ok(result) => {
+                    response.owners = result.iter().map(|a| format!("{:?}", a)).collect();
+                }
+                Err(e) => {
+                    let err_msg = format!("Failed to call getOwners: {}", e);
+                    tracing::error!("{}", err_msg);
+                    response.errors.push(err_msg);
+                }
+            },
+            Err(e) => {
+                let err_msg = format!("Failed to encode getOwners call: {}", e);
+                tracing::error!("{}", err_msg);
+                response.errors.push(err_msg);
+            }
         }
 
-        // Get threshold (if not already set from event)
         if response.threshold.is_none() {
-            if let Ok(threshold) = contract.method::<_, U256>("getThreshold", ()).unwrap().call().await {
-                response.threshold = Some(threshold.to_string());
+            match contract.method::<_, U256>("getThreshold", ()) {
+                Ok(call) => match call.call().await {
+                    Ok(threshold) => {
+                        response.threshold = Some(threshold.to_string());
+                    }
+                    Err(e) => {
+                        let err_msg = format!("Failed to call getThreshold: {}", e);
+                        tracing::error!("{}", err_msg);
+                        response.errors.push(err_msg);
+                    }
+                },
+                Err(e) => {
+                    let err_msg = format!("Failed to encode getThreshold call: {}", e);
+                    tracing::error!("{}", err_msg);
+                    response.errors.push(err_msg);
+                }
             }
         }
 
-        // Get guard
-        if let Ok(guard) = contract.method::<_, Address>("getGuard", ()).unwrap().call().await {
-            let guard_str = format!("{:?}", guard);
-            if guard_str != "0x0000000000000000000000000000000000000000" {
-                response.guard = Some(guard_str);
+        match contract.method::<_, Address>("getGuard", ()) {
+            Ok(call) => match call.call().await {
+                Ok(guard) => {
+                    let guard_str = format!("{:?}", guard);
+                    if guard_str != "0x0000000000000000000000000000000000000000" {
+                        response.guard = Some(guard_str);
+                    }
+                }
+                Err(e) => {
+                    let err_msg = format!("Failed to call getGuard: {}", e);
+                    tracing::error!("{}", err_msg);
+                    response.errors.push(err_msg);
+                }
+            },
+            Err(e) => {
+                let err_msg = format!("Failed to encode getGuard call: {}", e);
+                tracing::error!("{}", err_msg);
+                response.errors.push(err_msg);
             }
         }
 
-        // Get fallback handler runtime
-        if let Ok(fallback) = contract.method::<_, Address>("getFallbackHandler", ()).unwrap().call().await {
-            response.fallback_handler_runtime = Some(format!("{:?}", fallback));
+        match contract.method::<_, Address>("getFallbackHandler", ()) {
+            Ok(call) => match call.call().await {
+                Ok(fallback) => {
+                    response.fallback_handler_runtime = Some(format!("{:?}", fallback));
+                }
+                Err(e) => {
+                    let err_msg = format!("Failed to call getFallbackHandler: {}", e);
+                    tracing::error!("{}", err_msg);
+                    response.errors.push(err_msg);
+                }
+            },
+            Err(e) => {
+                let err_msg = format!("Failed to encode getFallbackHandler call: {}", e);
+                tracing::error!("{}", err_msg);
+                response.errors.push(err_msg);
+            }
         }
 
-        // Get modules
-        if let Ok((modules, _next)) = contract.method::<_, (Vec<Address>, Address)>("getModulesPaginated", (Address::zero(), U256::from(100))).unwrap().call().await {
-            response.modules = modules.iter().map(|a| format!("{:?}", a)).collect();
+        match contract.method::<_, (Vec<Address>, Address)>("getModulesPaginated", (Address::zero(), U256::from(100))) {
+            Ok(call) => match call.call().await {
+                Ok((modules, _next)) => {
+                    response.modules = modules.iter().map(|a| format!("{:?}", a)).collect();
+                }
+                Err(e) => {
+                    let err_msg = format!("Failed to call getModulesPaginated: {}", e);
+                    tracing::error!("{}", err_msg);
+                    response.errors.push(err_msg);
+                }
+            },
+            Err(e) => {
+                let err_msg = format!("Failed to encode getModulesPaginated call: {}", e);
+                tracing::error!("{}", err_msg);
+                response.errors.push(err_msg);
+            }
         }
 
-        // Get version
-        if let Ok(version) = contract.method::<_, String>("VERSION", ()).unwrap().call().await {
-            response.version = Some(version);
+        match contract.method::<_, String>("VERSION", ()) {
+            Ok(call) => match call.call().await {
+                Ok(version) => {
+                    response.version = Some(version);
+                }
+                Err(e) => {
+                    let err_msg = format!("Failed to call VERSION: {}", e);
+                    tracing::error!("{}", err_msg);
+                    response.errors.push(err_msg);
+                }
+            },
+            Err(e) => {
+                let err_msg = format!("Failed to encode VERSION call: {}", e);
+                tracing::error!("{}", err_msg);
+                response.errors.push(err_msg);
+            }
         }
     }
 
-    Ok(Json(response))
+    Ok(response)
 }

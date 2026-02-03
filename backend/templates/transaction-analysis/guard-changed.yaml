@@ -1,0 +1,20 @@
+id: guard-changed
+name: Guard Change Detection
+type: transaction-analysis
+severity: critical
+priority: P0
+
+conditions:
+  - type: method-match
+    field: dataDecoded.method
+    methods:
+      - setGuard
+      - ChangedGuard
+
+output:
+  warning: Guard Changed
+  message: "CRITICAL: Transaction guard changed. Guards can block all transactions."
+  type: guard_changed
+  extra-fields:
+    - dataDecoded.method
+    - dataDecoded.parameters

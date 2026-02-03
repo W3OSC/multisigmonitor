@@ -98,18 +98,18 @@ interface Transaction {
   id: string;
   safeAddress: string;
   network: string;
-  safe_tx_hash: string;
-  to_address: string;
+  safeTxHash: string;
+  toAddress: string;
   value?: string;
   data?: string;
   operation?: number;
   nonce: number;
-  is_executed: boolean;
-  submission_date?: string;
-  execution_date?: string;
-  created_at: string;
-  updated_at: string;
-  transaction_data?: {
+  isExecuted: boolean;
+  submissionDate?: string;
+  executionDate?: string;
+  createdAt: string;
+  updatedAt: string;
+  transactionData?: {
     dataDecoded?: {
       method: string;
       parameters?: any[];
@@ -147,6 +147,32 @@ interface TransactionFilters {
 type SortField = 'safe' | 'network' | 'nonce' | 'type' | 'scanned_at';
 type SortDirection = 'asc' | 'desc';
 
+const STORAGE_KEYS = {
+  FILTERS: 'monitor_filters',
+  SORT_FIELD: 'monitor_sort_field',
+  SORT_DIRECTION: 'monitor_sort_direction',
+  ITEMS_PER_PAGE: 'monitor_items_per_page',
+  SHOW_FILTERS: 'monitor_show_filters',
+};
+
+const loadFromStorage = <T,>(key: string, defaultValue: T): T => {
+  try {
+    const stored = localStorage.getItem(key);
+    if (stored === null) return defaultValue;
+    return JSON.parse(stored) as T;
+  } catch {
+    return defaultValue;
+  }
+};
+
+const saveToStorage = <T,>(key: string, value: T): void => {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Ignore storage errors
+  }
+};
+
 const Monitor = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -166,21 +192,52 @@ const Monitor = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isLoadingTransactions, setIsLoadingTransactions] = useState(false);
   
-  // Filtering state
-  const [filters, setFilters] = useState<TransactionFilters>({
-    safe: null,
-    network: null,
-    state: null,
-    securityStatus: null
-  });
+  // Filtering state (persisted to localStorage)
+  const [filters, setFiltersState] = useState<TransactionFilters>(() =>
+    loadFromStorage(STORAGE_KEYS.FILTERS, {
+      safe: null,
+      network: null,
+      state: null,
+      securityStatus: null
+    })
+  );
   
-  // Sorting state
-  const [sortField, setSortField] = useState<SortField>('scanned_at');
-  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+  const setFilters: React.Dispatch<React.SetStateAction<TransactionFilters>> = (value) => {
+    setFiltersState(prev => {
+      const newValue = typeof value === 'function' ? value(prev) : value;
+      saveToStorage(STORAGE_KEYS.FILTERS, newValue);
+      return newValue;
+    });
+  };
   
-  // Pagination state
+  // Sorting state (persisted to localStorage)
+  const [sortField, setSortFieldState] = useState<SortField>(() =>
+    loadFromStorage(STORAGE_KEYS.SORT_FIELD, 'scanned_at')
+  );
+  const [sortDirection, setSortDirectionState] = useState<SortDirection>(() =>
+    loadFromStorage(STORAGE_KEYS.SORT_DIRECTION, 'desc')
+  );
+  
+  const setSortField = (value: SortField) => {
+    setSortFieldState(value);
+    saveToStorage(STORAGE_KEYS.SORT_FIELD, value);
+  };
+  
+  const setSortDirection = (value: SortDirection) => {
+    setSortDirectionState(value);
+    saveToStorage(STORAGE_KEYS.SORT_DIRECTION, value);
+  };
+  
+  // Pagination state (items per page persisted)
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [itemsPerPageState, setItemsPerPageState] = useState<number>(() =>
+    loadFromStorage(STORAGE_KEYS.ITEMS_PER_PAGE, 10)
+  );
+  const itemsPerPage = itemsPerPageState;
+  const setItemsPerPage = (value: number) => {
+    setItemsPerPageState(value);
+    saveToStorage(STORAGE_KEYS.ITEMS_PER_PAGE, value);
+  };
   const [totalItems, setTotalItems] = useState(0);
   
   // Transaction detail modal
@@ -190,8 +247,18 @@ const Monitor = () => {
   // Track if we're handling a direct transaction link
   const isDirectTransactionLink = useRef(false);
   
-  // Filter visibility state
-  const [showFilters, setShowFilters] = useState(false);
+  // Filter visibility state (persisted to localStorage)
+  const [showFiltersState, setShowFiltersState] = useState<boolean>(() =>
+    loadFromStorage(STORAGE_KEYS.SHOW_FILTERS, false)
+  );
+  const showFilters = showFiltersState;
+  const setShowFilters = (value: boolean | ((prev: boolean) => boolean)) => {
+    setShowFiltersState(prev => {
+      const newValue = typeof value === 'function' ? value(prev) : value;
+      saveToStorage(STORAGE_KEYS.SHOW_FILTERS, newValue);
+      return newValue;
+    });
+  };
   
   // Get txHash from URL parameter
   const { txHash } = params;
@@ -217,8 +284,8 @@ const Monitor = () => {
   
   // Load transaction by hash from URL parameter
   useEffect(() => {
-    // Only proceed if there's a transaction hash in the URL and user is authenticated
-    if (!txHash || !user || isLoadingDirectTransaction || detailModalOpen) {
+    // Wait for monitors to load before checking permissions
+    if (!txHash || !user || isLoading || isLoadingDirectTransaction || detailModalOpen) {
       return;
     }
     
@@ -245,7 +312,7 @@ const Monitor = () => {
         // Check if user has access to this transaction (must be monitoring the safe)
         const hasAccess = monitors.some(m => 
           m.safeAddress.toLowerCase() === transaction.safeAddress.toLowerCase() && 
-          m.network === transaction.network
+          m.network.toLowerCase() === transaction.network.toLowerCase()
         );
         
         if (!hasAccess) {
@@ -273,7 +340,7 @@ const Monitor = () => {
     };
     
     fetchTransactionByHash();
-  }, [txHash, user, toast, isLoadingDirectTransaction, detailModalOpen]);
+  }, [txHash, user, toast, isLoading, monitors, isLoadingDirectTransaction, detailModalOpen]);
   
   // Check access to transaction after monitors load
   useEffect(() => {
@@ -340,6 +407,7 @@ const Monitor = () => {
           return;
         }
         
+        console.log('Fetched monitors:', data.map(m => ({ id: m.id, lastCheckedAt: m.lastCheckedAt })));
         setMonitors(data);
       } catch (error) {
         console.error('Unexpected error:', error);
@@ -427,15 +495,15 @@ const Monitor = () => {
               break;
             case 'scanned_at':
             default:
-              valueA = a.submission_date ? new Date(a.submission_date).getTime() : new Date(a.created_at).getTime();
-              valueB = b.submission_date ? new Date(b.submission_date).getTime() : new Date(b.created_at).getTime();
+              valueA = a.submissionDate ? new Date(a.submissionDate).getTime() : new Date(a.createdAt).getTime();
+              valueB = b.submissionDate ? new Date(b.submissionDate).getTime() : new Date(b.createdAt).getTime();
               break;
           }
           
           if (valueA === valueB) {
             return sortDirection === 'asc' 
-              ? new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-              : new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+              ? new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+              : new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
           }
           
           if (sortDirection === 'asc') {
@@ -541,7 +609,7 @@ const Monitor = () => {
       
       toast({
         title: "Monitor Deleted",
-        description: `Successfully removed monitoring for ${truncateAddress(monitorToDelete.safeAddress)}`,
+        description: `Successfully removed monitoring for ${monitorToDelete.safeAddress}`,
       });
     } catch (error: any) {
       console.error('Error deleting monitor:', error);
@@ -614,18 +682,13 @@ const Monitor = () => {
     return `${baseUrl}/tx/${txHash}`;
   };
 
-  const truncateAddress = (address: string) => {
-    const middleStartIndex = Math.floor((address.length - 6) / 2);
-    return `${address.substring(0, 6)}...${address.substring(middleStartIndex, middleStartIndex + 6)}...${address.substring(address.length - 6)}`;
-  };
-
   const generateTransactionDescription = (tx: Transaction): string => {
     const valueEth = tx.value ? parseFloat(tx.value) / 1e18 : 0;
     const operation = tx.operation === 1 ? 'DelegateCall' : tx.operation === 2 ? 'Create' : 'Call';
     const executed = tx.isExecuted ? 'Executed' : 'Pending';
     const riskLevel = tx.securityAnalysis?.riskLevel || 'unknown';
     
-    let desc = `${operation} to ${truncateAddress(tx.to_address)}`;
+    let desc = `${operation} to ${tx.toAddress}`;
     if (valueEth > 0) desc += ` - ${valueEth} ETH`;
     desc += ` [${executed}]`;
     if (tx.securityAnalysis?.isSuspicious) desc += ` [RISK: ${riskLevel.toUpperCase()}]`;
@@ -701,9 +764,7 @@ const Monitor = () => {
   };
 
   // Get risk level badge with appropriate styling
-  const getRiskLevelBadge = (riskLevel: string, type: string) => {
-    const isSuspicious = type === 'suspicious';
-    
+  const getRiskLevelBadge = (riskLevel: string) => {
     switch (riskLevel) {
       case 'critical':
         return (
@@ -728,18 +789,10 @@ const Monitor = () => {
         );
       case 'low':
       default:
-        if (isSuspicious) {
-          return (
-            <Badge variant="outline" className="border-yellow-400 text-yellow-600">
-              <Shield className="w-3 h-3 mr-1" />
-              Suspicious
-            </Badge>
-          );
-        }
         return (
           <Badge variant="outline" className="border-green-400 text-green-600">
             <ShieldCheck className="w-3 h-3 mr-1" />
-            No Risk Detected
+            Low
           </Badge>
         );
     }
@@ -777,7 +830,7 @@ const Monitor = () => {
           <DialogHeader>
             <DialogTitle className="text-destructive">Delete Monitor</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete the monitor for {truncateAddress(monitorToDelete?.safeAddress || '')}? 
+              Are you sure you want to delete the monitor for {monitorToDelete?.safeAddress || ''}? 
               This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
@@ -821,7 +874,7 @@ const Monitor = () => {
           setDetailModalOpen(open);
         }
       }}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto [&>button]:h-7 [&>button]:w-7 [&>button]:p-1.5">
+        <DialogContent className="max-w-5xl w-[95vw] max-h-[90vh] overflow-y-auto [&>button]:h-7 [&>button]:w-7 [&>button]:p-1.5">
           <DialogHeader>
             <DialogTitle className="text-lg font-semibold">Transaction Details</DialogTitle>
             <DialogDescription className="text-sm mt-1">
@@ -870,10 +923,7 @@ const Monitor = () => {
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div className="space-y-1">
                           <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Risk Level</h3>
-                          {getRiskLevelBadge(
-                            selectedTransaction.securityAnalysis.riskLevel,
-                            selectedTransaction.securityAnalysis.isSuspicious ? 'suspicious' : 'normal'
-                          )}
+                          {getRiskLevelBadge(selectedTransaction.securityAnalysis.riskLevel)}
                         </div>
                         <div className="space-y-1">
                           <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Status</h3>
@@ -884,45 +934,31 @@ const Monitor = () => {
                       </div>
                     </div>
 
-                    {/* Security Warnings */}
-                    {selectedTransaction.securityAnalysis.warnings && selectedTransaction.securityAnalysis.warnings.length > 0 && (
-                      <div className="space-y-3">
-                        <h4 className="text-sm font-medium text-muted-foreground">Warnings</h4>
-                        <div className="space-y-2">
-                          {selectedTransaction.securityAnalysis.warnings.map((warning, index) => (
-                            <div key={index} className="flex items-start gap-2 p-3 bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800 rounded-lg">
-                              <AlertCircle className="h-4 w-4 text-orange-600 dark:text-orange-400 mt-0.5 flex-shrink-0" />
-                              <span className="text-sm text-orange-900 dark:text-orange-200">{warning}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Detailed Security Analysis */}
+                    {/* Security Findings */}
                     {selectedTransaction.securityAnalysis?.details && selectedTransaction.securityAnalysis.details.length > 0 && (
                       <div className="space-y-3">
-                        <h4 className="text-sm font-medium text-muted-foreground">Analysis Details</h4>
-                        <div className="space-y-3 max-h-64 overflow-y-auto">
+                        <h4 className="text-sm font-medium text-muted-foreground">Security Findings</h4>
+                        <div className="space-y-3 max-h-[500px] overflow-y-auto">
                           {[...selectedTransaction.securityAnalysis.details]
                             .sort((a: any, b: any) => {
-                              const severityOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
-                              const priorityOrder: Record<string, number> = { P0: 0, P1: 1, P2: 2, P3: 3 };
-                              
-                              const aPriority = priorityOrder[a.priority] ?? 999;
-                              const bPriority = priorityOrder[b.priority] ?? 999;
-                              if (aPriority !== bPriority) return aPriority - bPriority;
+                              const severityOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
                               
                               const aSeverity = severityOrder[a.severity?.toLowerCase()] ?? 999;
                               const bSeverity = severityOrder[b.severity?.toLowerCase()] ?? 999;
-                              return aSeverity - bSeverity;
+                              if (aSeverity !== bSeverity) return aSeverity - bSeverity;
+                              
+                              const priorityOrder: Record<string, number> = { P0: 0, P1: 1, P2: 2, P3: 3 };
+                              const aPriority = priorityOrder[a.priority] ?? 999;
+                              const bPriority = priorityOrder[b.priority] ?? 999;
+                              return aPriority - bPriority;
                             })
                             .map((detail: any, index: number) => (
                             <div key={index} className={`p-3 rounded-lg border-l-4 ${
                               detail.severity === 'critical' ? 'bg-red-50 dark:bg-red-950/30 border-l-red-500 dark:border-l-red-400' :
                               detail.severity === 'high' ? 'bg-orange-50 dark:bg-orange-950/30 border-l-orange-500 dark:border-l-orange-400' :
                               detail.severity === 'medium' ? 'bg-yellow-50 dark:bg-yellow-950/30 border-l-yellow-500 dark:border-l-yellow-400' :
-                              'bg-blue-50 dark:bg-blue-950/30 border-l-blue-500 dark:border-l-blue-400'
+                              detail.severity === 'low' ? 'bg-blue-50 dark:bg-blue-950/30 border-l-blue-500 dark:border-l-blue-400' :
+                              'bg-slate-50 dark:bg-slate-950/30 border-l-slate-400 dark:border-l-slate-500'
                             }`}>
                               <div className="space-y-2">
                                 <div className="flex flex-wrap items-center gap-2">
@@ -930,32 +966,36 @@ const Monitor = () => {
                                     detail.severity === 'critical' ? 'border-red-400 dark:border-red-500 text-red-700 dark:text-red-400' :
                                     detail.severity === 'high' ? 'border-orange-400 dark:border-orange-500 text-orange-700 dark:text-orange-400' :
                                     detail.severity === 'medium' ? 'border-yellow-400 dark:border-yellow-500 text-yellow-700 dark:text-yellow-400' :
-                                    'border-blue-400 dark:border-blue-500 text-blue-700 dark:text-blue-400'
+                                    detail.severity === 'low' ? 'border-blue-400 dark:border-blue-500 text-blue-700 dark:text-blue-400' :
+                                    'border-slate-400 dark:border-slate-500 text-slate-600 dark:text-slate-400'
                                   }`}>
                                     {detail.severity?.toUpperCase()}
                                   </Badge>
-                                  {detail.type && (
-                                    <span className="text-xs text-muted-foreground">
-                                      {detail.type.replace(/_/g, ' ')}
-                                    </span>
+                                  {detail.category && (
+                                    <Badge variant="secondary" className="text-xs capitalize">
+                                      {detail.category}
+                                    </Badge>
                                   )}
                                   {detail.priority === 'P0' && (
                                     <Badge variant="destructive" className="text-xs">P0</Badge>
                                   )}
                                 </div>
-                                <p className="text-sm">{detail.message}</p>
+                                <div className="font-medium text-sm">
+                                  {detail.title || detail.type?.replace(/_/g, ' ')}
+                                </div>
+                                <p className="text-sm text-muted-foreground">{detail.message}</p>
                                 
                                 {/* Additional detail fields */}
                                 {(detail.toAddress || detail.trustedName || detail.gasToken || detail.refundReceiver || detail.valueEth) && (
-                                  <div className="space-y-1 text-xs text-muted-foreground">
+                                  <div className="space-y-1 text-xs text-muted-foreground border-t pt-2 mt-2">
                                     {detail.toAddress && (
-                                      <div><span className="font-medium">Target Address:</span> {detail.toAddress}</div>
+                                      <div><span className="font-medium">Target Address:</span> <span className="font-mono">{detail.toAddress}</span></div>
                                     )}
                                     {detail.trustedName && (
                                       <div><span className="font-medium">Contract:</span> {detail.trustedName}</div>
                                     )}
-                                           {detail.refundReceiver && detail.refundReceiver !== '0x0000000000000000000000000000000000000000' && (
-                                      <div><span className="font-medium">Refund Receiver:</span> {detail.refundReceiver}</div>
+                                    {detail.refundReceiver && detail.refundReceiver !== '0x0000000000000000000000000000000000000000' && (
+                                      <div><span className="font-medium">Refund Receiver:</span> <span className="font-mono">{detail.refundReceiver}</span></div>
                                     )}
                                     {detail.valueEth && (
                                       <div><span className="font-medium">Value:</span> {detail.valueEth} ETH</div>
@@ -965,147 +1005,6 @@ const Monitor = () => {
                               </div>
                             </div>
                           ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Gas Parameters Assessment */}
-                    <div className="space-y-3">
-                      <h4 className="text-sm font-medium text-muted-foreground">Gas Parameters Assessment</h4>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div className={`p-3 rounded-lg border ${
-                          selectedTransaction.transactionData?.safeTxGas !== "0" ? 
-                          'bg-orange-50 dark:bg-orange-950/20 border-orange-200 dark:border-orange-800' : 'bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800'
-                        }`}>
-                          <div className="flex items-center gap-2 mb-1">
-                            {selectedTransaction.transactionData?.safeTxGas !== "0" ? (
-                              <AlertCircle className="h-4 w-4 text-orange-600 dark:text-orange-400" />
-                            ) : (
-                              <ShieldCheck className="h-4 w-4 text-green-600 dark:text-green-400" />
-                            )}
-                            <span className={`text-sm font-medium ${
-                              selectedTransaction.transactionData?.safeTxGas !== "0" ? 
-                              'text-orange-700 dark:text-orange-300' : 'text-green-700 dark:text-green-300'
-                            }`}>
-                              Safe Tx Gas: {selectedTransaction.transactionData?.safeTxGas || "0"}
-                            </span>
-                          </div>
-                          <p className="text-xs text-muted-foreground">
-                            {selectedTransaction.transactionData?.safeTxGas !== "0" ? 
-                              "Custom gas limit set" : 
-                              "Using default gas"}
-                          </p>
-                        </div>
-                        
-                        <div className={`p-3 rounded-lg border ${
-                          selectedTransaction.transactionData?.gasToken !== "0x0000000000000000000000000000000000000000" ? 
-                          'bg-orange-50 dark:bg-orange-950/20 border-orange-200 dark:border-orange-800' : 'bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800'
-                        }`}>
-                          <div className="flex items-center gap-2 mb-1">
-                            {selectedTransaction.transactionData?.gasToken !== "0x0000000000000000000000000000000000000000" ? (
-                              <AlertCircle className="h-4 w-4 text-orange-600 dark:text-orange-400" />
-                            ) : (
-                              <ShieldCheck className="h-4 w-4 text-green-600 dark:text-green-400" />
-                            )}
-                            <span className={`text-sm font-medium ${
-                              selectedTransaction.transactionData?.gasToken !== "0x0000000000000000000000000000000000000000" ? 
-                              'text-orange-700 dark:text-orange-300' : 'text-green-700 dark:text-green-300'
-                            }`}>
-                              Gas Token
-                            </span>
-                          </div>
-                          <p className="text-xs text-muted-foreground">
-                            {selectedTransaction.transactionData?.gasToken !== "0x0000000000000000000000000000000000000000" ? 
-                              "Custom gas token" : 
-                              "Native ETH"}
-                          </p>
-                        </div>
-                        
-                        <div className={`p-3 rounded-lg border sm:col-span-2 ${
-                          selectedTransaction.transactionData?.refundReceiver !== "0x0000000000000000000000000000000000000000" ? 
-                          'bg-orange-50 dark:bg-orange-950/20 border-orange-200 dark:border-orange-800' : 'bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800'
-                        }`}>
-                          <div className="flex items-center gap-2 mb-1">
-                            {selectedTransaction.transactionData?.refundReceiver !== "0x0000000000000000000000000000000000000000" ? (
-                              <AlertCircle className="h-4 w-4 text-orange-600 dark:text-orange-400" />
-                            ) : (
-                              <ShieldCheck className="h-4 w-4 text-green-600 dark:text-green-400" />
-                            )}
-                            <span className={`text-sm font-medium ${
-                              selectedTransaction.transactionData?.refundReceiver !== "0x0000000000000000000000000000000000000000" ? 
-                              'text-orange-700 dark:text-orange-300' : 'text-green-700 dark:text-green-300'
-                            }`}>
-                              Refund Receiver
-                            </span>
-                          </div>
-                          <p className="text-xs text-muted-foreground">
-                            {selectedTransaction.transactionData?.refundReceiver !== "0x0000000000000000000000000000000000000000" ? 
-                              "Custom refund receiver" : 
-                              "No custom receiver"}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Operation Type Assessment */}
-                    <div className="space-y-3">
-                      <h4 className="text-sm font-medium text-muted-foreground">Operation Type Assessment</h4>
-                      <div className={`p-3 rounded-lg border ${
-                        selectedTransaction.operation === 1 ? 
-                        'bg-orange-50 dark:bg-orange-950/20 border-orange-200 dark:border-orange-800' : 'bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800'
-                      }`}>
-                        <div className="flex items-center gap-2 mb-1">
-                          {selectedTransaction.operation === 1 ? (
-                            <AlertCircle className="h-4 w-4 text-orange-600 dark:text-orange-400" />
-                          ) : (
-                            <ShieldCheck className="h-4 w-4 text-green-600 dark:text-green-400" />
-                          )}
-                          <span className={`text-sm font-medium ${
-                            selectedTransaction.operation === 1 ? 
-                            'text-orange-700 dark:text-orange-300' : 'text-green-700 dark:text-green-300'
-                          }`}>
-                            {selectedTransaction.operation === 0 ? 'Call (0)' :
-                             selectedTransaction.operation === 1 ? 'Delegate Call (1)' :
-                             selectedTransaction.operation === 2 ? 'Contract Creation (2)' :
-                             'Unknown'}
-                          </span>
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          {selectedTransaction.operation === 1 ? 
-                            "Delegate call - verify target contract is trusted" : 
-                            "Standard call operation"}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Hash Verification */}
-                    {selectedTransaction.securityAnalysis?.hashVerification && (
-                      <div className="space-y-3">
-                        <h4 className="text-sm font-medium text-muted-foreground">Hash Verification</h4>
-                        <div className={`p-3 rounded-lg border ${
-                          selectedTransaction.securityAnalysis.hashVerification.verified === false ? 
-                          'bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800' : 'bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800'
-                        }`}>
-                          <div className="flex items-center gap-2 mb-1">
-                            {selectedTransaction.securityAnalysis.hashVerification.verified === false ? (
-                              <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
-                            ) : (
-                              <ShieldCheck className="h-4 w-4 text-green-600 dark:text-green-400" />
-                            )}
-                            <span className={`text-sm font-medium ${
-                              selectedTransaction.securityAnalysis.hashVerification.verified === false ? 
-                              'text-red-700 dark:text-red-300' : 'text-green-700 dark:text-green-300'
-                            }`}>
-                              {selectedTransaction.securityAnalysis.hashVerification.verified === false ? 
-                                'Hash Mismatch Detected' : 
-                                'Hash Verified'}
-                            </span>
-                          </div>
-                          <p className="text-xs text-muted-foreground">
-                            {selectedTransaction.securityAnalysis.hashVerification.verified === false ? 
-                              selectedTransaction.securityAnalysis.hashVerification.error || "Transaction hash verification failed" : 
-                              "Transaction hash matches expected value"}
-                          </p>
                         </div>
                       </div>
                     )}
@@ -1264,14 +1163,14 @@ const Monitor = () => {
                     <div className="space-y-1">
                       <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">To Address</h3>
                       <p className="text-sm font-mono break-all">
-                        {selectedTransaction.to_address ? (
+                        {selectedTransaction.toAddress ? (
                           <a 
-                            href={`${getEtherscanTxUrl(selectedTransaction).split('/tx/')[0]}/address/${selectedTransaction.to_address}`}
+                            href={`${getEtherscanTxUrl(selectedTransaction).split('/tx/')[0]}/address/${selectedTransaction.toAddress}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-blue-500 hover:text-blue-600"
                           >
-                            {selectedTransaction.to_address}
+                            {selectedTransaction.toAddress}
                           </a>
                         ) : "—"}
                       </p>
@@ -1304,16 +1203,16 @@ const Monitor = () => {
                         </div>
                       </div>
                     )}
-                    {selectedTransaction.submission_date && (
+                    {selectedTransaction.submissionDate && (
                       <div className="space-y-1">
                         <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Submission Date</h3>
-                        <p className="text-sm">{new Date(selectedTransaction.submission_date).toLocaleString()}</p>
+                        <p className="text-sm">{new Date(selectedTransaction.submissionDate).toLocaleString()}</p>
                       </div>
                     )}
-                    {selectedTransaction.execution_date && (
+                    {selectedTransaction.executionDate && (
                       <div className="space-y-1">
                         <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Execution Date</h3>
-                        <p className="text-sm">{new Date(selectedTransaction.execution_date).toLocaleString()}</p>
+                        <p className="text-sm">{new Date(selectedTransaction.executionDate).toLocaleString()}</p>
                       </div>
                     )}
                   </div>
@@ -1476,6 +1375,15 @@ const Monitor = () => {
       </Dialog>
       
       <main className="flex-1 container py-12">
+        <div className="flex items-center gap-2 mb-6 text-sm text-muted-foreground">
+          <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")}>
+            <Home className="h-4 w-4 mr-1" />
+            Dashboard
+          </Button>
+          <ChevronRight className="h-4 w-4" />
+          <span className="text-foreground">Monitored Wallets</span>
+        </div>
+
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl sm:text-4xl font-bold text-foreground mb-2">Monitored Wallets</h1>          
           <div className="flex gap-2">            
@@ -1513,7 +1421,7 @@ const Monitor = () => {
                 <Card key={monitor.id} className={settings.active ? "" : "opacity-70"}>
                   <CardHeader className="pb-2">
                     <div className="flex justify-between items-start">
-                      <CardTitle className="truncate">{truncateAddress(monitor.safeAddress)}</CardTitle>
+                      <CardTitle className="text-xs font-mono break-all leading-relaxed">{monitor.safeAddress}</CardTitle>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="icon">
@@ -1556,12 +1464,10 @@ const Monitor = () => {
                   <CardContent>
                     <div className="text-sm space-y-1 mb-4">
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">Address:</span>
-                        <span className="font-mono">{truncateAddress(monitor.safeAddress)}</span>
-                      </div>
-                      <div className="flex justify-between">
                         <span className="text-muted-foreground">Last checked:</span>
-                        <span>{monitor.last_checked_at ? formatTimeAgo(new Date(monitor.last_checked_at).getTime()) : 'Never'}</span>
+                        <span onClick={() => console.log('Monitor data:', { id: monitor.id, lastCheckedAt: monitor.lastCheckedAt, parsed: monitor.lastCheckedAt ? new Date(monitor.lastCheckedAt).getTime() : null })} className="cursor-pointer">
+                          {monitor.lastCheckedAt ? formatTimeAgo(new Date(monitor.lastCheckedAt).getTime()) : 'Never'}
+                        </span>
                       </div>
                       {/* <div className="flex justify-between">
                         <span className="text-muted-foreground">Alerts:</span>
@@ -1615,7 +1521,7 @@ const Monitor = () => {
                             m.safeAddress === tx.safeAddress && 
                             m.network === tx.network
                           );
-                          const safeName = truncateAddress(tx.safeAddress);
+                          const safeName = tx.safeAddress;
                           const txDescription = generateDescription(tx).replace(/,/g, ';'); // Replace commas to avoid CSV issues
                           const executionState = tx.isExecuted ? 'Executed' : 'Proposed';
                           const time = tx.submission_date ? new Date(tx.submission_date).toLocaleString() : new Date(tx.created_at).toLocaleString();
@@ -1704,7 +1610,7 @@ const Monitor = () => {
                         <SelectItem value="all">All Wallets</SelectItem>
                         {monitors.map(monitor => (
                           <SelectItem key={monitor.id} value={monitor.id}>
-                            {truncateAddress(monitor.safeAddress)}
+                            {monitor.safeAddress}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -1870,7 +1776,8 @@ const Monitor = () => {
                               )}
                             </div>
                           </TableHead>
-                          <TableHead>Transaction</TableHead>
+                          <TableHead>Tx Hash</TableHead>
+                          <TableHead>Description</TableHead>
                           <TableHead>State</TableHead>
                           <TableHead 
                             className="cursor-pointer"
@@ -1920,7 +1827,7 @@ const Monitor = () => {
                       <TableBody>
                         {isLoadingTransactions ? (
                           <TableRow>
-                            <TableCell colSpan={8} className="h-24 text-center">
+                            <TableCell colSpan={9} className="h-24 text-center">
                               <Loader2 className="h-5 w-5 animate-spin mx-auto" />
                             </TableCell>
                           </TableRow>
@@ -1929,28 +1836,34 @@ const Monitor = () => {
                             <TableRow key={tx.id} className="cursor-pointer hover:bg-muted/50" onClick={() => {
                               fetchTransactionDetails(tx.id);
                             }}>
-                              <TableCell className="font-medium">
-                                {truncateAddress(tx.safeAddress)}
+                              <TableCell className="font-mono text-xs">
+                                {tx.safeAddress}
                               </TableCell>
                               <TableCell>{tx.network.charAt(0).toUpperCase() + tx.network.slice(1)}</TableCell>
                               <TableCell>{tx.nonce}</TableCell>
+                              <TableCell className="font-mono text-xs max-w-[120px] truncate" title={tx.safeTxHash}>
+                                {tx.safeTxHash}
+                              </TableCell>
                               <TableCell>
                                 <div className="flex items-center gap-2">
                                   <div className="max-w-xs truncate">
                                     {generateDescription(tx)}
                                   </div>
-                                  {tx.securityAnalysis?.warnings && tx.securityAnalysis.warnings.length > 0 && (
-                                    <div className="flex items-center gap-1 flex-shrink-0">
-                                      {tx.securityAnalysis.details?.some(d => d.priority === 'P0') && (
-                                        <Badge variant="destructive" className="text-xs px-1 py-0 h-5">
-                                          P0
+                                  {(() => {
+                                    const significantFindings = tx.securityAnalysis?.details?.filter((d: any) => d.severity !== 'info') || [];
+                                    return significantFindings.length > 0 && (
+                                      <div className="flex items-center gap-1 flex-shrink-0">
+                                        {tx.securityAnalysis?.details?.some((d: any) => d.priority === 'P0') && (
+                                          <Badge variant="destructive" className="text-xs px-1 py-0 h-5">
+                                            P0
+                                          </Badge>
+                                        )}
+                                        <Badge variant="outline" className="text-xs px-1.5 py-0 h-5 border-amber-400 dark:border-amber-500 text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/30">
+                                          {significantFindings.length}
                                         </Badge>
-                                      )}
-                                      <Badge variant="outline" className="text-xs px-1.5 py-0 h-5 border-amber-400 dark:border-amber-500 text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/30">
-                                        {tx.securityAnalysis.warnings.length}
-                                      </Badge>
-                                    </div>
-                                  )}
+                                      </div>
+                                    );
+                                  })()}
                                 </div>
                               </TableCell>
                               <TableCell>
@@ -1958,9 +1871,9 @@ const Monitor = () => {
                                   {tx.isExecuted ? 'Executed' : 'Proposed'}
                                 </Badge>
                               </TableCell>
-                              <TableCell>{formatTimeAgo(tx.submission_date ? new Date(tx.submission_date).getTime() : new Date(tx.created_at).getTime())}</TableCell>
+                              <TableCell>{formatTimeAgo(new Date(tx.submissionDate || tx.executionDate || tx.createdAt).getTime())}</TableCell>
                               <TableCell>
-                                {tx.securityAnalysis && getRiskLevelBadge(tx.securityAnalysis.riskLevel, tx.securityAnalysis.isSuspicious ? 'suspicious' : 'normal')}
+                                {tx.securityAnalysis && getRiskLevelBadge(tx.securityAnalysis.riskLevel)}
                               </TableCell>
                               <TableCell>
                                 <div className="flex gap-1.5">
@@ -1995,7 +1908,7 @@ const Monitor = () => {
                           ))
                         ) : (
                           <TableRow>
-                            <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
+                            <TableCell colSpan={9} className="h-24 text-center text-muted-foreground">
                               No transactions found with the current filters
                             </TableCell>
                           </TableRow>
@@ -2019,12 +1932,12 @@ const Monitor = () => {
                         <CardContent className="p-4">
                           <div className="space-y-3">
                             {/* Header with wallet and network */}
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                <span className="font-medium text-sm">
-                                  {truncateAddress(tx.safeAddress)}
+                            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                              <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">
+                                <span className="font-mono text-xs break-all">
+                                  {tx.safeAddress}
                                 </span>
-                                <Badge variant="outline" className="text-xs">
+                                <Badge variant="outline" className="text-xs w-fit">
                                   {tx.network.charAt(0).toUpperCase() + tx.network.slice(1)}
                                 </Badge>
                               </div>
@@ -2043,34 +1956,42 @@ const Monitor = () => {
                               <div className="text-sm text-muted-foreground">
                                 {generateDescription(tx)}
                               </div>
-                              {tx.securityAnalysis?.warnings && tx.securityAnalysis.warnings.length > 0 && (
-                                <div className="flex flex-wrap items-center gap-1.5">
-                                  {tx.securityAnalysis.details?.some(d => d.priority === 'P0') && (
-                                    <Badge variant="destructive" className="text-xs">
-                                      P0 CRITICAL
-                                    </Badge>
-                                  )}
-                                  {tx.securityAnalysis.warnings.slice(0, 2).map((warning, idx) => (
-                                    <Badge key={idx} variant="outline" className="text-xs border-amber-400 dark:border-amber-500 text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/30">
-                                      {warning}
-                                    </Badge>
-                                  ))}
-                                  {tx.securityAnalysis.warnings.length > 2 && (
-                                    <Badge variant="outline" className="text-xs border-amber-400 dark:border-amber-500 text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/30">
-                                      +{tx.securityAnalysis.warnings.length - 2} more
-                                    </Badge>
-                                  )}
-                                </div>
-                              )}
+                              {(() => {
+                                const significantFindings = tx.securityAnalysis?.details?.filter((d: any) => d.severity !== 'info') || [];
+                                return significantFindings.length > 0 && (
+                                  <div className="flex flex-wrap items-center gap-1.5">
+                                    {tx.securityAnalysis?.details?.some((d: any) => d.priority === 'P0') && (
+                                      <Badge variant="destructive" className="text-xs">
+                                        P0 CRITICAL
+                                      </Badge>
+                                    )}
+                                    {significantFindings.slice(0, 2).map((finding: any, idx: number) => (
+                                      <Badge key={idx} variant="outline" className={`text-xs ${
+                                        finding.severity === 'critical' ? 'border-red-400 text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-950/30' :
+                                        finding.severity === 'high' ? 'border-orange-400 text-orange-700 dark:text-orange-400 bg-orange-50 dark:bg-orange-950/30' :
+                                        finding.severity === 'medium' ? 'border-yellow-400 text-yellow-700 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-950/30' :
+                                        'border-blue-400 text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30'
+                                      }`}>
+                                        {finding.title}
+                                      </Badge>
+                                    ))}
+                                    {significantFindings.length > 2 && (
+                                      <Badge variant="outline" className="text-xs border-slate-400 text-slate-600 dark:text-slate-400">
+                                        +{significantFindings.length - 2} more
+                                      </Badge>
+                                    )}
+                                  </div>
+                                );
+                              })()}
                             </div>
 
                             {/* Security status and time */}
                             <div className="flex items-center justify-between">
                               <div>
-                                {tx.securityAnalysis && getRiskLevelBadge(tx.securityAnalysis.riskLevel, tx.securityAnalysis.isSuspicious ? 'suspicious' : 'normal')}
+                                {tx.securityAnalysis && getRiskLevelBadge(tx.securityAnalysis.riskLevel)}
                               </div>
                               <span className="text-xs text-muted-foreground">
-                                {formatTimeAgo(tx.submission_date ? new Date(tx.submission_date).getTime() : new Date(tx.created_at).getTime())}
+                                {formatTimeAgo(new Date(tx.submissionDate || tx.executionDate || tx.createdAt).getTime())}
                               </span>
                             </div>
 

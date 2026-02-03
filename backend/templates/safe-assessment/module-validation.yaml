@@ -1,0 +1,18 @@
+id: module-validation
+name: Module Configuration Validation
+type: safe-assessment
+check-name: module_validation
+
+conditions:
+  - type: numeric-validation
+    field: safeInfo.modules
+    rules:
+      - condition: array-not-empty
+        result:
+          severity: info
+          warning: "Modules can execute without signatures"
+          risk-factor: "Modules enabled - review carefully"
+          score-modifier: -5
+      - condition: array-empty
+        result:
+          severity: pass

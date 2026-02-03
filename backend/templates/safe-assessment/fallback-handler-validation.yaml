@@ -1,0 +1,22 @@
+id: fallback-handler-validation
+name: Fallback Handler Validation
+type: safe-assessment
+check-name: fallback_handler_validation
+
+conditions:
+  - type: whitelist-lookup
+    field: safeInfo.fallbackHandler
+    whitelist:
+      "0xfd0732dc9e303f09fcef3a7388ad10a83459ec99": "Safe: Fallback Handler 1.4.1"
+      "0x1ac114c2099afaf5261731655dc6c306bfcd4dbd": "Safe: Fallback Handler 1.3.0"
+      "0xf48f2b2d2a534e402487b3ee7c18c33aec0fe5e4": "Safe: Compatibility Fallback Handler 1.3.0"
+      "0x0000000000000000000000000000000000000000": "No Fallback Handler"
+    on_match:
+      severity: pass
+      canonical-name: "{{whitelist_name}}"
+      score-modifier: 5
+    on_no_match:
+      severity: high
+      warning: "Unknown fallback handler - potential security risk"
+      risk-factor: "HIGH RISK: Non-canonical fallback handler detected"
+      score-modifier: -10

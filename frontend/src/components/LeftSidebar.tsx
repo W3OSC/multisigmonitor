@@ -1,6 +1,6 @@
 import { useAuth } from '@/context/AuthContext'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
-import { Home, Search, Monitor, Settings, LogOut, PanelLeftClose, PanelLeft, Shield, Bell } from 'lucide-react'
+import { Home, Search, Monitor, Settings, LogOut, PanelLeftClose, PanelLeft, Shield, Bell, Activity } from 'lucide-react'
 import { useState, useEffect } from 'react'
 
 export default function LeftSidebar() {
@@ -30,6 +30,7 @@ export default function LeftSidebar() {
     { to: '/dashboard', icon: Home, label: 'Dashboard' },
     { to: '/scan', icon: Search, label: 'Scan' },
     { to: '/monitor', icon: Monitor, label: 'Monitor' },
+    { to: '/activity', icon: Activity, label: 'Activity' },
     { to: '/alerts', icon: Bell, label: 'Alerts' },
     { to: '/settings', icon: Settings, label: 'Settings' },
   ]

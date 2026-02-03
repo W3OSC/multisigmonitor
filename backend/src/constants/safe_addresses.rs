@@ -35,38 +35,34 @@ impl SafeAddressRegistry {
 
     pub fn canonical_mastercopies() -> HashMap<&'static str, &'static str> {
         let mut m = HashMap::new();
-        m.insert("0x34CfAC646f301356fAa8B21e94227e3583Fe3F5F", "Safe: Master Copy 1.3.0+");
-        m.insert("0xd9Db270c1B5E3Bd161E8c8503c55cEABeE709552", "Safe: Master Copy 1.3.0");
+        m.insert("0xd9Db270c1B5E3Bd161E8c8503c55cEABeE709552", "Safe: Master Copy 1.3.0 (canonical)");
+        m.insert("0x69f4D1788e39c87893C980c06EdF4b7f686e2938", "Safe: Master Copy 1.3.0 (eip155/zksync)");
+        m.insert("0xB00ce5CCcdEf57e539ddcEd01DF43a13855d9910", "Safe: Master Copy 1.3.0 (zksync)");
+        m.insert("0x3E5c63644E683549055b9Be8653de26E0B4CD36E", "Safe: Master Copy 1.3.0 L2 (canonical)");
+        m.insert("0xfb1bffC9d739B8D520DaF37dF666da4C687191EA", "Safe: Master Copy 1.3.0 L2 (eip155)");
+        m.insert("0x1727c2c531cf966f902E5927b98490fDFb3b2b70", "Safe: Master Copy 1.3.0 L2 (zksync)");
+        m.insert("0x41675C099F32341bf84BFc5382aF534df5C7461a", "Safe: Master Copy 1.4.1 (canonical)");
+        m.insert("0x29fcB43b46531BcA003ddC8FCB67FFE91900C762", "Safe: Master Copy 1.4.1 L2 (canonical)");
         m.insert("0x6851D6fDFAfD08c0295C392436245E5bc78B0185", "Safe: Master Copy 1.2.0");
         m.insert("0xAE32496491b53841efb51829d6f886387708F99B", "Safe: Master Copy 1.1.1");
         m.insert("0xb6029EA3B2c51D09a50B53CA8012FeEB05bDa35A", "Safe: Master Copy 1.0.0");
-        m.insert("0x3E5c63644E683549055b9Be8653de26E0B4CD36E", "Safe: Master Copy 1.3.0 (L2)");
-        m.insert("0x29fcB43b46531BcA003ddC8FCB67FFE91900C762", "Safe: Master Copy 1.4.1 (L2)");
-        m.insert("0xfb1bffC9d739B8D520DaF37dF666da4C687191EA", "Safe: Master Copy 1.3.0 (L2 Alt)");
-        m.insert("0x69f4D1788e39c87893C980c06EdF4b7f686e2938", "Safe: Master Copy 1.3.0 (zkSync)");
-        m.insert("0x41675C099F32341bf84BFc5382aF534df5C7461a", "Safe: Master Copy 1.4.1");
-        m.insert("0x017062a1dE2FE6b99BE3d9d37841FeD19F573804", "Safe: Master Copy 1.3.0 (Gnosis)");
-        m.insert("0x8942595A2dC5181Df0465AF0D7be08c8f23C93af", "Safe: Master Copy 1.1.1 (Gnosis)");
-        m.insert("0x76E2cFc1F5Fa8F6a5b3fC4c8F4788F0116861F9B", "Safe: Master Copy (Legacy)");
+        m.insert("0x34CfAC646f301356fAa8B21e94227e3583Fe3F5F", "Safe: Master Copy 1.3.0+ (fallback)");
         m
     }
 
     pub fn canonical_initializers() -> HashMap<&'static str, &'static str> {
         let mut m = HashMap::new();
-        m.insert("0xBD89A1CE4DDe368FFAb0eC35506eEcE0b1fFdc54", "Safe: Initializer 1.4.1");
-        m.insert("0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67", "Safe: Initializer 1.4.1 (Alt)");
-        m.insert("0xa6B71E26C5e0845f74c812102Ca7114b6a896AB2", "Safe: Initializer 1.3.0");
-        m.insert("0x12302fE9c02ff50939BaAaaf415fc226C078613C", "Safe: Initializer 1.3.0 (L2)");
-        m.insert("0x76E2cFc1F5Fa8F6a5b3fC4c8F4788F0116861F9B", "Safe: Initializer 1.1.1");
-        m.insert("0x8942595A2dC5181Df0465AF0D7be08c8f23C93af", "Safe: Initializer (Legacy)");
+        m.insert("0x0000000000000000000000000000000000000000", "No Custom Initialization");
         m
     }
 
     pub fn canonical_fallback_handlers() -> HashMap<&'static str, &'static str> {
         let mut m = HashMap::new();
-        m.insert("0xfd0732Dc9E303f09fCEf3a7388Ad10A83459Ec99", "Safe: Fallback Handler 1.4.1");
-        m.insert("0x1AC114C2099aFAf5261731655Dc6c306bFcd4Dbd", "Safe: Fallback Handler 1.3.0");
-        m.insert("0x2f870a80647BbC554F3a0EBD093f11B4d2a7492A", "Safe: Fallback Handler (Compatibility)");
+        m.insert("0xfd0732Dc9E303f09fCEf3a7388Ad10A83459Ec99", "Safe: Compatibility Fallback Handler 1.4.1");
+        m.insert("0xf48f2B2d2a534e402487b3ee7C18c33Aec0Fe5e4", "Safe: Compatibility Fallback Handler 1.3.0 (canonical)");
+        m.insert("0x017062a1dE2FE6b99BE3d9d37841FeD19F573804", "Safe: Compatibility Fallback Handler 1.3.0 (eip155)");
+        m.insert("0x2f870a80647BbC554F3a0EBD093f11B4d2a7492A", "Safe: Compatibility Fallback Handler 1.3.0 (zksync)");
+        m.insert("0x1AC114C2099aFAf5261731655Dc6c306bFcd4Dbd", "Safe: Fallback Handler 1.3.0 (deprecated)");
         m.insert("0x0000000000000000000000000000000000000000", "No Fallback Handler");
         m
     }

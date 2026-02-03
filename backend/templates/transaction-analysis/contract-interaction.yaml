@@ -1,0 +1,15 @@
+id: contract-interaction
+name: Contract Interaction Detection
+type: transaction-analysis
+severity: low
+
+conditions:
+  - type: string-not-empty
+    field: data
+
+output:
+  warning: Contract Interaction
+  message: "Transaction interacts with contract at {{to}}."
+  type: contract_interaction
+  extra-fields:
+    - to

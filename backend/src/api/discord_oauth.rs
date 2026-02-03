@@ -35,10 +35,13 @@ struct DiscordTokenResponse {
 struct DiscordWebhook {
     url: String,
     #[serde(default)]
+    #[allow(dead_code)]
     guild_id: Option<String>,
     #[serde(default)]
+    #[allow(dead_code)]
     channel_id: Option<String>,
     #[serde(default)]
+    #[allow(dead_code)]
     name: Option<String>,
 }
 

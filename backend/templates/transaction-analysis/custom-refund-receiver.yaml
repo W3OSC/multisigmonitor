@@ -1,0 +1,19 @@
+id: custom-refund-receiver
+name: Custom Refund Receiver Detection
+type: transaction-analysis
+severity: medium
+
+conditions:
+  - type: address-equals
+    field: gasToken
+    address: "0x0000000000000000000000000000000000000000"
+  - type: address-not-equals
+    field: refundReceiver
+    address: "0x0000000000000000000000000000000000000000"
+
+output:
+  warning: Custom Refund Receiver
+  message: "Transaction uses a custom refund receiver. Verify this is intended."
+  type: custom_refund_receiver
+  extra-fields:
+    - refundReceiver

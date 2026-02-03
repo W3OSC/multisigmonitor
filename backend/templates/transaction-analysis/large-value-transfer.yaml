@@ -1,0 +1,17 @@
+id: large-value-transfer
+name: Large Value Transfer Detection
+type: transaction-analysis
+severity: high
+
+conditions:
+  - type: numeric-greater-than
+    field: value
+    threshold: 5000.0
+    unit: ether
+
+output:
+  warning: Large Value Transfer
+  message: "Transaction transfers a large amount of ETH, which is above the threshold for review."
+  type: large_value_transfer
+  extra-fields:
+    - value

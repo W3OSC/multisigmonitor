@@ -1,0 +1,28 @@
+id: creation-transaction-validation
+name: Creation Transaction Validation
+type: safe-assessment
+check-name: creation_transaction
+
+conditions:
+  - type: field-validation
+    field: creationInfo.transactionHash
+    validation: non-empty
+    on_valid:
+      severity: pass
+      canonical-name: "Creation transaction recorded"
+    on_invalid:
+      severity: low
+      warning: "Creation transaction not available (may be pre-2020 Safe or indexing issue)"
+      risk-factor: "Limited deployment verification available"
+      score-modifier: -5
+  
+  - type: field-validation
+    field: creationInfo.creator
+    validation: non-zero
+    on_valid:
+      severity: pass
+    on_invalid:
+      severity: medium
+      warning: "Creator address not detected"
+      risk-factor: "Cannot verify Safe deployer"
+      score-modifier: -10

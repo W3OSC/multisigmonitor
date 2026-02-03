@@ -1,0 +1,43 @@
+id: non-zero-gas-params
+name: Non-Zero Gas Parameters Detection
+type: transaction-analysis
+severity: high
+priority: P1
+
+conditions: []
+
+condition-groups:
+  - id: any-non-zero-gas
+    operator: or
+    conditions:
+      - type: field-not-equals
+        field: gasPrice
+        value: "0"
+      - type: address-not-equals
+        field: gasToken
+        address: "0x0000000000000000000000000000000000000000"
+      - type: address-not-equals
+        field: refundReceiver
+        address: "0x0000000000000000000000000000000000000000"
+      - type: field-not-equals
+        field: safeTxGas
+        value: "0"
+      - type: field-not-equals
+        field: baseGas
+        value: "0"
+    output:
+      warning: Non-Zero Gas Parameters
+      message: "Transaction has non-zero gas parameters. This could indicate gas manipulation or refund attacks."
+      type: non_zero_gas_params
+      extra-fields:
+        - safeTxGas
+        - baseGas
+        - gasPrice
+        - gasToken
+        - refundReceiver
+
+output:
+  warning: Non-Zero Gas Parameters
+  message: "Transaction has non-zero gas parameters."
+  type: non_zero_gas_params
+  extra-fields: []

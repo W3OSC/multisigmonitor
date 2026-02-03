@@ -1,0 +1,20 @@
+id: threshold-changed
+name: Threshold Change Detection
+type: transaction-analysis
+severity: critical
+priority: P0
+
+conditions:
+  - type: method-match
+    field: dataDecoded.method
+    methods:
+      - changeThreshold
+      - ChangedThreshold
+
+output:
+  warning: Threshold Changed
+  message: "CRITICAL: Signature threshold changed. This affects Safe security."
+  type: threshold_changed
+  extra-fields:
+    - dataDecoded.method
+    - dataDecoded.parameters

@@ -19,7 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { ChevronLeft, Loader2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Home, Loader2 } from "lucide-react";
 import { monitorsApi } from "@/lib/api";
 
 // Use the same constants as NewMonitor.tsx
@@ -72,6 +72,7 @@ const MonitorConfig = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isNewMonitor, setIsNewMonitor] = useState(false);
+  const [monitorActive, setMonitorActive] = useState(true);
 
   // Check if this is a new monitor being set up or editing an existing one
   useEffect(() => {
@@ -95,16 +96,15 @@ const MonitorConfig = () => {
       // Network-specific API URLs for Multisignature Transaction Service
       const txServiceUrl = (() => {
         switch(network.toLowerCase()) {
-          case 'ethereum': return 'https://safe-transaction-mainnet.safe.global';
-          case 'sepolia': return 'https://safe-transaction-sepolia.safe.global';
-          case 'polygon': return 'https://safe-transaction-polygon.safe.global';
-          case 'arbitrum': return 'https://safe-transaction-arbitrum.safe.global';
-          case 'optimism': return 'https://safe-transaction-optimism.safe.global';
-          case 'base': return 'https://safe-transaction-base.safe.global';
-          case 'gnosis': return 'https://safe-transaction-gnosis-chain.safe.global';
-          case 'goerli': return 'https://safe-transaction-goerli.safe.global';
-          case 'sepolia': return 'https://safe-transaction-sepolia.safe.global';
-          default: return 'https://safe-transaction-mainnet.safe.global';
+          case 'ethereum': return 'https://api.safe.global/tx-service/eth';
+          case 'sepolia': return 'https://api.safe.global/tx-service/sep';
+          case 'polygon': return 'https://api.safe.global/tx-service/pol';
+          case 'arbitrum': return 'https://api.safe.global/tx-service/arb1';
+          case 'optimism': return 'https://api.safe.global/tx-service/oeth';
+          case 'base': return 'https://api.safe.global/tx-service/base';
+          case 'gnosis': return 'https://api.safe.global/tx-service/gno';
+          case 'goerli': return null;
+          default: return 'https://api.safe.global/tx-service/eth';
         }
       })();
       
@@ -168,6 +168,7 @@ const MonitorConfig = () => {
       setAddress(data.safeAddress);
       setAlias(settings?.alias || "");
       setNetwork(data.network || "ethereum");
+      setMonitorActive(settings?.active !== false);
       // Enable notifications if there are notification channels configured
       const hasNotificationChannels = settings?.notificationChannels && settings.notificationChannels.length > 0;
       setNotificationsEnabled(settings?.notify || hasNotificationChannels || false);
@@ -414,7 +415,7 @@ const MonitorConfig = () => {
       
       // Create settings object matching backend MonitorSettings structure
       const settings = {
-        active: notificationsEnabled,
+        active: monitorActive,
         notifyAll,
         notifyManagement,
         notificationChannels: notificationChannels.length > 0 ? notificationChannels : null
@@ -501,6 +502,19 @@ const MonitorConfig = () => {
     <div className="min-h-screen flex flex-col">
       <main className="flex-1 container py-12">
         <div className="max-w-2xl mx-auto">
+          <div className="flex items-center gap-2 mb-6 text-sm text-muted-foreground">
+            <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")}>
+              <Home className="h-4 w-4 mr-1" />
+              Dashboard
+            </Button>
+            <ChevronRight className="h-4 w-4" />
+            <Button variant="ghost" size="sm" onClick={() => navigate("/monitor")}>
+              Monitored Wallets
+            </Button>
+            <ChevronRight className="h-4 w-4" />
+            <span className="text-foreground">{isNewMonitor ? "Configure" : "Edit"}</span>
+          </div>
+
           <Button
             variant="ghost"
             onClick={() => navigate("/monitor")}

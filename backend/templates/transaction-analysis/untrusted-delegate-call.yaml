@@ -1,0 +1,34 @@
+id: untrusted-delegate-call
+name: Untrusted Delegate Call Detection
+type: transaction-analysis
+severity: critical
+priority: P0
+
+conditions:
+  - type: field-equals
+    field: operation
+    value: 1
+  - type: whitelist-lookup
+    field: to
+    whitelist:
+      "0x40a2accbd92bca938b02010e17a5b8929b49130d": "MultiSendCallOnly v1.3.0 (canonical)"
+      "0xa1dabef33b3b82c7814b6d82a79e50f4ac44102b": "MultiSendCallOnly v1.3.0 (eip155)"
+      "0xf220d3b4dfb23c4ade8c88e526c1353abacbc38f": "MultiSendCallOnly v1.3.0 (zksync)"
+      "0x9641d764fc13c8b624c04430c7356c1c7c8102e2": "MultiSendCallOnly v1.4.1 (canonical)"
+      "0x0408ef011960d02349d50286d20531229bcef773": "MultiSendCallOnly v1.4.1 (zksync)"
+      "0x526643f69b81b008f46d95cd5ced5ec0edffdac6": "SafeMigration v1.4.1 (canonical)"
+      "0x817756c6c555a94bcee39eb5a102abc1678b09a7": "SafeMigration v1.4.1 (zksync)"
+      "0xa65387f16b013cf2af4605ad8aa5ec25a2cba3a2": "SignMessageLib v1.3.0 (canonical)"
+      "0x98ffbbf51bb33a056b08ddf711f289936aaff717": "SignMessageLib v1.3.0 (eip155)"
+      "0x357147caf9c0cca67dfa0cf5369318d8193c8407": "SignMessageLib v1.3.0 (zksync)"
+      "0xd53cd0ab83d845ac265be939c57f53ad838012c9": "SignMessageLib v1.4.1 (canonical)"
+      "0xaca1ec0a1a575cdccf1dc3d5d296202eb6061888": "SignMessageLib v1.4.1 (zksync)"
+    expect: missing
+
+output:
+  warning: Untrusted Delegate Call
+  message: "CRITICAL: Transaction includes an untrusted delegate call. This may lead to unexpected behavior or complete Safe compromise."
+  type: untrusted_delegate_call
+  extra-fields:
+    - to
+    - operation

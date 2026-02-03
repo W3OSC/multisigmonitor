@@ -112,7 +112,7 @@ export default function Dashboard() {
         />
         <meta name="robots" content="noindex" />
       </Helmet>
-      <div className="max-w-7xl mx-auto">
+      <div className="w-full">
         {/* Hero Section */}
         <div className="mb-8 animate-slide-down">
           <div className="flex items-center justify-between">

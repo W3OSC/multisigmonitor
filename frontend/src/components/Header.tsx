@@ -1,7 +1,7 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
-import { Shield, Menu, X, LogIn, Github } from "lucide-react";
+import { Menu, X, LogIn, Github } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
@@ -35,6 +35,10 @@ export function Header() {
     }
   }, [isMenuOpen, isMobile]);
 
+  if (user) {
+    return null;
+  }
+
   return (
     <header 
       ref={headerRef}
@@ -43,19 +47,7 @@ export function Header() {
       isMenuOpen && isMobile ? "pb-6" : ""
     )}>
       <div className="w-full px-4">
-        {/* Top row with logo and hamburger menu */}
-        <div className="flex h-20 items-center justify-between">
-          <div className="flex-shrink-0">
-            <Link 
-              to={user ? "/dashboard" : "/"} 
-              className="flex items-center gap-2 font-bold text-xl"
-              onClick={() => setIsMenuOpen(false)}
-            >
-              <Shield className="h-6 w-6 text-jsr-purple" />
-              <span className="jsr-text-gradient">multisigmonitor</span>
-            </Link>
-          </div>
-
+        <div className="flex h-20 items-center justify-end">
           {isMobile ? (
             <Button
               variant="ghost"

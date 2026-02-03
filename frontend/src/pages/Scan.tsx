@@ -1,5 +1,5 @@
 import { Helmet } from 'react-helmet-async'
-import { Search as SearchIcon, Shield, AlertCircle, Network, Loader2, AlertTriangle, Clock, ExternalLink, Trash2 } from 'lucide-react'
+import { Search as SearchIcon, Shield, AlertCircle, Network, Loader2, AlertTriangle, Clock, ExternalLink, Trash2, ChevronRight, Home } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
@@ -39,19 +39,6 @@ export default function Scan() {
   const navigate = useNavigate()
   const { toast } = useToast()
   const { isAuthenticated } = useAuth()
-
-  const getSafeApiUrl = (network: string): string | null => {
-    const apiUrls: { [key: string]: string } = {
-      'ethereum': 'https://safe-transaction-mainnet.safe.global',
-      'sepolia': 'https://safe-transaction-sepolia.safe.global',
-      'polygon': 'https://safe-transaction-polygon.safe.global',
-      'arbitrum': 'https://safe-transaction-arbitrum.safe.global',
-      'optimism': 'https://safe-transaction-optimism.safe.global',
-      'base': 'https://safe-transaction-base.safe.global'
-    }
-    
-    return apiUrls[network.toLowerCase()] || null
-  }
 
   useEffect(() => {
     if (address && address.match(/^0x[a-fA-F0-9]{40}$/) && network) {
@@ -117,41 +104,32 @@ export default function Scan() {
     setSafeExists(null)
 
     try {
-      const safeApiUrl = getSafeApiUrl(selectedNetwork)
-      if (!safeApiUrl) {
-        setSafeExists(false)
-        toast({
-          title: "Unsupported Network",
-          description: "This network is not supported for Safe validation",
-          variant: "destructive",
-        })
-        return
-      }
-
-      const response = await fetch(`${safeApiUrl}/api/v1/safes/${safeAddress}/`, {
-        redirect: 'follow',
+      const backendUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:7111';
+      const response = await fetch(`${backendUrl}/api/safe/assess`, {
+        method: 'POST',
         headers: {
-          'Accept': 'application/json',
+          'Content-Type': 'application/json',
         },
+        body: JSON.stringify({
+          safe_address: safeAddress,
+          network: selectedNetwork,
+        }),
       })
       
       if (response.ok) {
-        const data = await response.json()
-        if (data.address) {
-          setSafeExists(true)
-        } else {
-          setSafeExists(false)
-          toast({
-            title: "Validation Error",
-            description: "Unexpected response from Safe API",
-            variant: "destructive",
-          })
-        }
+        setSafeExists(true)
       } else if (response.status === 404) {
         setSafeExists(false)
         toast({
           title: "Safe Not Found",
           description: "No Safe wallet found at this address on the selected network",
+          variant: "destructive",
+        })
+      } else if (response.status === 400) {
+        setSafeExists(false)
+        toast({
+          title: "Invalid Request",
+          description: "The network or address is invalid",
           variant: "destructive",
         })
       } else {
@@ -167,7 +145,7 @@ export default function Scan() {
       setSafeExists(false)
       toast({
         title: "Network Error",
-        description: "Unable to connect to Safe API for validation",
+        description: "Unable to connect to backend for validation",
         variant: "destructive",
       })
     } finally {
@@ -211,15 +189,24 @@ export default function Scan() {
   }
 
   return (
-    <div className="p-8">
+    <div className="min-h-screen bg-background flex flex-col">
       <Helmet>
         <title>Scan - Multisig Monitor</title>
         <meta name="description" content="Scan addresses to check if they are multisig wallets." />
         <meta name="robots" content="noindex" />
       </Helmet>
-      <div className="max-w-4xl mx-auto">
-        <div className="mb-8 animate-slide-down">
-          <h1 className="text-4xl font-bold text-foreground mb-2">Scan Address</h1>
+      <main className="flex-1 container py-12">
+        <div className="flex items-center gap-2 mb-6 text-sm text-muted-foreground">
+          <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")}>
+            <Home className="h-4 w-4 mr-1" />
+            Dashboard
+          </Button>
+          <ChevronRight className="h-4 w-4" />
+          <span className="text-foreground">Scan Address</span>
+        </div>
+
+        <div className="mb-8">
+          <h1 className="text-3xl sm:text-4xl font-bold text-foreground mb-2">Scan Address</h1>
           <p className="text-muted-foreground">
             Analyze any Safe multisig address for security insights
           </p>
@@ -334,7 +321,7 @@ export default function Scan() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
                             <span className="font-mono text-sm truncate">
-                              {scan.safeAddress.slice(0, 6)}...{scan.safeAddress.slice(-4)}
+                              {scan.safeAddress}
                             </span>
                             <Badge variant="outline" className="text-xs">
                               {scan.network}
@@ -362,35 +349,35 @@ export default function Scan() {
             </Card>
           </div>
         )}
-      </div>
 
-      <AlertDialog open={showClearDialog} onOpenChange={setShowClearDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Clear All Scan History?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently delete all your past security scans. This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isClearingScans}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleClearAllScans}
-              disabled={isClearingScans}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {isClearingScans ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Clearing...
-                </>
-              ) : (
-                'Clear All'
-              )}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        <AlertDialog open={showClearDialog} onOpenChange={setShowClearDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Clear All Scan History?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will permanently delete all your past security scans. This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={isClearingScans}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleClearAllScans}
+                disabled={isClearingScans}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {isClearingScans ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Clearing...
+                  </>
+                ) : (
+                  'Clear All'
+                )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </main>
     </div>
   )
 }

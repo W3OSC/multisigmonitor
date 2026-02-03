@@ -1,0 +1,22 @@
+id: execution-failure
+name: Execution Failure Detection
+type: transaction-analysis
+severity: high
+
+conditions:
+  - type: method-match
+    field: dataDecoded.method
+    methods:
+      - ExecutionFailure
+
+output:
+  warning: Transaction Execution Failed
+  message: "Transaction failed to execute. This indicates the Safe attempted to execute a transaction that reverted. Review transaction parameters, target contract state, and gas limits. Common causes: insufficient balance, incorrect parameters, target contract logic rejection, or gas exhaustion."
+  type: execution_failure
+  score-modifier: -15
+  extra-fields:
+    - dataDecoded.method
+    - dataDecoded.parameters
+    - to
+    - value
+    - data

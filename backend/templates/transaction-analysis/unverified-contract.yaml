@@ -1,0 +1,20 @@
+id: unverified-contract
+name: Unverified Contract Interaction Detection
+type: transaction-analysis
+severity: medium
+
+conditions:
+  - type: string-not-empty
+    field: data
+  - type: field-exists
+    field: dataDecoded
+  - type: bool-equals
+    field: trusted
+    value: false
+
+output:
+  warning: Unverified Contract Interaction
+  message: "Transaction interacts with an unverified or untrusted contract."
+  type: unverified_contract
+  extra-fields:
+    - to

@@ -1,0 +1,19 @@
+id: safe-setup
+name: Safe Setup Detection
+type: transaction-analysis
+severity: critical
+priority: P0
+
+conditions:
+  - type: method-match
+    field: dataDecoded.method
+    methods:
+      - setup
+
+output:
+  warning: Safe Setup Changed
+  message: "CRITICAL: Safe setup modified. This is a fundamental configuration change."
+  type: safe_setup
+  extra-fields:
+    - dataDecoded.method
+    - dataDecoded.parameters

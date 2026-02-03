@@ -9,7 +9,7 @@ const About = () => {
       <Header />
       
       <main className="flex-1 container py-12">
-        <div className="max-w-4xl mx-auto space-y-12">
+        <div className="max-w-5xl mx-auto space-y-12">
           <div className="text-center">
             <h1 className="text-4xl font-bold mb-4">About multisigmonitor</h1>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">

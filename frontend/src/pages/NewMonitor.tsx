@@ -17,7 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { ChevronLeft, Loader2, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Home, Loader2, X } from "lucide-react";
 import { monitorsApi } from "@/lib/api";
 
 // This would be fetched from your API in a real app
@@ -95,29 +95,29 @@ const NewMonitor = () => {
     setIsValidSafe(null);
     
     try {
-      // Network-specific API URLs for Multisignature Transaction Service
       const txServiceUrl = (() => {
         switch(network.toLowerCase()) {
-          case 'ethereum': return 'https://safe-transaction-mainnet.safe.global';
-          case 'sepolia': return 'https://safe-transaction-sepolia.safe.global';
-          case 'polygon': return 'https://safe-transaction-polygon.safe.global';
-          case 'arbitrum': return 'https://safe-transaction-arbitrum.safe.global';
-          case 'optimism': return 'https://safe-transaction-optimism.safe.global';
-          case 'base': return 'https://safe-transaction-base.safe.global';
-          case 'gnosis': return 'https://safe-transaction-gnosis-chain.safe.global';
-          case 'goerli': return 'https://safe-transaction-goerli.safe.global';
-          case 'sepolia': return 'https://safe-transaction-sepolia.safe.global';
-          default: return 'https://safe-transaction-mainnet.safe.global';
+          case 'ethereum': return 'https://api.safe.global/tx-service/eth';
+          case 'sepolia': return 'https://api.safe.global/tx-service/sep';
+          case 'polygon': return 'https://api.safe.global/tx-service/pol';
+          case 'arbitrum': return 'https://api.safe.global/tx-service/arb1';
+          case 'optimism': return 'https://api.safe.global/tx-service/oeth';
+          case 'base': return 'https://api.safe.global/tx-service/base';
+          case 'gnosis': return 'https://api.safe.global/tx-service/gno';
+          case 'goerli': return null;
+          default: return 'https://api.safe.global/tx-service/eth';
         }
       })();
+
+      if (!txServiceUrl) {
+        setIsValidSafe(false);
+        return;
+      }
       
-      // Call the Safe Info API to check if this is a valid Safe
       const response = await axios.get(`${txServiceUrl}/api/v1/safes/${address}`);
       
-      // If we get a successful response, it's a valid Safe
       setIsValidSafe(true);
     } catch (error) {
-      // If we get a 404, the address isn't a Safe
       if (axios.isAxiosError(error) && error.response?.status === 404) {
         setIsValidSafe(false);
       } else {
@@ -255,6 +255,19 @@ const NewMonitor = () => {
       
       <main className="flex-1 container py-12">
         <div className="max-w-2xl mx-auto">
+          <div className="flex items-center gap-2 mb-6 text-sm text-muted-foreground">
+            <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")}>
+              <Home className="h-4 w-4 mr-1" />
+              Dashboard
+            </Button>
+            <ChevronRight className="h-4 w-4" />
+            <Button variant="ghost" size="sm" onClick={() => navigate("/monitor")}>
+              Monitored Wallets
+            </Button>
+            <ChevronRight className="h-4 w-4" />
+            <span className="text-foreground">New Monitor</span>
+          </div>
+
           <Button
             variant="ghost"
             onClick={() => navigate("/monitor")}

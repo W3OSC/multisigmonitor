@@ -1,0 +1,29 @@
+id: multisig-info-validation
+name: Multisig Info Cross-Validation
+type: safe-assessment
+check-name: multisig_info_validation
+
+conditions:
+  - type: cross-field-comparison
+    field_a: safeInfo.masterCopy
+    field_b: multisigInfo.masterCopy
+    comparison: eq
+    on_match:
+      severity: pass
+    on_mismatch:
+      severity: high
+      warning: "Mastercopy discrepancy detected between API and blockchain data"
+      risk-factor: "Data cross-validation mismatch detected"
+      score-modifier: -25
+
+  - type: cross-field-comparison
+    field_a: creationInfo.creator
+    field_b: multisigInfo.creator
+    comparison: eq
+    on_match:
+      severity: pass
+    on_mismatch:
+      severity: high
+      warning: "Creator discrepancy detected between API and blockchain data"
+      risk-factor: "Data cross-validation mismatch detected"
+      score-modifier: -25

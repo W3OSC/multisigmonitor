@@ -103,10 +103,9 @@ pub async fn list_monitors(
     let mut monitors_with_checks = Vec::new();
     for monitor in monitors {
         let last_check = sqlx::query_scalar::<_, Option<String>>(
-            "SELECT checked_at FROM last_checks WHERE lower(safe_address) = lower(?) AND network = ? ORDER BY checked_at DESC LIMIT 1"
+            "SELECT checked_at FROM last_checks WHERE monitor_id = ?"
         )
-        .bind(&monitor.safe_address)
-        .bind(&monitor.network)
+        .bind(&monitor.id)
         .fetch_optional(&state.pool)
         .await
         .map_err(|e| {

@@ -1,5 +1,5 @@
 import { Helmet } from 'react-helmet-async'
-import { Shield, ExternalLink, Key, Copy, Trash2, Plus, Sparkles, Zap } from 'lucide-react'
+import { Shield, ExternalLink, Key, Copy, Trash2, Plus, Sparkles, Zap, ChevronRight, Home } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -7,6 +7,7 @@ import { ThemeToggle } from '@/components/theme-toggle'
 import { useState, useEffect } from 'react'
 import { apiKeysApi, type ApiKey, type CreateApiKeyResponse } from '@/lib/api'
 import { toast } from 'sonner'
+import { useNavigate } from 'react-router-dom'
 import {
   Dialog,
   DialogContent,
@@ -24,6 +25,7 @@ import {
 
 export default function Settings() {
   const { user } = useAuth()
+  const navigate = useNavigate()
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([])
   const [loading, setLoading] = useState(true)
   const [showCreateDialog, setShowCreateDialog] = useState(false)
@@ -138,16 +140,25 @@ export default function Settings() {
   }
 
   return (
-    <div className="p-4 sm:p-6 md:p-8">
+    <div className="min-h-screen bg-background flex flex-col">
       <Helmet>
         <title>Settings - Multisig Monitor</title>
         <meta name="description" content="Manage your account settings and preferences." />
         <meta name="robots" content="noindex" />
       </Helmet>
-      <div className="max-w-5xl mx-auto">
-        <div className="mb-6 sm:mb-8 animate-slide-down">
+      <main className="flex-1 container py-12">
+        <div className="flex items-center gap-2 mb-6 text-sm text-muted-foreground">
+          <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")}>
+            <Home className="h-4 w-4 mr-1" />
+            Dashboard
+          </Button>
+          <ChevronRight className="h-4 w-4" />
+          <span className="text-foreground">Settings</span>
+        </div>
+
+        <div className="mb-8">
           <h1 className="text-3xl sm:text-4xl font-bold text-foreground mb-2">Settings</h1>
-          <p className="text-sm sm:text-base text-muted-foreground">Manage your account and preferences</p>
+          <p className="text-muted-foreground">Manage your account and preferences</p>
         </div>
 
         <div className="space-y-6">
@@ -311,15 +322,14 @@ export default function Settings() {
             </div>
           </div>
         </div>
-      </div>
 
-      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Key className="w-5 h-5 text-jsr-purple" />
-              Create New API Key
-            </DialogTitle>
+        <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Key className="w-5 h-5 text-jsr-purple" />
+                Create New API Key
+              </DialogTitle>
             <DialogDescription>
               Give your API key a descriptive name (optional). It will expire in 6 months.
             </DialogDescription>
@@ -451,6 +461,7 @@ export default function Settings() {
           )}
         </DialogContent>
       </Dialog>
+      </main>
     </div>
   )
 }

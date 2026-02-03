@@ -1,0 +1,43 @@
+id: ownership-validation
+name: Ownership Configuration Validation
+type: safe-assessment
+check-name: ownership_validation
+
+conditions:
+  - type: numeric-validation
+    field: safeInfo.owners
+    rules:
+      - condition: array-length-zero
+        result:
+          severity: critical
+          warning: "No owners configured"
+          risk-factor: "CRITICAL: Safe has no owners"
+          score-modifier: -100
+      - condition: array-length-one
+        result:
+          severity: high
+          warning: "Single owner configuration"
+          risk-factor: "Single owner reduces security"
+          score-modifier: -10
+
+  - type: numeric-validation
+    field: safeInfo.threshold
+    rules:
+      - condition: equals-zero
+        result:
+          severity: critical
+          warning: "Invalid threshold configuration"
+          risk-factor: "CRITICAL: Threshold is zero"
+          score-modifier: -100
+
+  - type: cross-field-comparison
+    field_a: safeInfo.threshold
+    field_b: safeInfo.owners.length
+    comparison: gt
+    on_mismatch:
+      severity: pass
+    on_match:
+      severity: critical
+      warning: "Impossible threshold configuration"
+      risk-factor: "CRITICAL: Threshold exceeds owner count"
+      score-modifier: -100

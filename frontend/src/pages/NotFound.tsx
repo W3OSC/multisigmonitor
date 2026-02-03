@@ -16,7 +16,7 @@ const NotFound = () => {
 
   return (
     <div className="flex items-center justify-center min-h-screen w-full p-8">
-      <div className="max-w-2xl mx-auto px-6 text-center">
+      <div className="max-w-2xl mx-auto px-4 text-center">
         <div className="relative inline-block mb-8">
           <div className="absolute inset-0 animate-pulse bg-primary/20 blur-3xl rounded-full"></div>
           <ShieldAlert className="relative w-32 h-32 text-primary animate-bounce" />

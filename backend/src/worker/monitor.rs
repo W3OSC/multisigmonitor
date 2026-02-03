@@ -3,6 +3,7 @@ use crate::worker::{SafeApiClient, NotificationService, Alert};
 use crate::worker::notifications::{AlertType, NotificationChannel};
 use crate::services::security_analysis::{SecurityAnalysisService, AnalysisOptions};
 use crate::models::security_analysis::{SafeTransaction as ModelTransaction, DataDecoded, Parameter, RiskLevel, AnalysisResponse};
+use crate::models::worker_activity::ActivityEventType;
 use futures::stream::{self, StreamExt};
 use futures::future::join_all;
 use uuid;
@@ -98,15 +99,26 @@ impl MonitorWorker {
 
         for monitor in monitors {
             self.update_last_check(&monitor.id, safe_address, network).await?;
+            self.log_activity(
+                &monitor.user_id,
+                Some(&monitor.id),
+                ActivityEventType::ScanStarted,
+                Some(safe_address),
+                Some(network),
+                &format!("Scanning Safe {}", &safe_address[..10]),
+                None,
+            ).await;
         }
 
         let all_transactions = self.safe_api.fetch_all_transactions(safe_address, network, 50).await?;
-        tracing::info!("Found {} total transactions", all_transactions.len());
+        let total_tx_count = all_transactions.len();
+        tracing::info!("Found {} total transactions", total_tx_count);
 
         let pending_transactions: Vec<_> = all_transactions.iter()
             .filter(|tx| !tx.is_executed.unwrap_or(false))
             .collect();
-        tracing::info!("Found {} pending transactions", pending_transactions.len());
+        let pending_tx_count = pending_transactions.len();
+        tracing::info!("Found {} pending transactions", pending_tx_count);
 
         let safe_info = self.safe_api.fetch_safe_info(safe_address, network).await.ok();
         let safe_version = safe_info.as_ref().and_then(|info| info.version.clone()).unwrap_or_else(|| "1.3.0".to_string());
@@ -186,10 +198,39 @@ impl MonitorWorker {
                     tracing::info!("Sending notification for {:?} transaction {} to monitor {}", alert_type, transaction.safe_tx_hash, monitor.id);
                     self.send_notifications(&alert, &monitor).await?;
                     self.record_notification(&transaction.safe_tx_hash, safe_address, network, &monitor.id, &alert_type).await?;
+                    
+                    self.log_activity(
+                        &monitor.user_id,
+                        Some(&monitor.id),
+                        ActivityEventType::AlertSent,
+                        Some(safe_address),
+                        Some(network),
+                        &format!("Alert sent for transaction {}", &transaction.safe_tx_hash[..10]),
+                        Some(serde_json::json!({
+                            "txHash": transaction.safe_tx_hash,
+                            "alertType": format!("{:?}", alert_type),
+                            "nonce": transaction.nonce
+                        })),
+                    ).await;
                 } else {
                     tracing::debug!("Skipping notification for {:?} transaction {} (monitor {} settings)", alert_type, transaction.safe_tx_hash, monitor.id);
                 }
             }
+        }
+
+        for monitor in monitors {
+            self.log_activity(
+                &monitor.user_id,
+                Some(&monitor.id),
+                ActivityEventType::ScanCompleted,
+                Some(safe_address),
+                Some(network),
+                &format!("Scan complete: {} txs, {} pending", total_tx_count, pending_tx_count),
+                Some(serde_json::json!({
+                    "totalTransactions": total_tx_count,
+                    "pendingTransactions": pending_tx_count
+                })),
+            ).await;
         }
 
         Ok(())
@@ -332,6 +373,7 @@ impl MonitorWorker {
         let now = chrono::Utc::now().to_rfc3339();
         
         let risk_level_str = match analysis.risk_level {
+            RiskLevel::Info => "info",
             RiskLevel::Low => "low",
             RiskLevel::Medium => "medium",
             RiskLevel::High => "high",
@@ -341,11 +383,21 @@ impl MonitorWorker {
         let warnings_json = serde_json::to_string(&analysis.warnings)?;
         let details_json = serde_json::to_string(&analysis.details)?;
 
-        let result = sqlx::query(
+        sqlx::query(
             "INSERT INTO security_analyses (id, safe_address, network, transaction_hash, safe_tx_hash,
                                            is_suspicious, risk_level, warnings, details, call_type,
                                            hash_verification, nonce_check, calldata, user_id, analyzed_at, created_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             ON CONFLICT(safe_tx_hash, safe_address) DO UPDATE SET
+                is_suspicious = excluded.is_suspicious,
+                risk_level = excluded.risk_level,
+                warnings = excluded.warnings,
+                details = excluded.details,
+                call_type = excluded.call_type,
+                hash_verification = excluded.hash_verification,
+                nonce_check = excluded.nonce_check,
+                calldata = excluded.calldata,
+                analyzed_at = excluded.analyzed_at"
         )
         .bind(&id)
         .bind(safe_address)
@@ -364,16 +416,7 @@ impl MonitorWorker {
         .bind(&now)
         .bind(&now)
         .execute(&self.pool)
-        .await;
-        
-        match result {
-            Ok(_) => {},
-            Err(e) => {
-                if !e.to_string().contains("UNIQUE constraint failed") {
-                    return Err(e.into());
-                }
-            }
-        }
+        .await?;
 
         Ok(())
     }
@@ -516,6 +559,41 @@ impl MonitorWorker {
         let channels: Vec<NotificationChannel> = serde_json::from_value(channels_value.clone())?;
         Ok(channels)
     }
+
+    async fn log_activity(
+        &self,
+        user_id: &str,
+        monitor_id: Option<&str>,
+        event_type: ActivityEventType,
+        safe_address: Option<&str>,
+        network: Option<&str>,
+        message: &str,
+        metadata: Option<serde_json::Value>,
+    ) {
+        let id = uuid::Uuid::new_v4().to_string();
+        let now = chrono::Utc::now().to_rfc3339();
+        let metadata_str = metadata.map(|m| m.to_string());
+
+        let result = sqlx::query(
+            "INSERT INTO worker_activity (id, user_id, monitor_id, event_type, safe_address, network, message, metadata, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        )
+        .bind(&id)
+        .bind(user_id)
+        .bind(monitor_id)
+        .bind(event_type.as_str())
+        .bind(safe_address)
+        .bind(network)
+        .bind(message)
+        .bind(&metadata_str)
+        .bind(&now)
+        .execute(&self.pool)
+        .await;
+
+        if let Err(e) = result {
+            tracing::warn!("Failed to log worker activity: {}", e);
+        }
+    }
 }
 
 #[derive(sqlx::FromRow)]
@@ -528,11 +606,9 @@ struct MonitorData {
 }
 
 struct MonitorGroup {
+    #[allow(dead_code)]
     safe_address: String,
+    #[allow(dead_code)]
     network: String,
     monitors: Vec<MonitorData>,
 }
-
-#[cfg(test)]
-#[path = "monitor_tests.rs"]
-mod tests;

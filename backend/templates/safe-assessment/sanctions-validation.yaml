@@ -1,0 +1,16 @@
+id: sanctions-validation
+name: Sanctions Check Validation
+type: safe-assessment
+check-name: sanctions_validation
+
+conditions:
+  - type: external-data-check
+    data_field: sanctionsResults
+    flag_field: overallSanctioned
+    on_flagged:
+      severity: critical
+      risk-factor: "CRITICAL RISK: Sanctioned addresses detected!"
+      score-modifier: -100
+    on_clear:
+      severity: pass
+      canonical-name: "All addresses clear from sanctions"

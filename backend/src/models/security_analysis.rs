@@ -84,6 +84,7 @@ pub struct AnalysisResponse {
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum RiskLevel {
+    Info,
     Low,
     Medium,
     High,
@@ -93,6 +94,7 @@ pub enum RiskLevel {
 impl std::fmt::Display for RiskLevel {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            RiskLevel::Info => write!(f, "info"),
             RiskLevel::Low => write!(f, "low"),
             RiskLevel::Medium => write!(f, "medium"),
             RiskLevel::High => write!(f, "high"),
@@ -101,11 +103,124 @@ impl std::fmt::Display for RiskLevel {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum FindingType {
+    HashVerification,
+    HashMismatch,
+    OperationType,
+    OwnerAdded,
+    OwnerRemoved,
+    OwnerSwapped,
+    OwnerAddedWithThreshold,
+    ThresholdChanged,
+    ModuleEnabled,
+    ModuleDisabled,
+    GuardChanged,
+    FallbackHandlerChanged,
+    ImplementationChanged,
+    SafeSetup,
+    DelegateCall,
+    UntrustedDelegateCall,
+    TrustedDelegateCall,
+    GasParams,
+    GasTokenAttack,
+    GasTokenAttackEnhanced,
+    HighSafeTxGas,
+    HighBaseGas,
+    ZeroGasWithToken,
+    CustomGasToken,
+    CustomRefundReceiver,
+    LargeValueTransfer,
+    ExecutionFailure,
+    UnverifiedContract,
+    ContractInteraction,
+    SafeTxGasSet,
+    #[serde(other)]
+    Other,
+}
+
+impl FindingType {
+    pub fn from_str(s: &str) -> Self {
+        match s {
+            "hash_verification" | "hash_verified" => FindingType::HashVerification,
+            "hash_mismatch" => FindingType::HashMismatch,
+            "operation_type" => FindingType::OperationType,
+            "owner_added" => FindingType::OwnerAdded,
+            "owner_removed" => FindingType::OwnerRemoved,
+            "owner_swapped" => FindingType::OwnerSwapped,
+            "owner_added_with_threshold" => FindingType::OwnerAddedWithThreshold,
+            "threshold_changed" => FindingType::ThresholdChanged,
+            "module_enabled" => FindingType::ModuleEnabled,
+            "module_disabled" => FindingType::ModuleDisabled,
+            "guard_changed" => FindingType::GuardChanged,
+            "fallback_handler_changed" => FindingType::FallbackHandlerChanged,
+            "implementation_changed" => FindingType::ImplementationChanged,
+            "safe_setup" => FindingType::SafeSetup,
+            "delegate_call" => FindingType::DelegateCall,
+            "untrusted_delegate_call" => FindingType::UntrustedDelegateCall,
+            "trusted_delegate_call" => FindingType::TrustedDelegateCall,
+            "gas_params" => FindingType::GasParams,
+            "gas_token_attack" => FindingType::GasTokenAttack,
+            "gas_token_attack_enhanced" => FindingType::GasTokenAttackEnhanced,
+            "high_safe_tx_gas" => FindingType::HighSafeTxGas,
+            "high_base_gas" => FindingType::HighBaseGas,
+            "zero_gas_with_token" => FindingType::ZeroGasWithToken,
+            "custom_gas_token" => FindingType::CustomGasToken,
+            "custom_refund_receiver" => FindingType::CustomRefundReceiver,
+            "large_value_transfer" => FindingType::LargeValueTransfer,
+            "execution_failure" => FindingType::ExecutionFailure,
+            "unverified_contract" => FindingType::UnverifiedContract,
+            "contract_interaction" => FindingType::ContractInteraction,
+            "safe_tx_gas_set" => FindingType::SafeTxGasSet,
+            _ => FindingType::Other,
+        }
+    }
+    
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            FindingType::HashVerification => "hash_verification",
+            FindingType::HashMismatch => "hash_mismatch",
+            FindingType::OperationType => "operation_type",
+            FindingType::OwnerAdded => "owner_added",
+            FindingType::OwnerRemoved => "owner_removed",
+            FindingType::OwnerSwapped => "owner_swapped",
+            FindingType::OwnerAddedWithThreshold => "owner_added_with_threshold",
+            FindingType::ThresholdChanged => "threshold_changed",
+            FindingType::ModuleEnabled => "module_enabled",
+            FindingType::ModuleDisabled => "module_disabled",
+            FindingType::GuardChanged => "guard_changed",
+            FindingType::FallbackHandlerChanged => "fallback_handler_changed",
+            FindingType::ImplementationChanged => "implementation_changed",
+            FindingType::SafeSetup => "safe_setup",
+            FindingType::DelegateCall => "delegate_call",
+            FindingType::UntrustedDelegateCall => "untrusted_delegate_call",
+            FindingType::TrustedDelegateCall => "trusted_delegate_call",
+            FindingType::GasParams => "gas_params",
+            FindingType::GasTokenAttack => "gas_token_attack",
+            FindingType::GasTokenAttackEnhanced => "gas_token_attack_enhanced",
+            FindingType::HighSafeTxGas => "high_safe_tx_gas",
+            FindingType::HighBaseGas => "high_base_gas",
+            FindingType::ZeroGasWithToken => "zero_gas_with_token",
+            FindingType::CustomGasToken => "custom_gas_token",
+            FindingType::CustomRefundReceiver => "custom_refund_receiver",
+            FindingType::LargeValueTransfer => "large_value_transfer",
+            FindingType::ExecutionFailure => "execution_failure",
+            FindingType::UnverifiedContract => "unverified_contract",
+            FindingType::ContractInteraction => "contract_interaction",
+            FindingType::SafeTxGasSet => "safe_tx_gas_set",
+            FindingType::Other => "other",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct AnalysisDetail {
-    pub r#type: String,
+    pub finding_type: FindingType,
+    pub category: String,
     pub severity: String,
+    pub title: String,
     pub message: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub priority: Option<String>,

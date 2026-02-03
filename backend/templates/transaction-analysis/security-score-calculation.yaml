@@ -1,0 +1,13 @@
+---
+id: security-score-calculation
+name: Security Score Calculation
+type: transaction-analysis
+description: Calculates overall risk level based on all security analysis findings
+builtin: calculate-security-score
+severity: low
+enabled: true
+
+output:
+  type: security_score
+  warning: ""
+  message: ""

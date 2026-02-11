@@ -62,7 +62,6 @@ export function ActivityLog({
       setActivities(response.activities);
       setLastRefresh(new Date());
     } catch (error) {
-      console.error("Failed to fetch activities:", error);
     } finally {
       setIsLoading(false);
     }

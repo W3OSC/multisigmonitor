@@ -13,8 +13,6 @@ pub struct User {
     pub google_id: Option<String>,
     pub github_id: Option<String>,
     pub ethereum_address: Option<String>,
-    pub email_verified: Option<i32>,
-    pub email_alerts_enabled: Option<i32>,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -28,8 +26,6 @@ pub struct UserResponse {
     pub google_id: Option<String>,
     pub github_id: Option<String>,
     pub ethereum_address: Option<String>,
-    pub email_verified: bool,
-    pub email_alerts_enabled: bool,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -41,8 +37,6 @@ impl From<User> for UserResponse {
             email: user.email,
             username: user.username,
             google_id: user.google_id,
-            email_verified: user.email_verified == Some(1),
-            email_alerts_enabled: user.email_alerts_enabled == Some(1),
             github_id: user.github_id,
             ethereum_address: user.ethereum_address,
             created_at: user.created_at,
@@ -78,11 +72,13 @@ pub struct GoogleAuthRequest {
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct GoogleCallbackRequest {
     pub code: String,
+    pub redirect_uri: String,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct GitHubCallbackRequest {
     pub code: String,
+    pub redirect_uri: String,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]

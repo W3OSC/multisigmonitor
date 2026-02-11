@@ -75,7 +75,6 @@ export default function Dashboard() {
 
         return () => clearInterval(timer);
       } catch (err) {
-        console.error("Failed to load dashboard data:", err);
         setLoading(false);
       }
     };

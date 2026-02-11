@@ -1,0 +1,17 @@
+FROM rust:1.93.0
+
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    pkg-config \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+
+COPY backend/Cargo.toml backend/Cargo.lock ./
+COPY backend/src ./src
+COPY backend/migrations ./migrations
+
+RUN cargo build --release
+
+CMD ["sh", "-c", "cp target/release/multisigmonitor-backend target/release/monitor-worker /output/"]

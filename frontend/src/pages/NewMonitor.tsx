@@ -122,7 +122,6 @@ const NewMonitor = () => {
         setIsValidSafe(false);
       } else {
         // For other errors, we can't determine validity
-        console.error('Error checking multisignature wallet:', error);
         setIsValidSafe(null);
       }
     } finally {
@@ -194,7 +193,6 @@ const NewMonitor = () => {
       // Redirect to the notification configuration page for this monitor
       navigate(`/monitor/config/${monitor.id}?newSetup=true`);
     } catch (error: any) {
-      console.error('Error creating monitor:', error);
       toast({
         title: "Error Creating Monitor",
         description: error.message || "There was a problem creating your monitor",

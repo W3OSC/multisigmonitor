@@ -70,7 +70,6 @@ export default function Scan() {
         }))
       setPastScans(formattedScans.slice(0, 10))
     } catch (error) {
-      console.error('Failed to load past scans:', error)
       setPastScans([])
     } finally {
       setLoadingScans(false)
@@ -88,7 +87,6 @@ export default function Scan() {
         description: 'All scan history has been cleared',
       })
     } catch (error) {
-      console.error('Failed to clear scans:', error)
       toast({
         title: 'Error',
         description: 'Failed to clear scan history',
@@ -104,8 +102,8 @@ export default function Scan() {
     setSafeExists(null)
 
     try {
-      const backendUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:7111';
-      const response = await fetch(`${backendUrl}/api/safe/assess`, {
+      const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:7111/api';
+      const response = await fetch(`${backendUrl}/safe/assess`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -141,7 +139,6 @@ export default function Scan() {
         })
       }
     } catch (error) {
-      console.error('Error validating Safe:', error)
       setSafeExists(false)
       toast({
         title: "Network Error",

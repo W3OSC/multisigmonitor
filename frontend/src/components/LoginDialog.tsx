@@ -99,7 +99,6 @@ export function LoginDialog({ isOpen, onClose }: LoginDialogProps) {
         disconnect();
         onClose();
       } catch (err) {
-        console.error('Ethereum login error:', err);
         setError(err instanceof Error ? err.message : 'Ethereum login failed. Please try again.');
         disconnect();
         hasSignedRef.current = false;

@@ -31,9 +31,10 @@ pub async fn google_callback(
     State(state): State<AppState>,
     Json(payload): Json<GoogleCallbackRequest>,
 ) -> Result<impl IntoResponse, StatusCode> {
+    tracing::debug!("Google callback received with redirect_uri: {}", payload.redirect_uri);
     let access_token = AuthService::exchange_google_code(
         &payload.code,
-        &state.config.google_redirect_uri,
+        &payload.redirect_uri,
         &state.config.google_client_id,
         &state.config.google_client_secret,
     )
@@ -121,14 +122,18 @@ pub async fn github_callback(
     State(state): State<AppState>,
     Json(payload): Json<GitHubCallbackRequest>,
 ) -> Result<impl IntoResponse, StatusCode> {
+    tracing::debug!("GitHub callback received with redirect_uri: {}", payload.redirect_uri);
     let access_token = AuthService::exchange_github_code(
         &payload.code,
-        &state.config.github_redirect_uri,
+        &payload.redirect_uri,
         &state.config.github_client_id,
         &state.config.github_client_secret,
     )
     .await
-    .map_err(|_| StatusCode::UNAUTHORIZED)?;
+    .map_err(|e| {
+        tracing::error!("Failed to exchange GitHub code: {}", e);
+        StatusCode::UNAUTHORIZED
+    })?;
 
     let (user_info, primary_email) = AuthService::get_github_user_info(&access_token)
         .await
@@ -249,7 +254,10 @@ pub async fn ethereum_verify(
     .bind(&address_lower)
     .fetch_optional(&state.pool)
     .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .map_err(|e| {
+        tracing::error!("Failed to query user by ethereum_address: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
 
     let user = if let Some(user) = existing_user {
         user
@@ -267,13 +275,19 @@ pub async fn ethereum_verify(
         .bind(&username)
         .execute(&state.pool)
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|e| {
+            tracing::error!("Failed to insert new ethereum user: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
 
         sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = ?")
             .bind(&user_id)
             .fetch_one(&state.pool)
             .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+            .map_err(|e| {
+                tracing::error!("Failed to fetch newly created user: {}", e);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?
     };
 
     let token = AuthService::generate_token(&user.id, &user.email, &state.config.jwt_secret)

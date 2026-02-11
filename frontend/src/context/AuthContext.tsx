@@ -44,7 +44,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
           setUser(userData);
         }
       } catch (error) {
-        console.error('Auth check error:', error);
       } finally {
         setIsLoading(false);
       }
@@ -65,7 +64,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
         credentials: 'include',
       });
     } catch (error) {
-      console.error('Logout error:', error);
     } finally {
       setToken(null);
       setUser(null);

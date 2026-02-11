@@ -312,7 +312,7 @@ export default function Settings() {
                   <p className="text-sm font-medium text-foreground">API Documentation</p>
                   <p className="text-xs text-muted-foreground">Interactive API documentation and testing</p>
                 </div>
-                <a href="http://localhost:7111/api-docs" target="_blank" rel="noopener noreferrer">
+                <a href={`${import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:7111'}/api-docs`} target="_blank" rel="noopener noreferrer">
                   <Button variant="outline" size="sm" className="flex items-center gap-2">
                     Open Docs
                     <ExternalLink className="w-3 h-3" />

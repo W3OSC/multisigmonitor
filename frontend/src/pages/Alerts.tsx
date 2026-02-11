@@ -35,7 +35,6 @@ export default function Alerts() {
         const data = await notificationsApi.list()
         setNotifications(data)
       } catch (error) {
-        console.error('Error fetching notifications:', error)
         setNotifications([])
       } finally {
         setIsLoadingNotifications(false)
@@ -90,14 +89,12 @@ export default function Alerts() {
               })
             }
           } catch (e) {
-            console.error('Error parsing monitor settings:', e)
           }
         })
         
         setHasTelegramConfigured(telegramFound)
         setHasWebhookConfigured(webhookFound)
       } catch (error) {
-        console.error('Error fetching monitors:', error)
         setMonitors([])
       }
     }

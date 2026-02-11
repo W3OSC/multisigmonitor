@@ -40,7 +40,6 @@ export default function Login() {
             detectedProvider = stateData.provider
           }
         } catch (e) {
-          console.error('Failed to parse OAuth state:', e)
         }
       }
       
@@ -70,7 +69,6 @@ export default function Login() {
             targetRedirect = stateData.redirect
           }
         } catch (e) {
-          console.error('Failed to parse OAuth state:', e)
         }
       }
       
@@ -119,7 +117,6 @@ export default function Login() {
             targetRedirect = stateData.redirect
           }
         } catch (e) {
-          console.error('Failed to parse OAuth state:', e)
         }
       }
       
@@ -229,7 +226,6 @@ export default function Login() {
         sessionStorage.setItem('justLoggedIn', 'true')
         navigate(redirectTo || '/')
       } catch (err) {
-        console.error('Ethereum login error:', err)
         setError(err instanceof Error ? err.message : 'Ethereum login failed. Please try again.')
         disconnect()
         hasSignedRef.current = false

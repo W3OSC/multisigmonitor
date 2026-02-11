@@ -1,4 +1,4 @@
-.PHONY: setup test test-backend test-frontend test-external-apis start stop restart logs status
+.PHONY: setup test test-backend test-frontend test-external-apis start stop restart logs status build deploy prepare-prod
 
 setup:
 	@echo "Setting up multisigmonitor for local development..."
@@ -87,3 +87,45 @@ logs:
 
 status:
 	@pm2 status
+
+build:
+	@echo "Building backend for production..."
+	@cd backend && cargo build --release
+	@echo "Building frontend for production..."
+	@cd frontend && npm run build
+	@echo "✓ Build complete!"
+
+prepare-prod:
+	@if [ -z "$$SERVER_IP" ]; then \
+		echo "❌ Error: SERVER_IP not set"; \
+		echo "Usage: SERVER_IP=1.2.3.4 SERVER_USER=username make prepare-prod"; \
+		exit 1; \
+	fi
+	@if [ -z "$$SERVER_USER" ]; then \
+		echo "❌ Error: SERVER_USER not set"; \
+		echo "Usage: SERVER_IP=1.2.3.4 SERVER_USER=username make prepare-prod"; \
+		exit 1; \
+	fi
+	@echo "🔧 Preparing production server at $$SERVER_IP..."
+	@echo "Uploading setup script..."
+	@scp scripts/prepare-prod-server.sh $$SERVER_USER@$$SERVER_IP:/tmp/
+	@echo "Running setup script on server..."
+	@ssh $$SERVER_USER@$$SERVER_IP "bash /tmp/prepare-prod-server.sh && rm /tmp/prepare-prod-server.sh"
+	@echo ""
+	@echo "✅ Production server prepared successfully!"
+	@echo ""
+	@echo "Next steps:"
+	@echo "  1. Run: SERVER_IP=$$SERVER_IP SERVER_USER=$$SERVER_USER DOMAIN=yourdomain.com make deploy"
+
+deploy:
+	@if [ -z "$$SERVER_IP" ]; then \
+		echo "❌ Error: SERVER_IP not set"; \
+		echo "Usage: SERVER_IP=1.2.3.4 DOMAIN=yourdomain.com make deploy"; \
+		exit 1; \
+	fi
+	@if [ -z "$$DOMAIN" ]; then \
+		echo "❌ Error: DOMAIN not set"; \
+		echo "Usage: SERVER_IP=1.2.3.4 DOMAIN=yourdomain.com make deploy"; \
+		exit 1; \
+	fi
+	@./deploy.sh

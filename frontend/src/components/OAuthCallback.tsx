@@ -27,7 +27,6 @@ export function OAuthCallback() {
           provider = stateData.provider;
         }
       } catch (e) {
-        console.error('Failed to parse OAuth state:', e);
       }
     }
 

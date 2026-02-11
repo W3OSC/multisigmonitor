@@ -119,7 +119,6 @@ const MonitorConfig = () => {
         setIsValidSafe(false);
       } else {
         // For other errors, we can't determine validity
-        console.error('Error checking multisignature wallet:', error);
         setIsValidSafe(null);
       }
     } finally {
@@ -188,14 +187,12 @@ const MonitorConfig = () => {
       
       // Handle camelCase format (notificationChannels)
       if (settings?.notificationChannels && Array.isArray(settings.notificationChannels)) {
-        console.log('[MonitorConfig] Loading notificationChannels:', settings.notificationChannels);
         settings.notificationChannels.forEach((channel: any) => {
           if (channel.type === "telegram") {
             const notifConfig = updatedNotifications.find(n => n.method === "telegram");
             if (notifConfig) {
               notifConfig.enabled = true;
               notifConfig.telegramChatId = channel.chat_id || '';
-              console.log('[MonitorConfig] Set telegram notification:', notifConfig);
             }
           } else if (channel.type === "webhook") {
             const webhookType = channel.webhook_type;
@@ -213,14 +210,12 @@ const MonitorConfig = () => {
       }
       // Handle snake_case format (notification_channels) for backwards compatibility
       else if (settings?.notification_channels && Array.isArray(settings.notification_channels)) {
-        console.log('[MonitorConfig] Loading notification_channels:', settings.notification_channels);
         settings.notification_channels.forEach((channel: any) => {
           if (channel.type === "telegram") {
             const notifConfig = updatedNotifications.find(n => n.method === "telegram");
             if (notifConfig) {
               notifConfig.enabled = true;
               notifConfig.telegramChatId = channel.chat_id || '';
-              console.log('[MonitorConfig] Set telegram notification:', notifConfig);
             }
           } else if (channel.type === "webhook") {
             const webhookType = channel.webhook_type;
@@ -273,13 +268,11 @@ const MonitorConfig = () => {
           }
         }
       }
-      console.log('[MonitorConfig] Final notifications state:', updatedNotifications);
       
       // Set notifications and finish loading
       setNotifications(updatedNotifications);
       setIsLoading(false);
     } catch (error) {
-      console.error('Error fetching monitor:', error);
       toast({
         title: "Monitor Not Found",
         description: "The requested monitor could not be found",
@@ -433,7 +426,6 @@ const MonitorConfig = () => {
       
       navigate("/monitor");
     } catch (error: any) {
-      console.error('Error updating monitor:', error);
       toast({
         title: "Error Updating Monitor",
         description: error.message || "There was a problem updating your monitor",

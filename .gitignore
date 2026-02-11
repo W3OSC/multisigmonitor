@@ -1,31 +1,48 @@
-# Logs
-logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
+# Dependencies
+node_modules/
+target/
+dist/
+build/
 
-node_modules
-dist
-dist-ssr
-*.local
-
-.env
-
-# Editor directories and files
-.vscode
-!.vscode/extensions.json
-.idea
+# OS
 .DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
-.gitsecret/keys/random_seed
-!*.secret
-secrets/.env.backend.prod
-secrets/.env.frontend.prod
-TODO.MD
+*.swp
+*.swo
+*~
+
+# IDE
+.vscode/
+.idea/
+*.sublime-*
+
+# Env files (plaintext secrets)
+.env
+.env.local
+.env.production
+.env.*.local
+secrets/.env.*
+!secrets/.env.*.secret
+
+# Logs
+*.log
+logs/
+
+# Temp
+*.tmp
+*.temp
+dump.rdb
+.rsyncignore
+
+# Build artifacts
+*.o
+*.so
+*.dylib
+
+# Database
+*.db
+*.sqlite
+data/
+
+# PM2
+.pm2/
+pids/

@@ -105,7 +105,6 @@ const ActivityPage = () => {
       setTotal(response.total);
       setLastRefresh(new Date());
     } catch (error) {
-      console.error("Failed to fetch activities:", error);
     } finally {
       setIsLoading(false);
     }
@@ -130,7 +129,6 @@ const ActivityPage = () => {
       setTotal(0);
       setShowClearConfirm(false);
     } catch (error) {
-      console.error("Failed to clear activities:", error);
     } finally {
       setIsClearing(false);
     }
@@ -288,7 +286,6 @@ const ActivityPage = () => {
                       try {
                         metadata = JSON.parse(activity.metadata);
                       } catch (error) {
-                        console.warn('Failed to parse activity metadata:', error);
                       }
                     }
                     

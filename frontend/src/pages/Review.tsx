@@ -49,7 +49,8 @@ async function performSecurityAssessment(
   safeAddress: string,
   network: string,
 ): Promise<SafeAssessment> {
-  const response = await fetch("http://localhost:7111/api/safe/assess", {
+  const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:7111/api';
+  const response = await fetch(`${apiBaseUrl}/safe/assess`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -170,7 +171,6 @@ const Review = () => {
 
       setAssessment(analysis.assessment);
     } catch (error) {
-      console.error("Failed to load existing review:", error);
       toast({
         title: "Error",
         description: "Failed to load existing review",
@@ -197,9 +197,7 @@ const Review = () => {
       const assessment = await performSecurityAssessment(addr, selectedNetwork);
       setAssessment(assessment);
       setSafeExists(true);
-      console.log("Security assessment completed");
     } catch (error: any) {
-      console.error("Error performing security assessment:", error);
       
       if (error.status === 404) {
         setSafeExists(false);

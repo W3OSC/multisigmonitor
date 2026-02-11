@@ -328,7 +328,6 @@ const Monitor = () => {
         setSelectedTransaction(transaction);
         setDetailModalOpen(true);
       } catch (error) {
-        console.error('Unexpected error fetching transaction:', error);
         toast({
           title: "Error Loading Transaction",
           description: "An unexpected error occurred while loading the transaction",
@@ -375,7 +374,6 @@ const Monitor = () => {
       setSelectedTransaction(transaction);
       setDetailModalOpen(true);
     } catch (error) {
-      console.error('Error in fetchTransactionDetails:', error);
       toast({
         title: "Error Loading Transaction Details",
         description: "An unexpected error occurred",
@@ -401,16 +399,13 @@ const Monitor = () => {
         const data = await monitorsApi.list();
 
         if (!data || data.length === 0) {
-          console.log('No monitors found');
           setMonitors([]);
           setIsLoading(false);
           return;
         }
         
-        console.log('Fetched monitors:', data.map(m => ({ id: m.id, lastCheckedAt: m.lastCheckedAt })));
         setMonitors(data);
       } catch (error) {
-        console.error('Unexpected error:', error);
       } finally {
         setIsLoading(false);
       }
@@ -521,7 +516,6 @@ const Monitor = () => {
         
         setTransactions(paginatedTransactions);
       } catch (error) {
-        console.error('Error processing transactions:', error);
         toast({
           title: "Error Loading Transactions",
           description: "There was a problem retrieving transaction data",
@@ -566,7 +560,6 @@ const Monitor = () => {
           : `Paused monitoring for ${monitor.safeAddress}`,
       });
     } catch (error: any) {
-      console.error('Error toggling monitor:', error);
       
       // Revert the local state change on error
       const revertedSettings = {
@@ -612,7 +605,6 @@ const Monitor = () => {
         description: `Successfully removed monitoring for ${monitorToDelete.safeAddress}`,
       });
     } catch (error: any) {
-      console.error('Error deleting monitor:', error);
       
       // Restore the monitor in the UI on error
       setMonitors(prev => [...prev, monitorToDelete]);
@@ -1465,7 +1457,7 @@ const Monitor = () => {
                     <div className="text-sm space-y-1 mb-4">
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Last checked:</span>
-                        <span onClick={() => console.log('Monitor data:', { id: monitor.id, lastCheckedAt: monitor.lastCheckedAt, parsed: monitor.lastCheckedAt ? new Date(monitor.lastCheckedAt).getTime() : null })} className="cursor-pointer">
+                        <span className="cursor-pointer">
                           {monitor.lastCheckedAt ? formatTimeAgo(new Date(monitor.lastCheckedAt).getTime()) : 'Never'}
                         </span>
                       </div>

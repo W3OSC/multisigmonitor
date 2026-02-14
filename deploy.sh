@@ -88,11 +88,26 @@ cd backend
 if [ ! -f "data/multisigmonitor.db" ]; then
     touch data/multisigmonitor.db
 fi
+
+export DATABASE_URL="sqlite:./data/multisigmonitor.db"
+if command -v sqlx &> /dev/null; then
+    echo "Running migrations with sqlx-cli..."
+    sqlx database create || true
+    sqlx migrate run
+else
+    echo "WARNING: sqlx-cli not found, attempting migration via backend binary..."
+    if [ -f "target/release/multisigmonitor-backend" ]; then
+        timeout 5 ./target/release/multisigmonitor-backend || true
+    fi
+fi
+
 cd ..
 
 if pm2 list | grep -q "multisig-backend"; then
+    echo "Reloading existing PM2 processes..."
     pm2 reload ecosystem.prod.config.js --update-env
 else
+    echo "Starting PM2 processes..."
     pm2 start ecosystem.prod.config.js
 fi
 pm2 save

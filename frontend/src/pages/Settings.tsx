@@ -1,5 +1,5 @@
 import { Helmet } from 'react-helmet-async'
-import { Shield, ExternalLink, Key, Copy, Trash2, Plus, Sparkles, Zap, ChevronRight, Home } from 'lucide-react'
+import { Shield, ExternalLink, Key, Copy, Trash2, Plus, Sparkles, Zap, ChevronRight, Home, Trophy } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -120,7 +120,7 @@ export default function Settings() {
     return 'text-green-500'
   }
 
-  const activeKeys = apiKeys.filter(k => !k.is_revoked && new Date(k.expires_at) > new Date())
+  const activeKeys = apiKeys.filter(k => !k.isRevoked && new Date(k.expiresAt) > new Date())
 
   const getDisplayName = () => {
     if (user?.username) return user.username
@@ -242,7 +242,7 @@ export default function Settings() {
                   <Card
                     key={key.id}
                     className={`border transition-all duration-300 hover:shadow-md ${
-                      key.is_revoked || new Date(key.expires_at) < new Date()
+                      key.isRevoked || new Date(key.expiresAt) < new Date()
                         ? 'opacity-50 bg-secondary/20'
                         : 'bg-card hover:border-jsr-purple/50'
                     }`}
@@ -253,13 +253,13 @@ export default function Settings() {
                         <div className="flex-1">
                           <CardTitle className="text-base flex items-center gap-2">
                             {key.name}
-                            {!key.is_revoked && new Date(key.expires_at) > new Date() && (
+                            {!key.isRevoked && new Date(key.expiresAt) > new Date() && (
                               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-500/10 text-green-500 border border-green-500/20">
                                 <Zap className="w-3 h-3" />
                                 Active
                               </span>
                             )}
-                            {key.is_revoked && (
+                            {key.isRevoked && (
                               <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-500/10 text-red-500 border border-red-500/20">
                                 Revoked
                               </span>
@@ -267,10 +267,10 @@ export default function Settings() {
                           </CardTitle>
                           <CardDescription className="text-xs mt-1">
                             Created {getKeyAge(key.createdAt)}
-                            {key.last_used_at && ` • Last used ${getKeyAge(key.last_used_at)}`}
+                            {key.lastUsedAt && ` • Last used ${getKeyAge(key.lastUsedAt)}`}
                           </CardDescription>
                         </div>
-                        {!key.is_revoked && new Date(key.expires_at) > new Date() && (
+                        {!key.isRevoked && new Date(key.expiresAt) > new Date() && (
                           <Button
                             onClick={() => handleRevokeKey(key.id, key.name)}
                             variant="ghost"
@@ -286,11 +286,11 @@ export default function Settings() {
                       <div className="space-y-2">
                         <div className="flex items-center gap-2 p-2 bg-secondary/50 rounded font-mono text-xs">
                           <Key className="w-3 h-3 text-muted-foreground" />
-                          <span className="flex-1">{key.key_prefix}</span>
+                          <span className="flex-1">{key.keyPrefix}</span>
                         </div>
                         <div className="flex items-center justify-between text-xs">
-                          <span className={`font-medium ${getExpiryColor(key.expires_at)}`}>
-                            {getTimeUntilExpiry(key.expires_at)}
+                          <span className={`font-medium ${getExpiryColor(key.expiresAt)}`}>
+                            {getTimeUntilExpiry(key.expiresAt)}
                           </span>
                         </div>
                       </div>
@@ -400,7 +400,7 @@ export default function Settings() {
                   You've created "{createdKey.name}". Use this key in your application's headers:
                 </p>
                 <code className="block mt-2 p-2 bg-black/20 rounded text-xs">
-                  X-API-Key: {createdKey.key_prefix}...
+                  X-API-Key: {createdKey.keyPrefix}...
                 </code>
               </div>
 
@@ -445,7 +445,7 @@ export default function Settings() {
                 <div className="flex justify-between items-center p-2 bg-secondary/30 rounded">
                   <span className="text-muted-foreground">Expires:</span>
                   <span className="font-medium text-orange-500">
-                    {new Date(createdKey.expires_at).toLocaleDateString()} (6 months)
+                    {new Date(createdKey.expiresAt).toLocaleDateString()} (6 months)
                   </span>
                 </div>
               </div>

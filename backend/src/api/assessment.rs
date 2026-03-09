@@ -37,6 +37,7 @@ pub async fn assess_safe(
             let (status, message) = match e {
                 SafeApiError::UnsupportedNetwork(msg) => (StatusCode::BAD_REQUEST, msg),
                 SafeApiError::NotFound(msg) => (StatusCode::NOT_FOUND, msg),
+                SafeApiError::RateLimited(msg) => (StatusCode::TOO_MANY_REQUESTS, msg),
                 SafeApiError::NetworkError(msg) => (StatusCode::BAD_GATEWAY, msg),
                 SafeApiError::ParseError(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg),
             };
@@ -51,6 +52,7 @@ pub async fn assess_safe(
             let (status, message) = match e {
                 SafeApiError::UnsupportedNetwork(msg) => (StatusCode::BAD_REQUEST, msg),
                 SafeApiError::NotFound(msg) => (StatusCode::NOT_FOUND, msg),
+                SafeApiError::RateLimited(msg) => (StatusCode::TOO_MANY_REQUESTS, msg),
                 SafeApiError::NetworkError(msg) => (StatusCode::BAD_GATEWAY, msg),
                 SafeApiError::ParseError(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg),
             };

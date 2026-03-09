@@ -4,6 +4,7 @@ use reqwest::Client;
 pub enum SafeApiError {
     UnsupportedNetwork(String),
     NotFound(String),
+    RateLimited(String),
     NetworkError(String),
     ParseError(String),
 }
@@ -13,6 +14,7 @@ impl std::fmt::Display for SafeApiError {
         match self {
             SafeApiError::UnsupportedNetwork(net) => write!(f, "Unsupported network: {}", net),
             SafeApiError::NotFound(msg) => write!(f, "Not found: {}", msg),
+            SafeApiError::RateLimited(msg) => write!(f, "Rate limited: {}", msg),
             SafeApiError::NetworkError(msg) => write!(f, "Network error: {}", msg),
             SafeApiError::ParseError(msg) => write!(f, "Parse error: {}", msg),
         }
@@ -88,6 +90,9 @@ pub async fn fetch_safe_info(
         if response.status() == 404 {
             return Err(SafeApiError::NotFound(format!("Safe {} not found on {}", safe_address, network)));
         }
+        if response.status() == 429 {
+            return Err(SafeApiError::RateLimited(format!("Safe API rate limit reached for {} on {}", safe_address, network)));
+        }
         return Err(SafeApiError::NetworkError(format!("Safe API returned status: {}", response.status())));
     }
     
@@ -116,6 +121,9 @@ pub async fn fetch_safe_creation(
     if !response.status().is_success() {
         if response.status() == 404 {
             return Err(SafeApiError::NotFound(format!("Creation info for Safe {} not found on {}", safe_address, network)));
+        }
+        if response.status() == 429 {
+            return Err(SafeApiError::RateLimited(format!("Safe API rate limit reached for {} on {}", safe_address, network)));
         }
         return Err(SafeApiError::NetworkError(format!("Safe API returned status: {}", response.status())));
     }

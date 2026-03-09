@@ -31,6 +31,7 @@ export default function Scan() {
   const [address, setAddress] = useState('')
   const [network, setNetwork] = useState('ethereum')
   const [safeExists, setSafeExists] = useState<boolean | null>(null)
+  const [safeValidationError, setSafeValidationError] = useState<string | null>(null)
   const [isValidatingSafe, setIsValidatingSafe] = useState(false)
   const [pastScans, setPastScans] = useState<SecurityAnalysisResult[]>([])
   const [loadingScans, setLoadingScans] = useState(false)
@@ -45,6 +46,7 @@ export default function Scan() {
       validateSafeExists(address, network)
     } else {
       setSafeExists(null)
+      setSafeValidationError(null)
     }
   }, [address, network])
 
@@ -100,6 +102,7 @@ export default function Scan() {
   const validateSafeExists = async (safeAddress: string, selectedNetwork: string) => {
     setIsValidatingSafe(true)
     setSafeExists(null)
+    setSafeValidationError(null)
 
     try {
       const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:7111/api';
@@ -118,6 +121,7 @@ export default function Scan() {
         setSafeExists(true)
       } else if (response.status === 404) {
         setSafeExists(false)
+        setSafeValidationError('not_found')
         toast({
           title: "Safe Not Found",
           description: "No Safe wallet found at this address on the selected network",
@@ -125,21 +129,32 @@ export default function Scan() {
         })
       } else if (response.status === 400) {
         setSafeExists(false)
+        setSafeValidationError('invalid')
         toast({
           title: "Invalid Request",
           description: "The network or address is invalid",
           variant: "destructive",
         })
+      } else if (response.status === 429) {
+        setSafeExists(null)
+        setSafeValidationError('rate_limited')
+        toast({
+          title: "Rate Limited",
+          description: "Safe API is rate limiting requests. Please try again in a moment.",
+          variant: "destructive",
+        })
       } else {
-        setSafeExists(false)
+        setSafeExists(null)
+        setSafeValidationError('error')
         toast({
           title: "Validation Error",
-          description: `Unable to validate Safe existence (HTTP ${response.status})`,
+          description: `Unable to validate Safe address (HTTP ${response.status}). Please try again.`,
           variant: "destructive",
         })
       }
     } catch (error) {
-      setSafeExists(false)
+      setSafeExists(null)
+      setSafeValidationError('error')
       toast({
         title: "Network Error",
         description: "Unable to connect to backend for validation",
@@ -250,6 +265,18 @@ export default function Scan() {
                   <span>Not a Safe wallet on {network}</span>
                 </div>
               )}
+              {!isValidatingSafe && safeExists === null && safeValidationError === 'rate_limited' && address.match(/^0x[a-fA-F0-9]{40}$/) && (
+                <div className="flex items-center gap-2 mt-2 text-sm text-yellow-500">
+                  <AlertTriangle className="h-4 w-4" />
+                  <span>Rate limited - please try again in a moment</span>
+                </div>
+              )}
+              {!isValidatingSafe && safeExists === null && safeValidationError === 'error' && address.match(/^0x[a-fA-F0-9]{40}$/) && (
+                <div className="flex items-center gap-2 mt-2 text-sm text-yellow-500">
+                  <AlertTriangle className="h-4 w-4" />
+                  <span>Validation failed - please try again</span>
+                </div>
+              )}
               {!isValidatingSafe && safeExists === true && (
                 <div className="flex items-center gap-2 mt-2 text-sm text-green-500">
                   <Shield className="h-4 w-4" />
@@ -260,7 +287,7 @@ export default function Scan() {
             
             <Button 
               onClick={handleReview}
-              disabled={!address || !safeExists}
+              disabled={!address || safeExists !== true}
               className="w-full bg-[#8052ff] hover:bg-[#6941d9] mt-2"
             >
               <Shield className="h-4 w-4 mr-2" />

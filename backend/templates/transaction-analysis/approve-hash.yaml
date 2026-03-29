@@ -1,0 +1,28 @@
+id: approve-hash
+name: Hash Pre-Approval Detection
+type: transaction-analysis
+severity: critical
+priority: P0
+
+conditions:
+  - type: method-match
+    field: dataDecoded.method
+    methods:
+      - approveHash
+
+output:
+  warning: Hash Pre-Approved
+  message: "CRITICAL: A transaction hash was pre-approved. Verify that the approved hash matches a known pending transaction in your Safe. If the hash is unrecognized, contact all Safe owners immediately."
+  type: approve_hash
+  extra-fields:
+    - dataDecoded.method
+    - dataDecoded.parameters
+
+metadata:
+  author: avraham90
+  description: Detects calls to the Safe approveHash function, which enables off-chain pre-authorization of transaction hashes. This pattern is rarely used in legitimate operations and may indicate an attempt to authorize a malicious transaction without real-time owner verification.
+    - governance
+    - hash-approval
+    - owner-action
+  references:
+    - https://github.com/safe-global/safe-smart-account

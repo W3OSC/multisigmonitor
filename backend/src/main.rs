@@ -98,6 +98,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             cleanup_nonce_store.cleanup_expired().await;
         }
     });
+
+    let user_rate_limiter = services::UserRateLimiter::new(600, 60);
+
+    let cleanup_rate_limiter = user_rate_limiter.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(300));
+        loop {
+            interval.tick().await;
+            cleanup_rate_limiter.cleanup().await;
+        }
+    });
+
+    let cleanup_pool = pool.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(3600));
+        loop {
+            interval.tick().await;
+            if let Err(e) = services::AuthService::cleanup_expired_refresh_tokens(&cleanup_pool).await {
+                tracing::warn!("Failed to cleanup refresh tokens: {}", e);
+            }
+        }
+    });
     
     let governor_conf = std::sync::Arc::new(
         GovernorConfigBuilder::default()
@@ -131,6 +153,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         nonce_store: nonce_store.clone(),
         config: config.clone(),
         cached_safe_client: multisigmonitor_backend::api::safe_client::CachedSafeClient::new(config.safe_api_key.clone()),
+        user_rate_limiter,
     };
 
     let app = Router::new()

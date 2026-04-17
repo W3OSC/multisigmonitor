@@ -15,6 +15,65 @@ use crate::{
     api::AppState,
 };
 
+fn build_access_cookie<'a>(token: &'a str, state: &AppState) -> Cookie<'a> {
+    let mut cookie = Cookie::build(("token", token))
+        .path("/")
+        .max_age(Duration::days(1))
+        .same_site(SameSite::Lax)
+        .http_only(true);
+    if state.config.cookie_secure {
+        cookie = cookie.secure(true);
+    }
+    if let Some(domain) = &state.config.cookie_domain {
+        cookie = cookie.domain(domain.clone());
+    }
+    cookie.build()
+}
+
+fn build_refresh_cookie<'a>(token: &'a str, state: &AppState) -> Cookie<'a> {
+    let mut cookie = Cookie::build(("refresh_token", token))
+        .path("/api/auth")
+        .max_age(Duration::days(30))
+        .same_site(SameSite::Strict)
+        .http_only(true);
+    if state.config.cookie_secure {
+        cookie = cookie.secure(true);
+    }
+    if let Some(domain) = &state.config.cookie_domain {
+        cookie = cookie.domain(domain.clone());
+    }
+    cookie.build()
+}
+
+fn build_clearing_cookie(name: &str, path: &str, state: &AppState) -> Cookie<'static> {
+    let mut cookie = Cookie::build((name.to_string(), String::new()))
+        .path(path.to_string())
+        .max_age(Duration::ZERO)
+        .same_site(SameSite::Lax)
+        .http_only(true);
+    if state.config.cookie_secure {
+        cookie = cookie.secure(true);
+    }
+    if let Some(domain) = &state.config.cookie_domain {
+        cookie = cookie.domain(domain.clone());
+    }
+    cookie.build()
+}
+
+fn extract_refresh_token_from_cookie(headers: &HeaderMap) -> Option<String> {
+    use cookie::Cookie;
+    headers
+        .get("cookie")
+        .and_then(|h| h.to_str().ok())
+        .and_then(|cookies| {
+            cookies
+                .split(';')
+                .filter_map(|s| Cookie::parse(s.trim()).ok())
+                .find(|c| c.name() == "refresh_token")
+                .map(|c| c.value().to_string())
+        })
+}
+
 pub async fn google_auth(
     State(state): State<AppState>,
     Json(_payload): Json<GoogleAuthRequest>,
@@ -96,21 +155,16 @@ pub async fn google_callback(
     let token = AuthService::generate_token(&user.id, &user.email, &state.config.jwt_secret)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    let mut cookie = Cookie::build(("token", token.clone()))
-        .path("/")
-        .max_age(Duration::days(7))
-        .same_site(SameSite::Lax)
-        .http_only(true);
-
-    if state.config.cookie_secure {
-        cookie = cookie.secure(true);
-    }
-    if let Some(domain) = &state.config.cookie_domain {
-        cookie = cookie.domain(domain.clone());
-    }
+    let refresh_token = AuthService::issue_refresh_token(&state.pool, &user.id, &Uuid::new_v4().to_string())
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to issue refresh token: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
 
     let mut headers = HeaderMap::new();
-    headers.insert(SET_COOKIE, cookie.to_string().parse().unwrap());
+    headers.insert(SET_COOKIE, build_access_cookie(&token, &state).to_string().parse().unwrap());
+    headers.append(SET_COOKIE, build_refresh_cookie(&refresh_token, &state).to_string().parse().unwrap());
 
     Ok((headers, Json(AuthResponse {
         token: token.clone(),
@@ -186,21 +240,16 @@ pub async fn github_callback(
     let token = AuthService::generate_token(&user.id, &user.email, &state.config.jwt_secret)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    let mut cookie = Cookie::build(("token", token.clone()))
-        .path("/")
-        .max_age(Duration::days(7))
-        .same_site(SameSite::Lax)
-        .http_only(true);
-
-    if state.config.cookie_secure {
-        cookie = cookie.secure(true);
-    }
-    if let Some(domain) = &state.config.cookie_domain {
-        cookie = cookie.domain(domain.clone());
-    }
+    let refresh_token = AuthService::issue_refresh_token(&state.pool, &user.id, &Uuid::new_v4().to_string())
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to issue refresh token: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
 
     let mut headers = HeaderMap::new();
-    headers.insert(SET_COOKIE, cookie.to_string().parse().unwrap());
+    headers.insert(SET_COOKIE, build_access_cookie(&token, &state).to_string().parse().unwrap());
+    headers.append(SET_COOKIE, build_refresh_cookie(&refresh_token, &state).to_string().parse().unwrap());
 
     Ok((headers, Json(AuthResponse {
         token: token.clone(),
@@ -226,27 +275,31 @@ pub async fn ethereum_verify(
     Json(payload): Json<EthereumVerifyRequest>,
 ) -> Result<impl IntoResponse, StatusCode> {
     tracing::info!("Ethereum verify request received");
-    tracing::debug!("Message: {}", payload.message);
-    tracing::debug!("Signature: {}", payload.signature);
-    
-    let address = AuthService::verify_ethereum_signature(&payload.message, &payload.signature)
+
+    let claimed_address = {
+        use siwe::Message;
+        let siwe_message: Message = payload.message.parse().map_err(|e| {
+            tracing::error!("Failed to parse SIWE message: {}", e);
+            StatusCode::BAD_REQUEST
+        })?;
+        hex::encode(siwe_message.address).to_lowercase()
+    };
+
+    let stored_nonce = state.nonce_store.get_nonce(&claimed_address).await
+        .ok_or_else(|| {
+            tracing::error!("Nonce not found for address: {}", claimed_address);
+            StatusCode::UNAUTHORIZED
+        })?;
+
+    let address = AuthService::verify_ethereum_signature(&payload.message, &payload.signature, &stored_nonce)
         .map_err(|e| {
             tracing::error!("Failed to verify Ethereum signature: {}", e);
             StatusCode::UNAUTHORIZED
         })?;
 
     let address_lower = address.to_lowercase();
-    tracing::info!("Recovered address: {}", address_lower);
-    
-    let stored_nonce = state.nonce_store.get_nonce(&address_lower).await
-        .ok_or_else(|| {
-            tracing::error!("Nonce not found for address: {}", address_lower);
-            StatusCode::UNAUTHORIZED
-        })?;
-    
-    tracing::info!("Nonce found: {}", stored_nonce);
-
     state.nonce_store.remove_nonce(&address_lower).await;
+    tracing::info!("Recovered and verified address: {}", address_lower);
 
     let existing_user = sqlx::query_as::<_, User>(
         "SELECT * FROM users WHERE ethereum_address = ?"
@@ -264,7 +317,7 @@ pub async fn ethereum_verify(
     } else {
         let user_id = Uuid::new_v4().to_string();
         let username = format!("{}...{}", &address_lower[0..6], &address_lower[address_lower.len()-4..]);
-        let email = format!("{}@ethereum.local", address_lower);
+        let email = format!("eth-{}@wallet.invalid", address_lower);
 
         sqlx::query(
             "INSERT INTO users (id, email, ethereum_address, username) VALUES (?, ?, ?, ?)"
@@ -293,21 +346,16 @@ pub async fn ethereum_verify(
     let token = AuthService::generate_token(&user.id, &user.email, &state.config.jwt_secret)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    let mut cookie = Cookie::build(("token", token.clone()))
-        .path("/")
-        .max_age(Duration::days(7))
-        .same_site(SameSite::Lax)
-        .http_only(true);
-
-    if state.config.cookie_secure {
-        cookie = cookie.secure(true);
-    }
-    if let Some(domain) = &state.config.cookie_domain {
-        cookie = cookie.domain(domain.clone());
-    }
+    let refresh_token = AuthService::issue_refresh_token(&state.pool, &user.id, &Uuid::new_v4().to_string())
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to issue refresh token: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
 
     let mut headers = HeaderMap::new();
-    headers.insert(SET_COOKIE, cookie.to_string().parse().unwrap());
+    headers.insert(SET_COOKIE, build_access_cookie(&token, &state).to_string().parse().unwrap());
+    headers.append(SET_COOKIE, build_refresh_cookie(&refresh_token, &state).to_string().parse().unwrap());
 
     Ok((headers, Json(AuthResponse {
         token: token.clone(),
@@ -317,24 +365,53 @@ pub async fn ethereum_verify(
 
 pub async fn logout(
     State(state): State<AppState>,
+    headers: HeaderMap,
 ) -> Result<impl IntoResponse, StatusCode> {
-    let mut cookie = Cookie::build(("token", ""))
-        .path("/")
-        .max_age(Duration::ZERO)
-        .same_site(SameSite::Lax)
-        .http_only(true);
-
-    if state.config.cookie_secure {
-        cookie = cookie.secure(true);
-    }
-    if let Some(domain) = &state.config.cookie_domain {
-        cookie = cookie.domain(domain.clone());
+    if let Some(raw_token) = extract_refresh_token_from_cookie(&headers) {
+        if let Err(e) = AuthService::revoke_refresh_token(&state.pool, &raw_token).await {
+            tracing::warn!("Failed to revoke refresh token on logout: {}", e);
+        }
     }
 
-    let mut headers = HeaderMap::new();
-    headers.insert(SET_COOKIE, cookie.to_string().parse().unwrap());
+    let mut resp_headers = HeaderMap::new();
+    resp_headers.insert(SET_COOKIE, build_clearing_cookie("token", "/", &state).to_string().parse().unwrap());
+    resp_headers.append(SET_COOKIE, build_clearing_cookie("refresh_token", "/api/auth", &state).to_string().parse().unwrap());
 
-    Ok((headers, Json(serde_json::json!({ "success": true }))))
+    Ok((resp_headers, Json(serde_json::json!({ "success": true }))))
+}
+
+pub async fn refresh_token(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<impl IntoResponse, StatusCode> {
+    let raw_token = extract_refresh_token_from_cookie(&headers)
+        .ok_or_else(|| {
+            tracing::debug!("No refresh_token cookie present");
+            StatusCode::UNAUTHORIZED
+        })?;
+
+    let (user_id, new_refresh_raw) = AuthService::rotate_refresh_token(&state.pool, &raw_token)
+        .await
+        .map_err(|e| {
+            tracing::warn!("Refresh token rotation failed: {}", e);
+            StatusCode::UNAUTHORIZED
+        })?;
+
+    let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = ?")
+        .bind(&user_id)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+
+    let access_token = AuthService::generate_token(&user.id, &user.email, &state.config.jwt_secret)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let mut resp_headers = HeaderMap::new();
+    resp_headers.insert(SET_COOKIE, build_access_cookie(&access_token, &state).to_string().parse().unwrap());
+    resp_headers.append(SET_COOKIE, build_refresh_cookie(&new_refresh_raw, &state).to_string().parse().unwrap());
+
+    Ok((resp_headers, Json(UserResponse::from(user))))
 }
 
 pub async fn me(

@@ -11,6 +11,16 @@ interface User {
   updated_at?: string;
 }
 
+function isValidUser(data: unknown): data is User {
+  if (typeof data !== 'object' || data === null) return false;
+  const d = data as Record<string, unknown>;
+  return (
+    typeof d.id === 'string' &&
+    typeof d.email === 'string' &&
+    typeof d.username === 'string'
+  );
+}
+
 type AuthContextType = {
   user: User | null;
   setUser: React.Dispatch<React.SetStateAction<User | null>>;
@@ -38,12 +48,27 @@ export function AuthProvider({ children }: AuthProviderProps) {
         const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/me`, {
           credentials: 'include',
         });
-        
+
         if (response.ok) {
-          const userData = await response.json();
-          setUser(userData);
+          const data = await response.json();
+          if (isValidUser(data)) {
+            setUser(data);
+          }
+        } else if (response.status === 401) {
+          const refreshed = await tryRefresh();
+          if (refreshed) {
+            const retryResponse = await fetch(`${import.meta.env.VITE_API_URL}/auth/me`, {
+              credentials: 'include',
+            });
+            if (retryResponse.ok) {
+              const data = await retryResponse.json();
+              if (isValidUser(data)) {
+                setUser(data);
+              }
+            }
+          }
         }
-      } catch (error) {
+      } catch {
       } finally {
         setIsLoading(false);
       }
@@ -51,6 +76,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     checkAuth();
   }, []);
+
+  const tryRefresh = async (): Promise<boolean> => {
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/refresh`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      return response.ok;
+    } catch {
+      return false;
+    }
+  };
 
   const loginWithProvider = async (jwtToken: string, userData: User) => {
     setToken(jwtToken);
@@ -63,7 +100,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         method: 'POST',
         credentials: 'include',
       });
-    } catch (error) {
+    } catch {
     } finally {
       setToken(null);
       setUser(null);

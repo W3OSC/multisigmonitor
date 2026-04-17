@@ -4,6 +4,8 @@ use axum::{
     Router,
 };
 use sqlx::SqlitePool;
+use std::sync::Arc;
+use tower_governor::{GovernorLayer, governor::GovernorConfigBuilder};
 
 use crate::middleware::auth_middleware;
 
@@ -31,6 +33,7 @@ pub struct AppState {
     pub nonce_store: crate::services::NonceStore,
     pub config: crate::config::Config,
     pub cached_safe_client: CachedSafeClient,
+    pub user_rate_limiter: crate::services::UserRateLimiter,
 }
 
 pub fn router(state: AppState) -> Router {
@@ -67,17 +70,30 @@ pub fn router(state: AppState) -> Router {
             auth_middleware,
         ));
 
+    let assess_governor = Arc::new(
+        GovernorConfigBuilder::default()
+            .per_second(30)
+            .burst_size(3)
+            .finish()
+            .unwrap(),
+    );
+
+    let assess_routes = Router::new()
+        .route("/safe/assess", post(assessment::assess_safe))
+        .layer(GovernorLayer { config: assess_governor });
+
     let public_routes = Router::new()
         .route("/auth/google", post(auth::google_auth))
         .route("/auth/google/callback", post(auth::google_callback))
         .route("/auth/github/callback", post(auth::github_callback))
         .route("/auth/ethereum/nonce", post(auth::ethereum_nonce))
         .route("/auth/ethereum/verify", post(auth::ethereum_verify))
-        .route("/multisig/info", post(multisig_info::get_multisig_info))
-        .route("/safe/assess", post(assessment::assess_safe));
+        .route("/auth/refresh", post(auth::refresh_token))
+        .route("/multisig/info", post(multisig_info::get_multisig_info));
 
     Router::new()
         .merge(protected_routes)
+        .merge(assess_routes)
         .merge(public_routes)
         .with_state(state)
 }

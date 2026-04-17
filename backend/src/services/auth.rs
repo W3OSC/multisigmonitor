@@ -1,6 +1,8 @@
 use bcrypt::{hash, verify, DEFAULT_COST};
 use jsonwebtoken::{encode, decode, Header, Validation, EncodingKey, DecodingKey};
 use serde::{Deserialize, Serialize};
+use sha2::{Sha256, Digest};
+use sqlx::{SqlitePool, Row};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -85,7 +87,7 @@ impl AuthService {
 
     pub fn generate_token(user_id: &str, email: &str, jwt_secret: &str) -> Result<String, jsonwebtoken::errors::Error> {
         let expiration = chrono::Utc::now()
-            .checked_add_signed(chrono::Duration::days(7))
+            .checked_add_signed(chrono::Duration::days(1))
             .expect("valid timestamp")
             .timestamp() as usize;
 
@@ -230,9 +232,131 @@ impl AuthService {
         Uuid::new_v4().to_string()
     }
 
+    fn hash_token(token: &str) -> String {
+        let mut hasher = Sha256::new();
+        hasher.update(token.as_bytes());
+        format!("{:x}", hasher.finalize())
+    }
+
+    pub async fn issue_refresh_token(
+        pool: &SqlitePool,
+        user_id: &str,
+        family_id: &str,
+    ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+        let raw_token = Uuid::new_v4().to_string();
+        let token_hash = Self::hash_token(&raw_token);
+        let id = Uuid::new_v4().to_string();
+        let now = chrono::Utc::now();
+        let expires_at = (now + chrono::Duration::days(30)).to_rfc3339();
+        let created_at = now.to_rfc3339();
+
+        sqlx::query(
+            "INSERT INTO refresh_tokens (id, user_id, token_hash, family_id, expires_at, created_at) VALUES (?, ?, ?, ?, ?, ?)"
+        )
+        .bind(&id)
+        .bind(user_id)
+        .bind(&token_hash)
+        .bind(family_id)
+        .bind(&expires_at)
+        .bind(&created_at)
+        .execute(pool)
+        .await?;
+
+        Ok(raw_token)
+    }
+
+    pub async fn rotate_refresh_token(
+        pool: &SqlitePool,
+        raw_token: &str,
+    ) -> Result<(String, String), Box<dyn std::error::Error + Send + Sync>> {
+        let token_hash = Self::hash_token(raw_token);
+        let now = chrono::Utc::now();
+        let now_str = now.to_rfc3339();
+
+        let mut tx = pool.begin().await?;
+
+        let row = sqlx::query(
+            "SELECT id, user_id, family_id, revoked, expires_at FROM refresh_tokens WHERE token_hash = ?"
+        )
+        .bind(&token_hash)
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or("Refresh token not found")?;
+
+        let revoked: i64 = row.get("revoked");
+        let family_id: String = row.get("family_id");
+        let user_id: String = row.get("user_id");
+        let expires_at: String = row.get("expires_at");
+        let token_id: String = row.get("id");
+
+        if revoked != 0 {
+            sqlx::query("UPDATE refresh_tokens SET revoked = 1 WHERE family_id = ?")
+                .bind(&family_id)
+                .execute(&mut *tx)
+                .await?;
+            tx.commit().await?;
+            return Err("Refresh token reuse detected - session revoked".into());
+        }
+
+        if expires_at < now_str {
+            tx.rollback().await?;
+            return Err("Refresh token expired".into());
+        }
+
+        sqlx::query("UPDATE refresh_tokens SET revoked = 1 WHERE id = ?")
+            .bind(&token_id)
+            .execute(&mut *tx)
+            .await?;
+
+        let new_raw_token = Uuid::new_v4().to_string();
+        let new_token_hash = Self::hash_token(&new_raw_token);
+        let new_id = Uuid::new_v4().to_string();
+        let new_expires_at = (now + chrono::Duration::days(30)).to_rfc3339();
+
+        sqlx::query(
+            "INSERT INTO refresh_tokens (id, user_id, token_hash, family_id, expires_at, created_at) VALUES (?, ?, ?, ?, ?, ?)"
+        )
+        .bind(&new_id)
+        .bind(&user_id)
+        .bind(&new_token_hash)
+        .bind(&family_id)
+        .bind(&new_expires_at)
+        .bind(&now_str)
+        .execute(&mut *tx)
+        .await?;
+
+        tx.commit().await?;
+
+        Ok((user_id, new_raw_token))
+    }
+
+    pub async fn revoke_refresh_token(
+        pool: &SqlitePool,
+        raw_token: &str,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let token_hash = Self::hash_token(raw_token);
+        sqlx::query("UPDATE refresh_tokens SET revoked = 1 WHERE token_hash = ?")
+            .bind(&token_hash)
+            .execute(pool)
+            .await?;
+        Ok(())
+    }
+
+    pub async fn cleanup_expired_refresh_tokens(
+        pool: &SqlitePool,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let now = chrono::Utc::now().to_rfc3339();
+        sqlx::query("DELETE FROM refresh_tokens WHERE expires_at < ? OR revoked = 1")
+            .bind(&now)
+            .execute(pool)
+            .await?;
+        Ok(())
+    }
+
     pub fn verify_ethereum_signature(
         message: &str,
         signature: &str,
+        expected_nonce: &str,
     ) -> Result<String, Box<dyn std::error::Error>> {
         use siwe::Message;
 
@@ -242,7 +366,19 @@ impl AuthService {
                 tracing::error!("Failed to parse SIWE message: {}", e);
                 e
             })?;
-        
+
+        if siwe_message.nonce != expected_nonce {
+            tracing::error!("SIWE nonce mismatch for address: {}", hex::encode(siwe_message.address));
+            return Err("SIWE nonce mismatch".into());
+        }
+
+        if let Some(ref exp) = siwe_message.expiration_time {
+            if exp.as_ref() <= &time::OffsetDateTime::now_utc() {
+                tracing::error!("SIWE message expired");
+                return Err("SIWE message expired".into());
+            }
+        }
+
         tracing::info!("Decoding signature hex...");
         let sig_bytes: [u8; 65] = hex::decode(signature.trim_start_matches("0x"))
             .map_err(|e| {
@@ -254,7 +390,7 @@ impl AuthService {
                 tracing::error!("Signature must be 65 bytes");
                 "Signature must be 65 bytes"
             })?;
-        
+
         tracing::info!("Verifying EIP-191 signature...");
         siwe_message.verify_eip191(&sig_bytes)
             .map_err(|e| {
@@ -263,7 +399,7 @@ impl AuthService {
             })?;
 
         let recovered_address = hex::encode(siwe_message.address);
-        
+
         tracing::info!("Successfully verified signature, recovered address: {}", recovered_address);
         Ok(recovered_address)
     }

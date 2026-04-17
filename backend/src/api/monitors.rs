@@ -10,11 +10,29 @@ use serde_json::json;
 use crate::models::monitor::{CreateMonitorRequest, Monitor, MonitorWithLastCheck, UpdateMonitorRequest};
 use crate::api::AppState;
 
+fn is_valid_ethereum_address(address: &str) -> bool {
+    if address.len() != 42 {
+        return false;
+    }
+    let Some(hex_part) = address.strip_prefix("0x") else {
+        return false;
+    };
+    hex_part.chars().all(|c| c.is_ascii_hexdigit())
+        && address != "0x0000000000000000000000000000000000000000"
+}
+
 pub async fn create_monitor(
     State(state): State<AppState>,
     Extension(user_id): Extension<String>,
     Json(payload): Json<CreateMonitorRequest>,
 ) -> Result<Json<Monitor>, Response> {
+    if !is_valid_ethereum_address(&payload.safe_address) {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": "Invalid safe_address: must be a 0x-prefixed 40-character hex address"}))
+        ).into_response());
+    }
+
     let id = Uuid::new_v4().to_string();
     let settings_json = serde_json::to_string(&payload.settings)
         .map_err(|_| {

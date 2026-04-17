@@ -11,10 +11,21 @@ use std::collections::HashMap;
 use crate::api::safe_client::SafeApiError;
 use crate::api::multisig_info::get_multisig_info_internal;
 use crate::services::safe_assessment::{
-    SafeAssessmentService, SafeAssessmentRequest, SafeAssessmentResponse,
+    SafeAssessmentService, SafeAssessmentRequest,
     SafeInfo, CreationInfo, MultisigInfo, SanctionsResults, SanctionResult,
 };
 use super::AppState;
+
+fn is_valid_ethereum_address(address: &str) -> bool {
+    if address.len() != 42 {
+        return false;
+    }
+    let Some(hex_part) = address.strip_prefix("0x") else {
+        return false;
+    };
+    hex_part.chars().all(|c| c.is_ascii_hexdigit())
+        && address != "0x0000000000000000000000000000000000000000"
+}
 
 #[derive(Debug, Deserialize)]
 pub struct AssessmentRequest {
@@ -26,6 +37,10 @@ pub async fn assess_safe(
     State(state): State<AppState>,
     Json(payload): Json<AssessmentRequest>,
 ) -> Response {
+    if !is_valid_ethereum_address(&payload.safe_address) {
+        return (StatusCode::BAD_REQUEST, Json(json!({"message": "Invalid safe_address"}))).into_response();
+    }
+
     tracing::info!("Starting comprehensive Safe assessment for {} on {}", payload.safe_address, payload.network);
     
     let safe_api_info = match state.cached_safe_client.fetch_safe_info(&payload.safe_address, &payload.network).await {
@@ -126,7 +141,7 @@ async fn check_sanctions_for_safe(
     state: &AppState,
     safe_info: &SafeInfo,
     creation_info: &Option<CreationInfo>,
-    multisig_info: &Option<MultisigInfo>,
+    _multisig_info: &Option<MultisigInfo>,
 ) -> Option<SanctionsResults> {
     let api_key = match &state.config.chainalysis_api_key {
         Some(key) if !key.is_empty() => key,

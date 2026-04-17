@@ -37,6 +37,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         pool, 
         config.telegram_bot_token.clone(),
         config.worker_concurrency,
+        config.safe_api_key.clone(),
     );
 
     let polling_interval = std::env::var("POLLING_INTERVAL_SECONDS")

@@ -80,7 +80,7 @@ struct SafeTransactionsResponse {
 }
 
 impl SafeApiClient {
-    pub fn new() -> Self {
+    pub fn new(api_key: Option<String>) -> Self {
         let mut network_configs = HashMap::new();
 
         network_configs.insert("ethereum".to_string(), NetworkConfig {
@@ -119,10 +119,18 @@ impl SafeApiClient {
             name: "Base".to_string(),
         });
 
-        let client = Client::builder()
-            .redirect(reqwest::redirect::Policy::limited(10))
-            .build()
-            .unwrap_or_else(|_| Client::new());
+        let client = {
+            let mut builder = Client::builder()
+                .redirect(reqwest::redirect::Policy::limited(10));
+            if let Some(key) = api_key {
+                let mut headers = reqwest::header::HeaderMap::new();
+                let auth_value = reqwest::header::HeaderValue::from_str(&format!("Token {}", key))
+                    .expect("Invalid Safe API key format");
+                headers.insert(reqwest::header::AUTHORIZATION, auth_value);
+                builder = builder.default_headers(headers);
+            }
+            builder.build().unwrap_or_else(|_| Client::new())
+        };
 
         Self {
             client,

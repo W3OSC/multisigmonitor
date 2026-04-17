@@ -18,6 +18,7 @@ pub struct Config {
     pub github_client_secret: String,
     pub github_redirect_uri: String,
     pub chainalysis_api_key: Option<String>,
+    pub safe_api_key: Option<String>,
     pub infura_api_key: String,
     pub telegram_bot_token: Option<String>,
     pub cookie_domain: Option<String>,
@@ -106,6 +107,7 @@ impl Config {
 
         let telegram_bot_token = env::var("TELEGRAM_BOT_TOKEN").ok();
         let chainalysis_api_key = env::var("CHAINALYSIS_API_KEY").ok();
+        let safe_api_key = env::var("SAFE_API_KEY").ok();
         let cookie_domain = env::var("COOKIE_DOMAIN").ok();
         
         let cookie_secure = env::var("COOKIE_SECURE")
@@ -128,6 +130,7 @@ impl Config {
             github_client_secret,
             github_redirect_uri,
             chainalysis_api_key,
+            safe_api_key,
             infura_api_key,
             telegram_bot_token,
             cookie_domain,

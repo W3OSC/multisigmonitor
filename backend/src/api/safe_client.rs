@@ -148,9 +148,18 @@ pub struct CachedSafeClient {
 }
 
 impl CachedSafeClient {
-    pub fn new() -> Self {
+    pub fn new(api_key: Option<String>) -> Self {
+        let mut client_builder = Client::builder();
+        if let Some(key) = api_key {
+            let mut headers = reqwest::header::HeaderMap::new();
+            let auth_value = reqwest::header::HeaderValue::from_str(&format!("Token {}", key))
+                .expect("Invalid Safe API key format");
+            headers.insert(reqwest::header::AUTHORIZATION, auth_value);
+            client_builder = client_builder.default_headers(headers);
+        }
+        let client = client_builder.build().unwrap_or_else(|_| Client::new());
         Self {
-            client: Client::new(),
+            client,
             safe_info_cache: Arc::new(RwLock::new(HashMap::new())),
             safe_creation_cache: Arc::new(RwLock::new(HashMap::new())),
         }

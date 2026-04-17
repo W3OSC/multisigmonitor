@@ -21,10 +21,11 @@ impl MonitorWorker {
         pool: SqlitePool,
         telegram_bot_token: Option<String>,
         concurrency: usize,
+        safe_api_key: Option<String>,
     ) -> Self {
         Self {
             pool,
-            safe_api: SafeApiClient::new(),
+            safe_api: SafeApiClient::new(safe_api_key),
             notification_service: NotificationService::new(telegram_bot_token),
             security_service: SecurityAnalysisService::new(),
             concurrency,

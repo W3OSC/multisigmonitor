@@ -124,7 +124,7 @@ impl SafeApiClient {
                 .redirect(reqwest::redirect::Policy::limited(10));
             if let Some(key) = api_key {
                 let mut headers = reqwest::header::HeaderMap::new();
-                let auth_value = reqwest::header::HeaderValue::from_str(&format!("Token {}", key))
+                let auth_value = reqwest::header::HeaderValue::from_str(&format!("Bearer {}", key))
                     .expect("Invalid Safe API key format");
                 headers.insert(reqwest::header::AUTHORIZATION, auth_value);
                 builder = builder.default_headers(headers);

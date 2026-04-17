@@ -66,12 +66,12 @@ pub struct SafeCreationInfo {
 
 pub fn get_safe_api_url(network: &str) -> Option<&'static str> {
     match network {
-        "ethereum" => Some("https://safe-transaction-mainnet.safe.global"),
-        "sepolia" => Some("https://safe-transaction-sepolia.safe.global"),
-        "polygon" => Some("https://safe-transaction-polygon.safe.global"),
-        "arbitrum" => Some("https://safe-transaction-arbitrum.safe.global"),
-        "optimism" => Some("https://safe-transaction-optimism.safe.global"),
-        "base" => Some("https://safe-transaction-base.safe.global"),
+        "ethereum" => Some("https://api.safe.global/tx-service/eth"),
+        "sepolia" => Some("https://api.safe.global/tx-service/sep"),
+        "polygon" => Some("https://api.safe.global/tx-service/pol"),
+        "arbitrum" => Some("https://api.safe.global/tx-service/arb1"),
+        "optimism" => Some("https://api.safe.global/tx-service/oeth"),
+        "base" => Some("https://api.safe.global/tx-service/base"),
         _ => None,
     }
 }
@@ -152,7 +152,7 @@ impl CachedSafeClient {
         let mut client_builder = Client::builder();
         if let Some(key) = api_key {
             let mut headers = reqwest::header::HeaderMap::new();
-            let auth_value = reqwest::header::HeaderValue::from_str(&format!("Token {}", key))
+            let auth_value = reqwest::header::HeaderValue::from_str(&format!("Bearer {}", key))
                 .expect("Invalid Safe API key format");
             headers.insert(reqwest::header::AUTHORIZATION, auth_value);
             client_builder = client_builder.default_headers(headers);

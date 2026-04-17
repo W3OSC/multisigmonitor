@@ -28,6 +28,7 @@ echo "📦 Building frontend..."
 cd frontend
 rm -f .env.local
 cp ../secrets/.env.frontend.prod .env.production
+npm ci --silent
 npm run build
 cd ..
 

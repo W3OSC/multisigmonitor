@@ -1,5 +1,11 @@
 use serde::Deserialize;
 use reqwest::Client;
+use std::collections::HashMap;
+use std::sync::Arc;
+use std::time::{Duration, Instant};
+use tokio::sync::RwLock;
+
+const SAFE_INFO_TTL: Duration = Duration::from_secs(300);
 
 pub enum SafeApiError {
     UnsupportedNetwork(String),
@@ -21,7 +27,7 @@ impl std::fmt::Display for SafeApiError {
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct SafeApiResponse {
     pub address: String,
     #[serde(deserialize_with = "deserialize_nonce")]
@@ -46,7 +52,7 @@ where
     s.parse::<u64>().map_err(D::Error::custom)
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct SafeCreationInfo {
     pub created: String,
     pub creator: String,
@@ -132,4 +138,67 @@ pub async fn fetch_safe_creation(
         .json::<SafeCreationInfo>()
         .await
         .map_err(|e| SafeApiError::ParseError(format!("Failed to parse Safe creation info: {}", e)))
+}
+
+#[derive(Clone)]
+pub struct CachedSafeClient {
+    client: Client,
+    safe_info_cache: Arc<RwLock<HashMap<String, (SafeApiResponse, Instant)>>>,
+    safe_creation_cache: Arc<RwLock<HashMap<String, SafeCreationInfo>>>,
+}
+
+impl CachedSafeClient {
+    pub fn new() -> Self {
+        Self {
+            client: Client::new(),
+            safe_info_cache: Arc::new(RwLock::new(HashMap::new())),
+            safe_creation_cache: Arc::new(RwLock::new(HashMap::new())),
+        }
+    }
+
+    fn cache_key(safe_address: &str, network: &str) -> String {
+        format!("{}:{}", network.to_lowercase(), safe_address.to_lowercase())
+    }
+
+    pub async fn fetch_safe_info(&self, safe_address: &str, network: &str) -> Result<SafeApiResponse, SafeApiError> {
+        let key = Self::cache_key(safe_address, network);
+
+        {
+            let cache = self.safe_info_cache.read().await;
+            if let Some((info, cached_at)) = cache.get(&key) {
+                if cached_at.elapsed() < SAFE_INFO_TTL {
+                    return Ok(info.clone());
+                }
+            }
+        }
+
+        let info = fetch_safe_info(&self.client, safe_address, network).await?;
+
+        {
+            let mut cache = self.safe_info_cache.write().await;
+            cache.insert(key, (info.clone(), Instant::now()));
+        }
+
+        Ok(info)
+    }
+
+    pub async fn fetch_safe_creation(&self, safe_address: &str, network: &str) -> Result<SafeCreationInfo, SafeApiError> {
+        let key = Self::cache_key(safe_address, network);
+
+        {
+            let cache = self.safe_creation_cache.read().await;
+            if let Some(info) = cache.get(&key) {
+                return Ok(info.clone());
+            }
+        }
+
+        let info = fetch_safe_creation(&self.client, safe_address, network).await?;
+
+        {
+            let mut cache = self.safe_creation_cache.write().await;
+            cache.insert(key, info.clone());
+        }
+
+        Ok(info)
+    }
 }

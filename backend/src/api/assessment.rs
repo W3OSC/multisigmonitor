@@ -8,7 +8,7 @@ use serde::Deserialize;
 use serde_json::json;
 use std::collections::HashMap;
 
-use crate::api::safe_client::{fetch_safe_info, fetch_safe_creation, SafeApiError};
+use crate::api::safe_client::SafeApiError;
 use crate::api::multisig_info::get_multisig_info_internal;
 use crate::services::safe_assessment::{
     SafeAssessmentService, SafeAssessmentRequest, SafeAssessmentResponse,
@@ -28,9 +28,7 @@ pub async fn assess_safe(
 ) -> Response {
     tracing::info!("Starting comprehensive Safe assessment for {} on {}", payload.safe_address, payload.network);
     
-    let client = reqwest::Client::new();
-    
-    let safe_api_info = match fetch_safe_info(&client, &payload.safe_address, &payload.network).await {
+    let safe_api_info = match state.cached_safe_client.fetch_safe_info(&payload.safe_address, &payload.network).await {
         Ok(info) => info,
         Err(e) => {
             tracing::error!("Failed to fetch Safe API info: {}", e);
@@ -45,7 +43,7 @@ pub async fn assess_safe(
         }
     };
     
-    let creation_api_info = match fetch_safe_creation(&client, &payload.safe_address, &payload.network).await {
+    let creation_api_info = match state.cached_safe_client.fetch_safe_creation(&payload.safe_address, &payload.network).await {
         Ok(info) => info,
         Err(e) => {
             tracing::error!("Failed to fetch Safe creation info: {}", e);

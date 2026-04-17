@@ -1,12 +1,18 @@
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::Arc;
+use std::time::{Duration, Instant};
+use tokio::sync::RwLock;
 use ethers::utils::to_checksum;
+
+const SAFE_INFO_CACHE_TTL: Duration = Duration::from_secs(300);
 
 #[derive(Debug, Clone)]
 pub struct SafeApiClient {
     client: Client,
     network_configs: HashMap<String, NetworkConfig>,
+    safe_info_cache: Arc<RwLock<HashMap<String, (SafeInfo, Instant)>>>,
 }
 
 #[derive(Debug, Clone)]
@@ -69,6 +75,7 @@ pub struct Parameter {
 
 #[derive(Debug, Deserialize)]
 struct SafeTransactionsResponse {
+    next: Option<String>,
     results: Vec<SafeTransaction>,
 }
 
@@ -120,7 +127,33 @@ impl SafeApiClient {
         Self {
             client,
             network_configs,
+            safe_info_cache: Arc::new(RwLock::new(HashMap::new())),
         }
+    }
+
+    fn safe_info_cache_key(safe_address: &str, network: &str) -> String {
+        format!("{}:{}", network.to_lowercase(), safe_address.to_lowercase())
+    }
+
+    async fn fetch_all_pages(&self, initial_url: String) -> Result<Vec<SafeTransaction>, Box<dyn std::error::Error>> {
+        let mut results = Vec::new();
+        let mut next_url: Option<String> = Some(initial_url);
+
+        while let Some(url) = next_url {
+            let response = self.client.get(&url).send().await?;
+            let status = response.status();
+
+            if !status.is_success() {
+                let body = response.text().await.unwrap_or_else(|_| "Unable to read response body".to_string());
+                return Err(format!("Safe API returned status: {} - {}", status, body).into());
+            }
+
+            let page: SafeTransactionsResponse = response.json().await?;
+            next_url = page.next;
+            results.extend(page.results);
+        }
+
+        Ok(results)
     }
 
     pub async fn fetch_pending_transactions(
@@ -139,30 +172,39 @@ impl SafeApiClient {
             checksum_address
         );
 
-        tracing::debug!("Fetching transactions from: {}", url);
+        tracing::debug!("Fetching pending transactions from: {}", url);
 
-        let response = self.client
-            .get(&url)
-            .send()
-            .await?;
-
-        let status = response.status();
-        tracing::debug!("Safe API response status: {}", status);
-
-        if !status.is_success() {
-            let body = response.text().await.unwrap_or_else(|_| "Unable to read response body".to_string());
-            tracing::error!("Safe API error response body: {}", body);
-            return Err(format!("Safe API returned status: {} - {}", status, body).into());
-        }
-
-        let tx_response: SafeTransactionsResponse = response.json().await?;
-        
-        tracing::debug!("Found {} pending transactions", tx_response.results.len());
-
-        Ok(tx_response.results)
+        self.fetch_all_pages(url).await
     }
 
-    pub async fn fetch_all_transactions(
+    pub async fn fetch_executed_since(
+        &self,
+        safe_address: &str,
+        network: &str,
+        last_max_nonce: Option<i64>,
+    ) -> Result<Vec<SafeTransaction>, Box<dyn std::error::Error>> {
+        let config = self.network_configs.get(network)
+            .ok_or(format!("Unsupported network: {}", network))?;
+
+        let checksum_address = to_checksum(&safe_address.parse()?, None);
+
+        let url = match last_max_nonce {
+            Some(n) => format!(
+                "{}/api/v1/safes/{}/multisig-transactions/?executed=true&nonce__gt={}&ordering=nonce",
+                config.tx_service_url, checksum_address, n
+            ),
+            None => format!(
+                "{}/api/v1/safes/{}/multisig-transactions/?executed=true&ordering=nonce",
+                config.tx_service_url, checksum_address
+            ),
+        };
+
+        tracing::debug!("Fetching executed transactions since nonce {:?} from: {}", last_max_nonce, url);
+
+        self.fetch_all_pages(url).await
+    }
+
+    pub async fn fetch_recent_transactions(
         &self,
         safe_address: &str,
         network: &str,
@@ -180,15 +222,10 @@ impl SafeApiClient {
             limit
         );
 
-        tracing::debug!("Fetching all transactions from: {}", url);
+        tracing::debug!("Fetching recent {} transactions from: {}", limit, url);
 
-        let response = self.client
-            .get(&url)
-            .send()
-            .await?;
-
+        let response = self.client.get(&url).send().await?;
         let status = response.status();
-        tracing::debug!("Safe API response status: {}", status);
 
         if !status.is_success() {
             let body = response.text().await.unwrap_or_else(|_| "Unable to read response body".to_string());
@@ -198,14 +235,14 @@ impl SafeApiClient {
 
         let response_text = response.text().await?;
         tracing::debug!("Response body length: {} bytes", response_text.len());
-        
+
         let tx_response: SafeTransactionsResponse = serde_json::from_str(&response_text)
             .map_err(|e| {
                 tracing::error!("Failed to parse response: {}", e);
                 tracing::error!("Response body (first 500 chars): {}", &response_text.chars().take(500).collect::<String>());
                 e
             })?;
-        
+
         tracing::debug!("Found {} total transactions", tx_response.results.len());
         Ok(tx_response.results)
     }
@@ -215,6 +252,18 @@ impl SafeApiClient {
         safe_address: &str,
         network: &str,
     ) -> Result<SafeInfo, Box<dyn std::error::Error>> {
+        let cache_key = Self::safe_info_cache_key(safe_address, network);
+
+        {
+            let cache = self.safe_info_cache.read().await;
+            if let Some((info, cached_at)) = cache.get(&cache_key) {
+                if cached_at.elapsed() < SAFE_INFO_CACHE_TTL {
+                    tracing::debug!("Safe info cache hit for {}", cache_key);
+                    return Ok(info.clone());
+                }
+            }
+        }
+
         let config = self.network_configs.get(network)
             .ok_or(format!("Unsupported network: {}", network))?;
 
@@ -240,6 +289,12 @@ impl SafeApiClient {
         }
 
         let safe_info: SafeInfo = response.json().await?;
+
+        {
+            let mut cache = self.safe_info_cache.write().await;
+            cache.insert(cache_key, (safe_info.clone(), Instant::now()));
+        }
+
         Ok(safe_info)
     }
 

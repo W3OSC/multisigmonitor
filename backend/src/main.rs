@@ -6,6 +6,7 @@ use std::str::FromStr;
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 use tower_governor::governor::GovernorConfigBuilder;
+use tower_governor::GovernorLayer;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
@@ -98,11 +99,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
     
-    let governor_conf = GovernorConfigBuilder::default()
-        .per_second(config.rate_limit_per_second as u64)
-        .burst_size(config.rate_limit_per_second * 2)
-        .finish()
-        .unwrap();
+    let governor_conf = std::sync::Arc::new(
+        GovernorConfigBuilder::default()
+            .per_second(config.rate_limit_per_second as u64)
+            .burst_size(config.rate_limit_per_second * 2)
+            .finish()
+            .unwrap(),
+    );
 
     let cors_origin = config.cors_origin.parse::<axum::http::HeaderValue>()
         .map_err(|e| format!("Invalid CORS_ORIGIN: {}", e))?;
@@ -127,6 +130,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         pool: pool.clone(),
         nonce_store: nonce_store.clone(),
         config: config.clone(),
+        cached_safe_client: multisigmonitor_backend::api::safe_client::CachedSafeClient::new(),
     };
 
     let app = Router::new()
@@ -134,7 +138,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .merge(SwaggerUi::new("/api-docs").url("/api-docs/openapi.json", ApiDoc::openapi()))
         .nest("/api", api::router(app_state))
         .layer(TraceLayer::new_for_http())
-        .layer(cors);
+        .layer(cors)
+        .layer(GovernorLayer { config: governor_conf.clone() });
 
     let governor_limiter = governor_conf.limiter().clone();
     let interval = std::time::Duration::from_secs(60);

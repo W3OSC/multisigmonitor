@@ -110,7 +110,7 @@ impl MonitorWorker {
             ).await;
         }
 
-        let all_transactions = self.safe_api.fetch_all_transactions(safe_address, network, 50).await?;
+        let all_transactions = self.get_transactions_for_safe(safe_address, network).await?;
         let total_tx_count = all_transactions.len();
         tracing::info!("Found {} total transactions", total_tx_count);
 
@@ -162,6 +162,16 @@ impl MonitorWorker {
             }
         }
         tracing::info!("Completed transaction loop");
+
+        let max_executed_nonce = all_transactions.iter()
+            .filter(|tx| tx.is_executed.unwrap_or(false))
+            .map(|tx| tx.nonce as i64)
+            .max();
+        if let Some(nonce) = max_executed_nonce {
+            if let Err(e) = self.update_safe_nonce(safe_address, network, nonce).await {
+                tracing::warn!("Failed to update safe nonce cache for {} on {}: {}", safe_address, network, e);
+            }
+        }
 
         for transaction in pending_transactions {
             if self.was_notified(&transaction.safe_tx_hash, safe_address, network).await? {
@@ -233,6 +243,72 @@ impl MonitorWorker {
             ).await;
         }
 
+        Ok(())
+    }
+
+    async fn get_transactions_for_safe(
+        &self,
+        safe_address: &str,
+        network: &str,
+    ) -> Result<Vec<crate::worker::safe_api::SafeTransaction>, Box<dyn std::error::Error>> {
+        let last_nonce = self.load_safe_nonce(safe_address, network).await;
+
+        let pending = self.safe_api.fetch_pending_transactions(safe_address, network).await?;
+        tracing::debug!("Fetched {} pending transactions for {} on {}", pending.len(), safe_address, network);
+
+        let executed = match last_nonce {
+            Some(n) => {
+                let txs = self.safe_api.fetch_executed_since(safe_address, network, Some(n)).await?;
+                tracing::debug!("Fetched {} new executed transactions since nonce {}", txs.len(), n);
+                txs
+            }
+            None => {
+                let txs = self.safe_api.fetch_recent_transactions(safe_address, network, 50).await?;
+                tracing::debug!("First sync: fetched {} recent transactions", txs.len());
+                txs.into_iter().filter(|tx| tx.is_executed.unwrap_or(false)).collect()
+            }
+        };
+
+        let mut seen = std::collections::HashSet::new();
+        let mut all = Vec::with_capacity(pending.len() + executed.len());
+        for tx in pending.into_iter().chain(executed.into_iter()) {
+            if seen.insert(tx.safe_tx_hash.clone()) {
+                all.push(tx);
+            }
+        }
+
+        Ok(all)
+    }
+
+    async fn load_safe_nonce(&self, safe_address: &str, network: &str) -> Option<i64> {
+        let result: Option<(Option<i64>,)> = sqlx::query_as(
+            "SELECT last_max_nonce FROM safe_cache WHERE safe_address = ? AND network = ?"
+        )
+        .bind(safe_address)
+        .bind(network)
+        .fetch_optional(&self.pool)
+        .await
+        .ok()
+        .flatten();
+
+        result.and_then(|(n,)| n)
+    }
+
+    async fn update_safe_nonce(&self, safe_address: &str, network: &str, nonce: i64) -> Result<(), Box<dyn std::error::Error>> {
+        let now = chrono::Utc::now().to_rfc3339();
+        sqlx::query(
+            "INSERT INTO safe_cache (safe_address, network, last_max_nonce, updated_at)
+             VALUES (?, ?, ?, ?)
+             ON CONFLICT(safe_address, network) DO UPDATE SET
+                last_max_nonce = excluded.last_max_nonce,
+                updated_at = excluded.updated_at"
+        )
+        .bind(safe_address)
+        .bind(network)
+        .bind(nonce)
+        .bind(&now)
+        .execute(&self.pool)
+        .await?;
         Ok(())
     }
 

@@ -19,6 +19,7 @@ pub mod api_keys;
 pub mod dashboard;
 pub mod activity;
 pub mod safe_client;
+use safe_client::CachedSafeClient;
 pub mod assessment;
 
 #[cfg(test)]
@@ -29,6 +30,7 @@ pub struct AppState {
     pub pool: SqlitePool,
     pub nonce_store: crate::services::NonceStore,
     pub config: crate::config::Config,
+    pub cached_safe_client: CachedSafeClient,
 }
 
 pub fn router(state: AppState) -> Router {

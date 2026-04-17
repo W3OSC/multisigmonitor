@@ -98,7 +98,8 @@ pub async fn list_transactions(
             sa.id as sa_id, sa.is_suspicious, sa.risk_level, sa.warnings, sa.details,
             sa.hash_verification, sa.nonce_check, sa.calldata
          FROM transactions t
-         INNER JOIN monitors m ON t.monitor_id = m.id
+         INNER JOIN monitors m ON LOWER(t.safe_address) = LOWER(m.safe_address)
+            AND LOWER(t.network) = LOWER(m.network)
          LEFT JOIN security_analyses sa ON t.safe_tx_hash = sa.safe_tx_hash 
             AND LOWER(t.safe_address) = LOWER(sa.safe_address)
          WHERE m.user_id = ?"
@@ -201,7 +202,8 @@ pub async fn get_transaction(
             sa.id as sa_id, sa.is_suspicious, sa.risk_level, sa.warnings, sa.details,
             sa.hash_verification, sa.nonce_check, sa.calldata
          FROM transactions t
-         INNER JOIN monitors m ON t.monitor_id = m.id
+         INNER JOIN monitors m ON LOWER(t.safe_address) = LOWER(m.safe_address)
+            AND LOWER(t.network) = LOWER(m.network)
          LEFT JOIN security_analyses sa ON t.safe_tx_hash = sa.safe_tx_hash 
             AND LOWER(t.safe_address) = LOWER(sa.safe_address)
          WHERE t.id = ? AND m.user_id = ?"

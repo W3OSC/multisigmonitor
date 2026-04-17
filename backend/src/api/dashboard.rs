@@ -29,8 +29,9 @@ pub async fn get_dashboard_stats(
     .unwrap_or(0);
 
     let total_transactions = sqlx::query_scalar::<_, i64>(
-        "SELECT COUNT(*) FROM transactions t 
-         INNER JOIN monitors m ON t.monitor_id = m.id 
+        "SELECT COUNT(DISTINCT t.id) FROM transactions t 
+         INNER JOIN monitors m ON LOWER(t.safe_address) = LOWER(m.safe_address)
+            AND LOWER(t.network) = LOWER(m.network)
          WHERE m.user_id = $1"
     )
     .bind(&user_id)
@@ -39,8 +40,9 @@ pub async fn get_dashboard_stats(
     .unwrap_or(0);
 
     let suspicious_transactions = sqlx::query_scalar::<_, i64>(
-        "SELECT COUNT(*) FROM transactions t 
-         INNER JOIN monitors m ON t.monitor_id = m.id 
+        "SELECT COUNT(DISTINCT t.id) FROM transactions t 
+         INNER JOIN monitors m ON LOWER(t.safe_address) = LOWER(m.safe_address)
+            AND LOWER(t.network) = LOWER(m.network)
          INNER JOIN security_analyses sa ON t.safe_tx_hash = sa.safe_tx_hash 
          WHERE m.user_id = $1 AND sa.is_suspicious = 1"
     )

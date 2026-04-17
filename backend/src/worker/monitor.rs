@@ -111,7 +111,9 @@ impl MonitorWorker {
             ).await;
         }
 
-        self.backfill_new_monitors(safe_address, network, monitors).await?;
+        self.backfill_new_monitors(safe_address, network, monitors).await.unwrap_or_else(|e| {
+            tracing::warn!("Backfill skipped for {}/{}: {}", network, safe_address, e);
+        });
 
         let all_transactions = self.get_transactions_for_safe(safe_address, network).await?;
         let total_tx_count = all_transactions.len();

@@ -111,6 +111,8 @@ impl MonitorWorker {
             ).await;
         }
 
+        self.backfill_new_monitors(safe_address, network, monitors).await?;
+
         let all_transactions = self.get_transactions_for_safe(safe_address, network).await?;
         let total_tx_count = all_transactions.len();
         tracing::info!("Found {} total transactions", total_tx_count);
@@ -244,6 +246,59 @@ impl MonitorWorker {
             ).await;
         }
 
+        Ok(())
+    }
+
+    async fn backfill_new_monitors(
+        &self,
+        safe_address: &str,
+        network: &str,
+        monitors: &[MonitorData],
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        for monitor in monitors {
+            let count: (i64,) = sqlx::query_as(
+                "SELECT COUNT(*) FROM transactions WHERE monitor_id = ?"
+            )
+            .bind(&monitor.id)
+            .fetch_one(&self.pool)
+            .await?;
+
+            if count.0 > 0 {
+                continue;
+            }
+
+            let now = chrono::Utc::now().to_rfc3339();
+            let inserted: sqlx::sqlite::SqliteQueryResult = sqlx::query(
+                "INSERT OR IGNORE INTO transactions
+                     (id, monitor_id, safe_tx_hash, network, safe_address,
+                      to_address, value, data, operation, nonce,
+                      is_executed, submission_date, execution_date,
+                      transaction_data, created_at, updated_at)
+                 SELECT lower(hex(randomblob(16))), ?, safe_tx_hash, network, safe_address,
+                        to_address, value, data, operation, nonce,
+                        is_executed, submission_date, execution_date,
+                        transaction_data, ?, ?
+                 FROM transactions
+                 WHERE safe_address = ? AND network = ? AND monitor_id != ?
+                 GROUP BY safe_tx_hash"
+            )
+            .bind(&monitor.id)
+            .bind(&now)
+            .bind(&now)
+            .bind(safe_address)
+            .bind(network)
+            .bind(&monitor.id)
+            .execute(&self.pool)
+            .await?;
+
+            let rows = inserted.rows_affected();
+            if rows > 0 {
+                tracing::info!(
+                    "Backfilled {} transactions for new monitor {} on {}/{}",
+                    rows, monitor.id, network, safe_address
+                );
+            }
+        }
         Ok(())
     }
 

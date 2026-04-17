@@ -279,7 +279,7 @@ impl MonitorWorker {
                         is_executed, submission_date, execution_date,
                         transaction_data, ?, ?
                  FROM transactions
-                 WHERE safe_address = ? AND network = ? AND monitor_id != ?
+                 WHERE lower(safe_address) = lower(?) AND lower(network) = lower(?) AND monitor_id != ?
                  GROUP BY safe_tx_hash"
             )
             .bind(&monitor.id)
@@ -450,6 +450,7 @@ impl MonitorWorker {
     ) -> Result<(), Box<dyn std::error::Error>> {
         let id = uuid::Uuid::new_v4().to_string();
         let now = chrono::Utc::now().to_rfc3339();
+        let safe_address_normalized = safe_address.to_lowercase();
         
         let transaction_data = serde_json::to_string(transaction)?;
         
@@ -475,7 +476,7 @@ impl MonitorWorker {
         .bind(monitor_id)
         .bind(&transaction.safe_tx_hash)
         .bind(network)
-        .bind(safe_address)
+        .bind(&safe_address_normalized)
         .bind(&transaction.to)
         .bind(value_str.as_deref())
         .bind(transaction.data.as_deref())

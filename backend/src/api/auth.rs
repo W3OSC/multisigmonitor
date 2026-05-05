@@ -90,10 +90,10 @@ pub async fn google_callback(
     State(state): State<AppState>,
     Json(payload): Json<GoogleCallbackRequest>,
 ) -> Result<impl IntoResponse, StatusCode> {
-    tracing::debug!("Google callback received with redirect_uri: {}", payload.redirect_uri);
+    let redirect_uri = payload.redirect_uri.as_deref().unwrap_or(&state.config.google_redirect_uri);
     let access_token = AuthService::exchange_google_code(
         &payload.code,
-        &payload.redirect_uri,
+        redirect_uri,
         &state.config.google_client_id,
         &state.config.google_client_secret,
     )
@@ -176,10 +176,10 @@ pub async fn github_callback(
     State(state): State<AppState>,
     Json(payload): Json<GitHubCallbackRequest>,
 ) -> Result<impl IntoResponse, StatusCode> {
-    tracing::debug!("GitHub callback received with redirect_uri: {}", payload.redirect_uri);
+    let redirect_uri = payload.redirect_uri.as_deref().unwrap_or(&state.config.github_redirect_uri);
     let access_token = AuthService::exchange_github_code(
         &payload.code,
-        &payload.redirect_uri,
+        redirect_uri,
         &state.config.github_client_id,
         &state.config.github_client_secret,
     )

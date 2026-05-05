@@ -3,9 +3,10 @@ use reqwest::Client;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::RwLock;
+use tokio::sync::{Mutex, RwLock};
 
 const SAFE_INFO_TTL: Duration = Duration::from_secs(300);
+const RATE_LIMIT_RESET_CAP: Duration = Duration::from_secs(3600);
 
 pub enum SafeApiError {
     UnsupportedNetwork(String),
@@ -76,68 +77,10 @@ pub fn get_safe_api_url(network: &str) -> Option<&'static str> {
     }
 }
 
-pub async fn fetch_safe_info(
-    client: &Client,
-    safe_address: &str,
-    network: &str,
-) -> Result<SafeApiResponse, SafeApiError> {
-    let base_url = get_safe_api_url(network)
-        .ok_or_else(|| SafeApiError::UnsupportedNetwork(network.to_string()))?;
-    
-    let url = format!("{}/api/v1/safes/{}/", base_url, safe_address);
-    
-    let response = client
-        .get(&url)
-        .send()
-        .await
-        .map_err(|e| SafeApiError::NetworkError(format!("Failed to fetch Safe info: {}", e)))?;
-    
-    if !response.status().is_success() {
-        if response.status() == 404 {
-            return Err(SafeApiError::NotFound(format!("Safe {} not found on {}", safe_address, network)));
-        }
-        if response.status() == 429 {
-            return Err(SafeApiError::RateLimited(format!("Safe API rate limit reached for {} on {}", safe_address, network)));
-        }
-        return Err(SafeApiError::NetworkError(format!("Safe API returned status: {}", response.status())));
-    }
-    
-    response
-        .json::<SafeApiResponse>()
-        .await
-        .map_err(|e| SafeApiError::ParseError(format!("Failed to parse Safe info: {}", e)))
-}
 
-pub async fn fetch_safe_creation(
-    client: &Client,
-    safe_address: &str,
-    network: &str,
-) -> Result<SafeCreationInfo, SafeApiError> {
-    let base_url = get_safe_api_url(network)
-        .ok_or_else(|| SafeApiError::UnsupportedNetwork(network.to_string()))?;
-    
-    let url = format!("{}/api/v1/safes/{}/creation/", base_url, safe_address);
-    
-    let response = client
-        .get(&url)
-        .send()
-        .await
-        .map_err(|e| SafeApiError::NetworkError(format!("Failed to fetch Safe creation info: {}", e)))?;
-    
-    if !response.status().is_success() {
-        if response.status() == 404 {
-            return Err(SafeApiError::NotFound(format!("Creation info for Safe {} not found on {}", safe_address, network)));
-        }
-        if response.status() == 429 {
-            return Err(SafeApiError::RateLimited(format!("Safe API rate limit reached for {} on {}", safe_address, network)));
-        }
-        return Err(SafeApiError::NetworkError(format!("Safe API returned status: {}", response.status())));
-    }
-    
-    response
-        .json::<SafeCreationInfo>()
-        .await
-        .map_err(|e| SafeApiError::ParseError(format!("Failed to parse Safe creation info: {}", e)))
+#[derive(Debug)]
+struct RateLimitState {
+    reset_at: Option<tokio::time::Instant>,
 }
 
 #[derive(Clone)]
@@ -145,6 +88,7 @@ pub struct CachedSafeClient {
     client: Client,
     safe_info_cache: Arc<RwLock<HashMap<String, (SafeApiResponse, Instant)>>>,
     safe_creation_cache: Arc<RwLock<HashMap<String, SafeCreationInfo>>>,
+    rate_limit: Arc<Mutex<RateLimitState>>,
 }
 
 impl CachedSafeClient {
@@ -162,11 +106,88 @@ impl CachedSafeClient {
             client,
             safe_info_cache: Arc::new(RwLock::new(HashMap::new())),
             safe_creation_cache: Arc::new(RwLock::new(HashMap::new())),
+            rate_limit: Arc::new(Mutex::new(RateLimitState { reset_at: None })),
         }
     }
 
     fn cache_key(safe_address: &str, network: &str) -> String {
         format!("{}:{}", network.to_lowercase(), safe_address.to_lowercase())
+    }
+
+    fn parse_reset_duration(response: &reqwest::Response) -> Duration {
+        let raw = response
+            .headers()
+            .get("x-ratelimit-reset")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|s| s.parse::<u64>().ok())
+            .unwrap_or(60_000);
+
+        let duration = if raw > 60_000 {
+            Duration::from_millis(raw)
+        } else {
+            Duration::from_secs(raw)
+        };
+
+        duration.min(RATE_LIMIT_RESET_CAP)
+    }
+
+    async fn get(&self, url: &str) -> Result<reqwest::Response, SafeApiError> {
+        {
+            let state = self.rate_limit.lock().await;
+            if let Some(reset_at) = state.reset_at {
+                let now = tokio::time::Instant::now();
+                if reset_at > now {
+                    let wait = reset_at - now;
+                    tracing::warn!("Safe API rate limit active, waiting {:?} before request", wait);
+                    drop(state);
+                    tokio::time::sleep(wait).await;
+                }
+            }
+        }
+
+        let response = self.client.get(url).send().await
+            .map_err(|e| SafeApiError::NetworkError(e.to_string()))?;
+
+        if response.status() == reqwest::StatusCode::TOO_MANY_REQUESTS {
+            let reset_duration = Self::parse_reset_duration(&response);
+            let jitter = Duration::from_millis(
+                rand::Rng::gen_range(&mut rand::thread_rng(), 0u64..=2_000),
+            );
+            let wait = reset_duration + jitter;
+
+            tracing::warn!("Safe API 429 for {}, waiting {:?} before retry", url, wait);
+
+            {
+                let mut state = self.rate_limit.lock().await;
+                let new_deadline = tokio::time::Instant::now() + wait;
+                state.reset_at = Some(match state.reset_at {
+                    Some(existing) if existing > new_deadline => existing,
+                    _ => new_deadline,
+                });
+            }
+
+            tokio::time::sleep(wait).await;
+
+            let retry = self.client.get(url).send().await
+                .map_err(|e| SafeApiError::NetworkError(e.to_string()))?;
+
+            if retry.status() == reqwest::StatusCode::TOO_MANY_REQUESTS {
+                return Err(SafeApiError::RateLimited(format!("Safe API rate limit persists after retry (url: {})", url)));
+            }
+
+            return Ok(retry);
+        }
+
+        {
+            let mut state = self.rate_limit.lock().await;
+            if let Some(reset_at) = state.reset_at {
+                if tokio::time::Instant::now() >= reset_at {
+                    state.reset_at = None;
+                }
+            }
+        }
+
+        Ok(response)
     }
 
     pub async fn fetch_safe_info(&self, safe_address: &str, network: &str) -> Result<SafeApiResponse, SafeApiError> {
@@ -181,7 +202,21 @@ impl CachedSafeClient {
             }
         }
 
-        let info = fetch_safe_info(&self.client, safe_address, network).await?;
+        let base_url = get_safe_api_url(network)
+            .ok_or_else(|| SafeApiError::UnsupportedNetwork(network.to_string()))?;
+        let url = format!("{}/api/v1/safes/{}/", base_url, safe_address);
+
+        let response = self.get(&url).await?;
+
+        if !response.status().is_success() {
+            if response.status() == 404 {
+                return Err(SafeApiError::NotFound(format!("Safe {} not found on {}", safe_address, network)));
+            }
+            return Err(SafeApiError::NetworkError(format!("Safe API returned status: {}", response.status())));
+        }
+
+        let info = response.json::<SafeApiResponse>().await
+            .map_err(|e| SafeApiError::ParseError(format!("Failed to parse Safe info: {}", e)))?;
 
         {
             let mut cache = self.safe_info_cache.write().await;
@@ -201,7 +236,21 @@ impl CachedSafeClient {
             }
         }
 
-        let info = fetch_safe_creation(&self.client, safe_address, network).await?;
+        let base_url = get_safe_api_url(network)
+            .ok_or_else(|| SafeApiError::UnsupportedNetwork(network.to_string()))?;
+        let url = format!("{}/api/v1/safes/{}/creation/", base_url, safe_address);
+
+        let response = self.get(&url).await?;
+
+        if !response.status().is_success() {
+            if response.status() == 404 {
+                return Err(SafeApiError::NotFound(format!("Creation info for Safe {} not found on {}", safe_address, network)));
+            }
+            return Err(SafeApiError::NetworkError(format!("Safe API returned status: {}", response.status())));
+        }
+
+        let info = response.json::<SafeCreationInfo>().await
+            .map_err(|e| SafeApiError::ParseError(format!("Failed to parse Safe creation info: {}", e)))?;
 
         {
             let mut cache = self.safe_creation_cache.write().await;

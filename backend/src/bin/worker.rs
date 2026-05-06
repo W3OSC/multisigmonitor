@@ -69,11 +69,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         address_delay_max_secs,
     );
 
-    tracing::info!("Running initial check...");
-    if let Err(e) = worker.run_check().await {
-        tracing::error!("Initial check failed: {}", e);
-    }
-
     loop {
         tokio::time::sleep(Duration::from_secs(polling_interval_secs)).await;
         tracing::debug!("Starting scheduled check");

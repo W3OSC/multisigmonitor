@@ -8,6 +8,7 @@ use ethers::utils::to_checksum;
 
 const SAFE_INFO_CACHE_TTL: Duration = Duration::from_secs(300);
 const RATE_LIMIT_WARN_THRESHOLD: u64 = 500;
+const RATE_LIMIT_CRITICAL_THRESHOLD: u64 = 50;
 const RATE_LIMIT_RESET_CAP: Duration = Duration::from_secs(3600);
 
 #[derive(Debug)]
@@ -237,7 +238,12 @@ impl SafeApiClient {
         }
 
         if let Some(remaining) = Self::parse_remaining(&response) {
-            if remaining < RATE_LIMIT_WARN_THRESHOLD {
+            if remaining < RATE_LIMIT_CRITICAL_THRESHOLD {
+                return Err(format!(
+                    "Safe API quota critically low ({} remaining), skipping remaining addresses",
+                    remaining
+                ).into());
+            } else if remaining < RATE_LIMIT_WARN_THRESHOLD {
                 tracing::warn!("Safe API quota low: {} requests remaining", remaining);
             }
         }

@@ -7,6 +7,7 @@ use tokio::sync::{Mutex, RwLock};
 
 const SAFE_INFO_TTL: Duration = Duration::from_secs(300);
 const RATE_LIMIT_RESET_CAP: Duration = Duration::from_secs(3600);
+const RATE_LIMIT_MAX_INLINE_WAIT: Duration = Duration::from_secs(10);
 
 pub enum SafeApiError {
     UnsupportedNetwork(String),
@@ -138,6 +139,12 @@ impl CachedSafeClient {
                 let now = tokio::time::Instant::now();
                 if reset_at > now {
                     let wait = reset_at - now;
+                    if wait > RATE_LIMIT_MAX_INLINE_WAIT {
+                        return Err(SafeApiError::RateLimited(format!(
+                            "Safe API rate limited, retry after {:.0}s",
+                            wait.as_secs_f64()
+                        )));
+                    }
                     tracing::warn!("Safe API rate limit active, waiting {:?} before request", wait);
                     drop(state);
                     tokio::time::sleep(wait).await;

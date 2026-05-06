@@ -78,6 +78,18 @@ pub fn get_safe_api_url(network: &str) -> Option<&'static str> {
     }
 }
 
+pub fn get_safe_api_fallback_url(network: &str) -> Option<&'static str> {
+    match network {
+        "ethereum" => Some("https://safe-transaction-mainnet.safe.global"),
+        "sepolia" => Some("https://safe-transaction-sepolia.safe.global"),
+        "polygon" => Some("https://safe-transaction-polygon.safe.global"),
+        "arbitrum" => Some("https://safe-transaction-arbitrum.safe.global"),
+        "optimism" => Some("https://safe-transaction-optimism.safe.global"),
+        "base" => Some("https://safe-transaction-base.safe.global"),
+        _ => None,
+    }
+}
+
 
 #[derive(Debug)]
 struct RateLimitState {
@@ -87,6 +99,7 @@ struct RateLimitState {
 #[derive(Clone)]
 pub struct CachedSafeClient {
     client: Client,
+    fallback_client: Client,
     pool: SqlitePool,
     rate_limit: Arc<Mutex<RateLimitState>>,
 }
@@ -102,8 +115,13 @@ impl CachedSafeClient {
             client_builder = client_builder.default_headers(headers);
         }
         let client = client_builder.build().unwrap_or_else(|_| Client::new());
+        let fallback_client = Client::builder()
+            .redirect(reqwest::redirect::Policy::limited(5))
+            .build()
+            .unwrap_or_else(|_| Client::new());
         Self {
             client,
+            fallback_client,
             pool,
             rate_limit: Arc::new(Mutex::new(RateLimitState { reset_at: None })),
         }
@@ -206,7 +224,14 @@ impl CachedSafeClient {
         duration.min(RATE_LIMIT_RESET_CAP)
     }
 
-    async fn get(&self, url: &str) -> Result<reqwest::Response, SafeApiError> {
+    fn to_fallback_url(url: &str, network: &str) -> Option<String> {
+        let primary_base = get_safe_api_url(network)?;
+        let fallback_base = get_safe_api_fallback_url(network)?;
+        let path = url.strip_prefix(primary_base)?;
+        Some(format!("{}{}", fallback_base, path))
+    }
+
+    async fn get(&self, url: &str, network: &str) -> Result<reqwest::Response, SafeApiError> {
         {
             let state = self.rate_limit.lock().await;
             if let Some(reset_at) = state.reset_at {
@@ -214,10 +239,8 @@ impl CachedSafeClient {
                 if reset_at > now {
                     let wait = reset_at - now;
                     if wait > RATE_LIMIT_MAX_INLINE_WAIT {
-                        return Err(SafeApiError::RateLimited(format!(
-                            "Safe API rate limited, retry after {:.0}s",
-                            wait.as_secs_f64()
-                        )));
+                        tracing::warn!("Primary Safe API rate limited, trying fallback");
+                        return self.get_fallback(url, network).await;
                     }
                     tracing::warn!("Safe API rate limit active, waiting {:?} before request", wait);
                     drop(state);
@@ -236,8 +259,6 @@ impl CachedSafeClient {
             );
             let wait = reset_duration + jitter;
 
-            tracing::warn!("Safe API 429 for {}, waiting {:?} before retry", url, wait);
-
             {
                 let mut state = self.rate_limit.lock().await;
                 let new_deadline = tokio::time::Instant::now() + wait;
@@ -247,16 +268,8 @@ impl CachedSafeClient {
                 });
             }
 
-            tokio::time::sleep(wait).await;
-
-            let retry = self.client.get(url).send().await
-                .map_err(|e| SafeApiError::NetworkError(e.to_string()))?;
-
-            if retry.status() == reqwest::StatusCode::TOO_MANY_REQUESTS {
-                return Err(SafeApiError::RateLimited(format!("Safe API rate limit persists after retry (url: {})", url)));
-            }
-
-            return Ok(retry);
+            tracing::warn!("Primary Safe API quota exhausted for {}, trying fallback", url);
+            return self.get_fallback(url, network).await;
         }
 
         {
@@ -266,6 +279,26 @@ impl CachedSafeClient {
                     state.reset_at = None;
                 }
             }
+        }
+
+        Ok(response)
+    }
+
+    async fn get_fallback(&self, url: &str, network: &str) -> Result<reqwest::Response, SafeApiError> {
+        let fallback_url = Self::to_fallback_url(url, network)
+            .ok_or_else(|| SafeApiError::RateLimited(format!(
+                "Safe API rate limited and no fallback available for network: {}", network
+            )))?;
+
+        tracing::info!("Using unauthenticated fallback: {}", fallback_url);
+
+        let response = self.fallback_client.get(&fallback_url).send().await
+            .map_err(|e| SafeApiError::NetworkError(format!("Fallback request failed: {}", e)))?;
+
+        if response.status() == reqwest::StatusCode::TOO_MANY_REQUESTS {
+            return Err(SafeApiError::RateLimited(
+                "Both authenticated and unauthenticated Safe API endpoints are rate limited".to_string()
+            ));
         }
 
         Ok(response)
@@ -281,7 +314,7 @@ impl CachedSafeClient {
             .ok_or_else(|| SafeApiError::UnsupportedNetwork(network.to_string()))?;
         let url = format!("{}/api/v1/safes/{}/", base_url, safe_address);
 
-        let response = self.get(&url).await?;
+        let response = self.get(&url, network).await?;
 
         if !response.status().is_success() {
             if response.status() == 404 {
@@ -308,7 +341,7 @@ impl CachedSafeClient {
             .ok_or_else(|| SafeApiError::UnsupportedNetwork(network.to_string()))?;
         let url = format!("{}/api/v1/safes/{}/creation/", base_url, safe_address);
 
-        let response = self.get(&url).await?;
+        let response = self.get(&url, network).await?;
 
         if !response.status().is_success() {
             if response.status() == 404 {

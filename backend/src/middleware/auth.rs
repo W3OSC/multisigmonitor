@@ -48,6 +48,11 @@ pub async fn auth_middleware(
             StatusCode::UNAUTHORIZED
         })?;
 
+    if !state.user_rate_limiter.check_and_increment(&claims.sub).await {
+        tracing::warn!("Per-user rate limit exceeded for user: {}", claims.sub);
+        return Err(StatusCode::TOO_MANY_REQUESTS);
+    }
+
     request.extensions_mut().insert(claims.sub.clone());
 
     Ok(next.run(request).await)

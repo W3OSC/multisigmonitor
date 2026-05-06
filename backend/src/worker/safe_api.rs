@@ -3,16 +3,24 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::RwLock;
+use tokio::sync::{Mutex, RwLock};
 use ethers::utils::to_checksum;
 
 const SAFE_INFO_CACHE_TTL: Duration = Duration::from_secs(300);
+const RATE_LIMIT_WARN_THRESHOLD: u64 = 500;
+const RATE_LIMIT_RESET_CAP: Duration = Duration::from_secs(3600);
+
+#[derive(Debug)]
+struct RateLimitState {
+    reset_at: Option<tokio::time::Instant>,
+}
 
 #[derive(Debug, Clone)]
 pub struct SafeApiClient {
     client: Client,
     network_configs: HashMap<String, NetworkConfig>,
     safe_info_cache: Arc<RwLock<HashMap<String, (SafeInfo, Instant)>>>,
+    rate_limit: Arc<Mutex<RateLimitState>>,
 }
 
 #[derive(Debug, Clone)]
@@ -136,6 +144,7 @@ impl SafeApiClient {
             client,
             network_configs,
             safe_info_cache: Arc::new(RwLock::new(HashMap::new())),
+            rate_limit: Arc::new(Mutex::new(RateLimitState { reset_at: None })),
         }
     }
 
@@ -143,12 +152,105 @@ impl SafeApiClient {
         format!("{}:{}", network.to_lowercase(), safe_address.to_lowercase())
     }
 
+    fn parse_reset_duration(response: &reqwest::Response) -> Duration {
+        let raw = response
+            .headers()
+            .get("x-ratelimit-reset")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|s| s.parse::<u64>().ok())
+            .unwrap_or(60_000);
+
+        let duration = if raw > 60_000 {
+            Duration::from_millis(raw)
+        } else {
+            Duration::from_secs(raw)
+        };
+
+        duration.min(RATE_LIMIT_RESET_CAP)
+    }
+
+    fn parse_remaining(response: &reqwest::Response) -> Option<u64> {
+        response
+            .headers()
+            .get("x-ratelimit-remaining")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|s| s.parse::<u64>().ok())
+    }
+
+    async fn get(&self, url: &str) -> Result<reqwest::Response, Box<dyn std::error::Error>> {
+        {
+            let state = self.rate_limit.lock().await;
+            if let Some(reset_at) = state.reset_at {
+                let now = tokio::time::Instant::now();
+                if reset_at > now {
+                    let wait = reset_at - now;
+                    tracing::warn!("Safe API rate limit active, waiting {:?} before request", wait);
+                    drop(state);
+                    tokio::time::sleep(wait).await;
+                }
+            }
+        }
+
+        let response = self.client.get(url).send().await?;
+
+        if response.status() == reqwest::StatusCode::TOO_MANY_REQUESTS {
+            let reset_duration = Self::parse_reset_duration(&response);
+            let jitter = Duration::from_millis(
+                rand::Rng::gen_range(&mut rand::thread_rng(), 0u64..=5_000),
+            );
+            let wait = reset_duration + jitter;
+
+            tracing::warn!(
+                "Safe API 429 for {}, waiting {:?} before retry",
+                url, wait
+            );
+
+            {
+                let mut state = self.rate_limit.lock().await;
+                let new_deadline = tokio::time::Instant::now() + wait;
+                state.reset_at = Some(match state.reset_at {
+                    Some(existing) if existing > new_deadline => existing,
+                    _ => new_deadline,
+                });
+            }
+
+            tokio::time::sleep(wait).await;
+
+            let retry = self.client.get(url).send().await?;
+            if retry.status() == reqwest::StatusCode::TOO_MANY_REQUESTS {
+                return Err(format!(
+                    "Safe API rate limit persists after retry (url: {})",
+                    url
+                )
+                .into());
+            }
+            return Ok(retry);
+        }
+
+        {
+            let mut state = self.rate_limit.lock().await;
+            if let Some(reset_at) = state.reset_at {
+                if tokio::time::Instant::now() >= reset_at {
+                    state.reset_at = None;
+                }
+            }
+        }
+
+        if let Some(remaining) = Self::parse_remaining(&response) {
+            if remaining < RATE_LIMIT_WARN_THRESHOLD {
+                tracing::warn!("Safe API quota low: {} requests remaining", remaining);
+            }
+        }
+
+        Ok(response)
+    }
+
     async fn fetch_all_pages(&self, initial_url: String) -> Result<Vec<SafeTransaction>, Box<dyn std::error::Error>> {
         let mut results = Vec::new();
         let mut next_url: Option<String> = Some(initial_url);
 
         while let Some(url) = next_url {
-            let response = self.client.get(&url).send().await?;
+            let response = self.get(&url).await?;
             let status = response.status();
 
             if !status.is_success() {
@@ -232,7 +334,7 @@ impl SafeApiClient {
 
         tracing::debug!("Fetching recent {} transactions from: {}", limit, url);
 
-        let response = self.client.get(&url).send().await?;
+        let response = self.get(&url).await?;
         let status = response.status();
 
         if !status.is_success() {
@@ -285,10 +387,7 @@ impl SafeApiClient {
 
         tracing::debug!("Fetching Safe info from: {}", url);
 
-        let response = self.client
-            .get(&url)
-            .send()
-            .await?;
+        let response = self.get(&url).await?;
 
         let status = response.status();
         if !status.is_success() {

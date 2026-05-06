@@ -18,8 +18,17 @@ export function OAuthCallback() {
       return;
     }
 
+    const storedState = sessionStorage.getItem('oauth_state');
+    sessionStorage.removeItem('oauth_state');
+
+    if (!storedState || storedState !== state) {
+      setError('Invalid OAuth state. Please try again.');
+      setTimeout(() => navigate('/'), 3000);
+      return;
+    }
+
     let provider: 'google' | 'github' = 'google';
-    
+
     if (state) {
       try {
         const stateData = JSON.parse(atob(state));

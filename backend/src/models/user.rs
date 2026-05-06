@@ -72,13 +72,15 @@ pub struct GoogleAuthRequest {
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct GoogleCallbackRequest {
     pub code: String,
-    pub redirect_uri: String,
+    #[serde(default)]
+    pub redirect_uri: Option<String>,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct GitHubCallbackRequest {
     pub code: String,
-    pub redirect_uri: String,
+    #[serde(default)]
+    pub redirect_uri: Option<String>,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]

@@ -111,6 +111,7 @@ export default function Scan() {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify({
           safe_address: safeAddress,
           network: selectedNetwork,
@@ -119,6 +120,10 @@ export default function Scan() {
       
       if (response.ok) {
         setSafeExists(true)
+      } else if (response.status === 401) {
+        setSafeExists(null)
+        setSafeValidationError('error')
+        navigate('/login')
       } else if (response.status === 404) {
         setSafeExists(false)
         setSafeValidationError('not_found')

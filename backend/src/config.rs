@@ -10,7 +10,6 @@ pub struct Config {
     pub host: IpAddr,
     pub port: u16,
     pub rate_limit_per_second: u32,
-    pub worker_concurrency: usize,
     pub google_client_id: String,
     pub google_client_secret: String,
     pub google_redirect_uri: String,
@@ -87,14 +86,6 @@ impl Config {
                 })
             })?;
 
-        let worker_concurrency = Self::require_var("WORKER_CONCURRENCY")
-            .and_then(|v| {
-                v.parse::<usize>().map_err(|e| ConfigError::InvalidValue {
-                    var: "WORKER_CONCURRENCY".to_string(),
-                    error: e.to_string(),
-                })
-            })?;
-
         let google_client_id = Self::require_var("GOOGLE_CLIENT_ID")?;
         let google_client_secret = Self::require_var("GOOGLE_CLIENT_SECRET")?;
         let google_redirect_uri = Self::require_var("GOOGLE_REDIRECT_URI")?;
@@ -122,7 +113,6 @@ impl Config {
             host,
             port,
             rate_limit_per_second,
-            worker_concurrency,
             google_client_id,
             google_client_secret,
             google_redirect_uri,

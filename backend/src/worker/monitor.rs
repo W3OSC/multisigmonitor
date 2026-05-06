@@ -4,7 +4,6 @@ use crate::worker::notifications::{AlertType, NotificationChannel};
 use crate::services::security_analysis::{SecurityAnalysisService, AnalysisOptions};
 use crate::models::security_analysis::{SafeTransaction as ModelTransaction, DataDecoded, Parameter, RiskLevel, AnalysisResponse};
 use crate::models::worker_activity::ActivityEventType;
-use futures::stream::{self, StreamExt};
 use futures::future::join_all;
 use uuid;
 
@@ -13,22 +12,25 @@ pub struct MonitorWorker {
     safe_api: SafeApiClient,
     notification_service: NotificationService,
     security_service: SecurityAnalysisService,
-    concurrency: usize,
+    address_delay_min_secs: u64,
+    address_delay_max_secs: u64,
 }
 
 impl MonitorWorker {
     pub fn new(
         pool: SqlitePool,
         telegram_bot_token: Option<String>,
-        concurrency: usize,
         safe_api_key: Option<String>,
+        address_delay_min_secs: u64,
+        address_delay_max_secs: u64,
     ) -> Self {
         Self {
             pool,
             safe_api: SafeApiClient::new(safe_api_key),
             notification_service: NotificationService::new(telegram_bot_token),
             security_service: SecurityAnalysisService::new(),
-            concurrency,
+            address_delay_min_secs,
+            address_delay_max_secs,
         }
     }
 
@@ -45,21 +47,22 @@ impl MonitorWorker {
         let address_network_pairs = self.group_monitors_by_address_network(monitors);
         let pairs_vec: Vec<_> = address_network_pairs.into_iter().collect();
 
-        tracing::info!("Processing {} Safe addresses with concurrency limit of {}", pairs_vec.len(), self.concurrency);
+        tracing::info!("Processing {} Safe addresses", pairs_vec.len());
 
-        stream::iter(pairs_vec)
-            .map(|(key, group)| async move {
-                let parts: Vec<&str> = key.split('-').collect();
-                let safe_address = parts[0];
-                let network = parts[1];
+        for (i, (_key, group)) in pairs_vec.iter().enumerate() {
+            if i > 0 {
+                let delay = rand::Rng::gen_range(
+                    &mut rand::thread_rng(),
+                    self.address_delay_min_secs..=self.address_delay_max_secs,
+                );
+                tracing::debug!("Waiting {} seconds before next address", delay);
+                tokio::time::sleep(tokio::time::Duration::from_secs(delay)).await;
+            }
 
-                if let Err(e) = self.process_safe(safe_address, network, &group.monitors).await {
-                    tracing::error!("Error processing {} on {}: {}", safe_address, network, e);
-                }
-            })
-            .buffer_unordered(self.concurrency)
-            .collect::<Vec<_>>()
-            .await;
+            if let Err(e) = self.process_safe(&group.safe_address, &group.network, &group.monitors).await {
+                tracing::error!("Error processing {} on {}: {}", group.safe_address, group.network, e);
+            }
+        }
 
         tracing::info!("Monitor check cycle completed");
         Ok(())

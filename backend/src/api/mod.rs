@@ -65,6 +65,7 @@ pub fn router(state: AppState) -> Router {
         .route("/activity", delete(activity::clear_activity))
         .route("/auth/me", get(auth::me))
         .route("/auth/logout", post(auth::logout))
+        .route("/multisig/info", post(multisig_info::get_multisig_info))
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
             auth_middleware,
@@ -80,6 +81,10 @@ pub fn router(state: AppState) -> Router {
 
     let assess_routes = Router::new()
         .route("/safe/assess", post(assessment::assess_safe))
+        .route_layer(middleware::from_fn_with_state(
+            state.clone(),
+            auth_middleware,
+        ))
         .layer(GovernorLayer { config: assess_governor });
 
     let public_routes = Router::new()
@@ -88,8 +93,7 @@ pub fn router(state: AppState) -> Router {
         .route("/auth/github/callback", post(auth::github_callback))
         .route("/auth/ethereum/nonce", post(auth::ethereum_nonce))
         .route("/auth/ethereum/verify", post(auth::ethereum_verify))
-        .route("/auth/refresh", post(auth::refresh_token))
-        .route("/multisig/info", post(multisig_info::get_multisig_info));
+        .route("/auth/refresh", post(auth::refresh_token));
 
     Router::new()
         .merge(protected_routes)

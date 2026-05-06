@@ -31,15 +31,17 @@ export function LoginDialog({ isOpen, onClose }: LoginDialogProps) {
 
   const handleGoogleSignIn = () => {
     const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-    const redirectUri = `${window.location.origin}/`;
+    const redirectUri = `${window.location.origin}/login`;
     const scope = 'openid email profile';
     const responseType = 'code';
-    
-    const state = btoa(JSON.stringify({
-      random: Math.random().toString(36).substring(7),
-      provider: 'google'
-    }));
-    
+
+    const randomBytes = new Uint8Array(16);
+    crypto.getRandomValues(randomBytes);
+    const random = Array.from(randomBytes).map(b => b.toString(16).padStart(2, '0')).join('');
+
+    const state = btoa(JSON.stringify({ random, provider: 'google' }));
+    sessionStorage.setItem('oauth_state', state);
+
     const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
     authUrl.searchParams.set('client_id', clientId);
     authUrl.searchParams.set('redirect_uri', redirectUri);
@@ -52,13 +54,15 @@ export function LoginDialog({ isOpen, onClose }: LoginDialogProps) {
 
   const handleGitHubSignIn = () => {
     const clientId = import.meta.env.VITE_GITHUB_CLIENT_ID;
-    const redirectUri = `${window.location.origin}/`;
-    
-    const state = btoa(JSON.stringify({
-      random: Math.random().toString(36).substring(7),
-      provider: 'github'
-    }));
-    
+    const redirectUri = `${window.location.origin}/login`;
+
+    const randomBytes = new Uint8Array(16);
+    crypto.getRandomValues(randomBytes);
+    const random = Array.from(randomBytes).map(b => b.toString(16).padStart(2, '0')).join('');
+
+    const state = btoa(JSON.stringify({ random, provider: 'github' }));
+    sessionStorage.setItem('oauth_state', state);
+
     const authUrl = new URL('https://github.com/login/oauth/authorize');
     authUrl.searchParams.set('client_id', clientId);
     authUrl.searchParams.set('redirect_uri', redirectUri);

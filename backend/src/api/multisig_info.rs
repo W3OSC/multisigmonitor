@@ -78,11 +78,12 @@ pub async fn get_multisig_info_internal(
     };
 
     let infura_url = format!("https://{}.infura.io/v3/{}", infura_network, infura_api_key);
-    
-    tracing::debug!("Creating provider with URL: {}", infura_url);
+    let log_url = infura_url.replace(infura_api_key.as_str(), "[REDACTED]");
+
+    tracing::debug!("Creating provider with URL: {}", log_url);
     
     let url = Url::parse(&infura_url).map_err(|e| {
-        tracing::error!("Failed to parse URL '{}': {:?}", infura_url, e);
+        tracing::error!("Failed to parse Infura URL for network '{}': {:?}", infura_network, e);
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
     

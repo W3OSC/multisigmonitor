@@ -30,19 +30,27 @@ export default function Login() {
 
   useEffect(() => {
     if (code && !isProcessingCallback.current) {
-      const state = searchParams.get('state')
+      const urlState = searchParams.get('state')
+      const storedState = sessionStorage.getItem('oauth_state')
+      sessionStorage.removeItem('oauth_state')
+
+      if (!storedState || storedState !== urlState) {
+        setError('Invalid OAuth state. Please try again.')
+        return
+      }
+
       let detectedProvider: 'google' | 'github' = 'google'
-      
-      if (state) {
+
+      if (urlState) {
         try {
-          const stateData = JSON.parse(atob(state))
+          const stateData = JSON.parse(atob(urlState))
           if (stateData.provider) {
             detectedProvider = stateData.provider
           }
         } catch (e) {
         }
       }
-      
+
       setProvider(detectedProvider)
       if (detectedProvider === 'github') {
         handleGitHubCallback(code)
@@ -153,14 +161,19 @@ export default function Login() {
     const redirectUri = `${window.location.origin}/login`
     const scope = 'openid email profile'
     const responseType = 'code'
-    
+
+    const randomBytes = new Uint8Array(16)
+    crypto.getRandomValues(randomBytes)
+    const random = Array.from(randomBytes).map(b => b.toString(16).padStart(2, '0')).join('')
+
     const stateData = {
-      random: Math.random().toString(36).substring(7),
+      random,
       redirect: redirectTo || null,
       provider: 'google'
     }
     const state = btoa(JSON.stringify(stateData))
-    
+    sessionStorage.setItem('oauth_state', state)
+
     const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth')
     authUrl.searchParams.set('client_id', clientId)
     authUrl.searchParams.set('redirect_uri', redirectUri)
@@ -177,14 +190,19 @@ export default function Login() {
     const clientId = import.meta.env.VITE_GITHUB_CLIENT_ID
     const redirectUri = `${window.location.origin}/login`
     const scope = 'user:email'
-    
+
+    const randomBytes = new Uint8Array(16)
+    crypto.getRandomValues(randomBytes)
+    const random = Array.from(randomBytes).map(b => b.toString(16).padStart(2, '0')).join('')
+
     const stateData = {
-      random: Math.random().toString(36).substring(7),
+      random,
       redirect: redirectTo || null,
       provider: 'github'
     }
     const state = btoa(JSON.stringify(stateData))
-    
+    sessionStorage.setItem('oauth_state', state)
+
     const authUrl = new URL('https://github.com/login/oauth/authorize')
     authUrl.searchParams.set('client_id', clientId)
     authUrl.searchParams.set('redirect_uri', redirectUri)

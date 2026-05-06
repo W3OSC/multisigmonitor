@@ -1,12 +1,13 @@
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use sqlx::SqlitePool;
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
-use tokio::sync::{Mutex, RwLock};
+use std::time::Duration;
+use tokio::sync::Mutex;
 use ethers::utils::to_checksum;
 
-const SAFE_INFO_CACHE_TTL: Duration = Duration::from_secs(300);
+const SAFE_INFO_DB_TTL_SECS: i64 = 86400;
 const RATE_LIMIT_WARN_THRESHOLD: u64 = 500;
 const RATE_LIMIT_CRITICAL_THRESHOLD: u64 = 50;
 const RATE_LIMIT_RESET_CAP: Duration = Duration::from_secs(3600);
@@ -20,7 +21,7 @@ struct RateLimitState {
 pub struct SafeApiClient {
     client: Client,
     network_configs: HashMap<String, NetworkConfig>,
-    safe_info_cache: Arc<RwLock<HashMap<String, (SafeInfo, Instant)>>>,
+    pool: SqlitePool,
     rate_limit: Arc<Mutex<RateLimitState>>,
 }
 
@@ -89,7 +90,7 @@ struct SafeTransactionsResponse {
 }
 
 impl SafeApiClient {
-    pub fn new(api_key: Option<String>) -> Self {
+    pub fn new(api_key: Option<String>, pool: SqlitePool) -> Self {
         let mut network_configs = HashMap::new();
 
         network_configs.insert("ethereum".to_string(), NetworkConfig {
@@ -144,13 +145,9 @@ impl SafeApiClient {
         Self {
             client,
             network_configs,
-            safe_info_cache: Arc::new(RwLock::new(HashMap::new())),
+            pool,
             rate_limit: Arc::new(Mutex::new(RateLimitState { reset_at: None })),
         }
-    }
-
-    fn safe_info_cache_key(safe_address: &str, network: &str) -> String {
-        format!("{}:{}", network.to_lowercase(), safe_address.to_lowercase())
     }
 
     fn parse_reset_duration(response: &reqwest::Response) -> Duration {
@@ -368,14 +365,24 @@ impl SafeApiClient {
         safe_address: &str,
         network: &str,
     ) -> Result<SafeInfo, Box<dyn std::error::Error>> {
-        let cache_key = Self::safe_info_cache_key(safe_address, network);
+        let row: Option<(String, String)> = sqlx::query_as(
+            "SELECT safe_info_json, safe_info_cached_at FROM safe_cache
+             WHERE safe_address = ? AND network = ? AND safe_info_json IS NOT NULL"
+        )
+        .bind(safe_address)
+        .bind(network)
+        .fetch_optional(&self.pool)
+        .await
+        .unwrap_or(None);
 
-        {
-            let cache = self.safe_info_cache.read().await;
-            if let Some((info, cached_at)) = cache.get(&cache_key) {
-                if cached_at.elapsed() < SAFE_INFO_CACHE_TTL {
-                    tracing::debug!("Safe info cache hit for {}", cache_key);
-                    return Ok(info.clone());
+        if let Some((json, cached_at_str)) = row {
+            if let Ok(cached_at) = chrono::DateTime::parse_from_rfc3339(&cached_at_str) {
+                let age = chrono::Utc::now().signed_duration_since(cached_at.with_timezone(&chrono::Utc));
+                if age.num_seconds() < SAFE_INFO_DB_TTL_SECS {
+                    if let Ok(info) = serde_json::from_str::<SafeInfo>(&json) {
+                        tracing::debug!("Worker safe info DB cache hit for {}:{}", network, safe_address);
+                        return Ok(info);
+                    }
                 }
             }
         }
@@ -403,9 +410,23 @@ impl SafeApiClient {
 
         let safe_info: SafeInfo = response.json().await?;
 
-        {
-            let mut cache = self.safe_info_cache.write().await;
-            cache.insert(cache_key, (safe_info.clone(), Instant::now()));
+        if let Ok(json) = serde_json::to_string(&safe_info) {
+            let now = chrono::Utc::now().to_rfc3339();
+            let _ = sqlx::query(
+                "INSERT INTO safe_cache (safe_address, network, safe_info_json, safe_info_cached_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?)
+                 ON CONFLICT(safe_address, network) DO UPDATE SET
+                    safe_info_json = excluded.safe_info_json,
+                    safe_info_cached_at = excluded.safe_info_cached_at,
+                    updated_at = excluded.updated_at"
+            )
+            .bind(safe_address)
+            .bind(network)
+            .bind(&json)
+            .bind(&now)
+            .bind(&now)
+            .execute(&self.pool)
+            .await;
         }
 
         Ok(safe_info)

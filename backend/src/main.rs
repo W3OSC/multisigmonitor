@@ -152,7 +152,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         pool: pool.clone(),
         nonce_store: nonce_store.clone(),
         config: config.clone(),
-        cached_safe_client: multisigmonitor_backend::api::safe_client::CachedSafeClient::new(config.safe_api_key.clone()),
+        cached_safe_client: multisigmonitor_backend::api::safe_client::CachedSafeClient::new(config.safe_api_key.clone(), pool.clone()),
         user_rate_limiter,
     };
 

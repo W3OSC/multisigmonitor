@@ -25,8 +25,8 @@ impl MonitorWorker {
         address_delay_max_secs: u64,
     ) -> Self {
         Self {
-            pool,
-            safe_api: SafeApiClient::new(safe_api_key),
+            pool: pool.clone(),
+            safe_api: SafeApiClient::new(safe_api_key, pool),
             notification_service: NotificationService::new(telegram_bot_token),
             security_service: SecurityAnalysisService::new(),
             address_delay_min_secs,

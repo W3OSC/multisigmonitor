@@ -1,11 +1,11 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use reqwest::Client;
-use std::collections::HashMap;
+use sqlx::SqlitePool;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
-use tokio::sync::{Mutex, RwLock};
+use std::time::Duration;
+use tokio::sync::Mutex;
 
-const SAFE_INFO_TTL: Duration = Duration::from_secs(300);
+const SAFE_INFO_DB_TTL_SECS: i64 = 3600;
 const RATE_LIMIT_RESET_CAP: Duration = Duration::from_secs(3600);
 const RATE_LIMIT_MAX_INLINE_WAIT: Duration = Duration::from_secs(10);
 
@@ -29,7 +29,7 @@ impl std::fmt::Display for SafeApiError {
     }
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct SafeApiResponse {
     pub address: String,
     #[serde(deserialize_with = "deserialize_nonce")]
@@ -54,7 +54,7 @@ where
     s.parse::<u64>().map_err(D::Error::custom)
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct SafeCreationInfo {
     pub created: String,
     pub creator: String,
@@ -87,13 +87,12 @@ struct RateLimitState {
 #[derive(Clone)]
 pub struct CachedSafeClient {
     client: Client,
-    safe_info_cache: Arc<RwLock<HashMap<String, (SafeApiResponse, Instant)>>>,
-    safe_creation_cache: Arc<RwLock<HashMap<String, SafeCreationInfo>>>,
+    pool: SqlitePool,
     rate_limit: Arc<Mutex<RateLimitState>>,
 }
 
 impl CachedSafeClient {
-    pub fn new(api_key: Option<String>) -> Self {
+    pub fn new(api_key: Option<String>, pool: SqlitePool) -> Self {
         let mut client_builder = Client::builder();
         if let Some(key) = api_key {
             let mut headers = reqwest::header::HeaderMap::new();
@@ -105,14 +104,89 @@ impl CachedSafeClient {
         let client = client_builder.build().unwrap_or_else(|_| Client::new());
         Self {
             client,
-            safe_info_cache: Arc::new(RwLock::new(HashMap::new())),
-            safe_creation_cache: Arc::new(RwLock::new(HashMap::new())),
+            pool,
             rate_limit: Arc::new(Mutex::new(RateLimitState { reset_at: None })),
         }
     }
 
-    fn cache_key(safe_address: &str, network: &str) -> String {
-        format!("{}:{}", network.to_lowercase(), safe_address.to_lowercase())
+    async fn load_safe_info_from_db(&self, safe_address: &str, network: &str) -> Option<SafeApiResponse> {
+        let row: Option<(String, String)> = sqlx::query_as(
+            "SELECT safe_info_json, safe_info_cached_at FROM safe_cache
+             WHERE safe_address = ? AND network = ? AND safe_info_json IS NOT NULL"
+        )
+        .bind(safe_address)
+        .bind(network)
+        .fetch_optional(&self.pool)
+        .await
+        .ok()
+        .flatten();
+
+        let (json, cached_at_str) = row?;
+        let cached_at = chrono::DateTime::parse_from_rfc3339(&cached_at_str).ok()?;
+        let age = chrono::Utc::now().signed_duration_since(cached_at.with_timezone(&chrono::Utc));
+        if age.num_seconds() > SAFE_INFO_DB_TTL_SECS {
+            return None;
+        }
+        serde_json::from_str(&json).ok()
+    }
+
+    async fn store_safe_info_in_db(&self, safe_address: &str, network: &str, info: &SafeApiResponse) {
+        let json = match serde_json::to_string(info) {
+            Ok(j) => j,
+            Err(_) => return,
+        };
+        let now = chrono::Utc::now().to_rfc3339();
+        let _ = sqlx::query(
+            "INSERT INTO safe_cache (safe_address, network, safe_info_json, safe_info_cached_at, updated_at)
+             VALUES (?, ?, ?, ?, ?)
+             ON CONFLICT(safe_address, network) DO UPDATE SET
+                safe_info_json = excluded.safe_info_json,
+                safe_info_cached_at = excluded.safe_info_cached_at,
+                updated_at = excluded.updated_at"
+        )
+        .bind(safe_address)
+        .bind(network)
+        .bind(&json)
+        .bind(&now)
+        .bind(&now)
+        .execute(&self.pool)
+        .await;
+    }
+
+    async fn load_creation_info_from_db(&self, safe_address: &str, network: &str) -> Option<SafeCreationInfo> {
+        let row: Option<(String,)> = sqlx::query_as(
+            "SELECT creation_info_json FROM safe_cache
+             WHERE safe_address = ? AND network = ? AND creation_info_json IS NOT NULL"
+        )
+        .bind(safe_address)
+        .bind(network)
+        .fetch_optional(&self.pool)
+        .await
+        .ok()
+        .flatten();
+
+        row.and_then(|(json,)| serde_json::from_str(&json).ok())
+    }
+
+    async fn store_creation_info_in_db(&self, safe_address: &str, network: &str, info: &SafeCreationInfo) {
+        let json = match serde_json::to_string(info) {
+            Ok(j) => j,
+            Err(_) => return,
+        };
+        let now = chrono::Utc::now().to_rfc3339();
+        let _ = sqlx::query(
+            "INSERT INTO safe_cache (safe_address, network, creation_info_json, updated_at)
+             VALUES (?, ?, ?, ?)
+             ON CONFLICT(safe_address, network) DO UPDATE SET
+                creation_info_json = excluded.creation_info_json,
+                updated_at = excluded.updated_at"
+        )
+        .bind(safe_address)
+        .bind(network)
+        .bind(&json)
+        .bind(&now)
+        .execute(&self.pool)
+        .await;
     }
 
     fn parse_reset_duration(response: &reqwest::Response) -> Duration {
@@ -198,15 +272,9 @@ impl CachedSafeClient {
     }
 
     pub async fn fetch_safe_info(&self, safe_address: &str, network: &str) -> Result<SafeApiResponse, SafeApiError> {
-        let key = Self::cache_key(safe_address, network);
-
-        {
-            let cache = self.safe_info_cache.read().await;
-            if let Some((info, cached_at)) = cache.get(&key) {
-                if cached_at.elapsed() < SAFE_INFO_TTL {
-                    return Ok(info.clone());
-                }
-            }
+        if let Some(cached) = self.load_safe_info_from_db(safe_address, network).await {
+            tracing::debug!("Safe info DB cache hit for {}:{}", network, safe_address);
+            return Ok(cached);
         }
 
         let base_url = get_safe_api_url(network)
@@ -225,22 +293,15 @@ impl CachedSafeClient {
         let info = response.json::<SafeApiResponse>().await
             .map_err(|e| SafeApiError::ParseError(format!("Failed to parse Safe info: {}", e)))?;
 
-        {
-            let mut cache = self.safe_info_cache.write().await;
-            cache.insert(key, (info.clone(), Instant::now()));
-        }
+        self.store_safe_info_in_db(safe_address, network, &info).await;
 
         Ok(info)
     }
 
     pub async fn fetch_safe_creation(&self, safe_address: &str, network: &str) -> Result<SafeCreationInfo, SafeApiError> {
-        let key = Self::cache_key(safe_address, network);
-
-        {
-            let cache = self.safe_creation_cache.read().await;
-            if let Some(info) = cache.get(&key) {
-                return Ok(info.clone());
-            }
+        if let Some(cached) = self.load_creation_info_from_db(safe_address, network).await {
+            tracing::debug!("Safe creation DB cache hit for {}:{}", network, safe_address);
+            return Ok(cached);
         }
 
         let base_url = get_safe_api_url(network)
@@ -259,10 +320,7 @@ impl CachedSafeClient {
         let info = response.json::<SafeCreationInfo>().await
             .map_err(|e| SafeApiError::ParseError(format!("Failed to parse Safe creation info: {}", e)))?;
 
-        {
-            let mut cache = self.safe_creation_cache.write().await;
-            cache.insert(key, info.clone());
-        }
+        self.store_creation_info_in_db(safe_address, network, &info).await;
 
         Ok(info)
     }

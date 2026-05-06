@@ -16,6 +16,8 @@ use crate::services::safe_assessment::{
 };
 use super::AppState;
 
+const ASSESSMENT_CACHE_TTL_SECS: i64 = 3600;
+
 fn is_valid_ethereum_address(address: &str) -> bool {
     if address.len() != 42 {
         return false;
@@ -39,6 +41,27 @@ pub async fn assess_safe(
 ) -> Response {
     if !is_valid_ethereum_address(&payload.safe_address) {
         return (StatusCode::BAD_REQUEST, Json(json!({"message": "Invalid safe_address"}))).into_response();
+    }
+
+    let cached = sqlx::query_as::<_, (String, String)>(
+        "SELECT result_json, cached_at FROM assessment_cache
+         WHERE safe_address = ? AND network = ?"
+    )
+    .bind(&payload.safe_address)
+    .bind(&payload.network)
+    .fetch_optional(&state.pool)
+    .await;
+
+    if let Ok(Some((result_json, cached_at_str))) = cached {
+        if let Ok(cached_at) = chrono::DateTime::parse_from_rfc3339(&cached_at_str) {
+            let age = chrono::Utc::now().signed_duration_since(cached_at.with_timezone(&chrono::Utc));
+            if age.num_seconds() < ASSESSMENT_CACHE_TTL_SECS {
+                if let Ok(value) = serde_json::from_str::<serde_json::Value>(&result_json) {
+                    tracing::debug!("Assessment cache hit for {}:{}", payload.network, payload.safe_address);
+                    return Json(value).into_response();
+                }
+            }
+        }
     }
 
     tracing::info!("Starting comprehensive Safe assessment for {} on {}", payload.safe_address, payload.network);
@@ -123,8 +146,8 @@ pub async fn assess_safe(
     let sanctions_results = check_sanctions_for_safe(&state, &safe_info, &creation_info, &multisig_info).await;
     
     let assessment_request = SafeAssessmentRequest {
-        safe_address: payload.safe_address,
-        network: payload.network,
+        safe_address: payload.safe_address.clone(),
+        network: payload.network.clone(),
         safe_info,
         creation_info,
         sanctions_results,
@@ -133,7 +156,24 @@ pub async fn assess_safe(
     
     let service = SafeAssessmentService::new();
     let response = service.assess_safe(assessment_request);
-    
+
+    if let Ok(result_json) = serde_json::to_string(&response) {
+        let now = chrono::Utc::now().to_rfc3339();
+        let _ = sqlx::query(
+            "INSERT INTO assessment_cache (safe_address, network, result_json, cached_at)
+             VALUES (?, ?, ?, ?)
+             ON CONFLICT(safe_address, network) DO UPDATE SET
+                result_json = excluded.result_json,
+                cached_at = excluded.cached_at"
+        )
+        .bind(payload.safe_address)
+        .bind(payload.network)
+        .bind(&result_json)
+        .bind(&now)
+        .execute(&state.pool)
+        .await;
+    }
+
     Json(response).into_response()
 }
 

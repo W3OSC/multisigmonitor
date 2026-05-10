@@ -1,0 +1,153 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 500" width="420" height="500">
+  <defs>
+    <radialGradient id="bodyGrad" cx="38%" cy="32%" r="68%">
+      <stop offset="0%" stop-color="#a855f7"/>
+      <stop offset="55%" stop-color="#7c3aed"/>
+      <stop offset="100%" stop-color="#3b0764"/>
+    </radialGradient>
+    <radialGradient id="bellyGrad" cx="50%" cy="45%" r="55%">
+      <stop offset="0%" stop-color="#d8b4fe"/>
+      <stop offset="100%" stop-color="#9333ea"/>
+    </radialGradient>
+    <radialGradient id="tentacleGrad" cx="30%" cy="30%" r="70%">
+      <stop offset="0%" stop-color="#9333ea"/>
+      <stop offset="100%" stop-color="#2e1065"/>
+    </radialGradient>
+    <radialGradient id="eyeGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ff8080"/>
+      <stop offset="55%" stop-color="#dc2626"/>
+      <stop offset="100%" stop-color="#7f1d1d"/>
+    </radialGradient>
+    <linearGradient id="lockRed" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fca5a5"/>
+      <stop offset="100%" stop-color="#b91c1c"/>
+    </linearGradient>
+    <linearGradient id="lockGreen" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#86efac"/>
+      <stop offset="100%" stop-color="#15803d"/>
+    </linearGradient>
+    <linearGradient id="lockYellow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fde68a"/>
+      <stop offset="100%" stop-color="#b45309"/>
+    </linearGradient>
+    <filter id="shadow" x="-40%" y="-40%" width="180%" height="180%">
+      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#1e0040" flood-opacity="0.5"/>
+    </filter>
+    <filter id="redGlow">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="softShadow">
+      <feDropShadow dx="1" dy="3" stdDeviation="4" flood-color="#000" flood-opacity="0.45"/>
+    </filter>
+  </defs>
+
+  <!-- Ground shadow -->
+  <ellipse cx="210" cy="488" rx="110" ry="10" fill="#1e0040" opacity="0.3"/>
+
+  <!-- === BACKGROUND TENTACLES (no locks, purely decorative) === -->
+
+  <!-- BG tentacle far-right -->
+  <path d="M255 285 Q290 310 308 345 Q318 368 308 388 Q300 404 290 396 Q282 390 286 378" stroke="#4c1d95" stroke-width="12" fill="none" stroke-linecap="round" opacity="0.7"/>
+
+  <!-- BG tentacle center -->
+  <path d="M218 290 Q222 325 215 358 Q210 380 218 396 Q224 408 234 402 Q242 396 238 382" stroke="#4c1d95" stroke-width="11" fill="none" stroke-linecap="round" opacity="0.7"/>
+
+  <!-- === FOREGROUND LOCK TENTACLES === -->
+
+  <!-- LEFT tentacle 1 - RED lock (outermost left, big sweep) -->
+  <path d="M158 282 Q118 300 88 330 Q62 356 58 386 Q56 408 70 416 Q84 422 92 408 Q98 396 88 386" stroke="url(#tentacleGrad)" stroke-width="20" fill="none" stroke-linecap="round" filter="url(#shadow)"/>
+  <path d="M158 282 Q118 300 88 330 Q62 356 58 386 Q56 408 70 416 Q84 422 92 408 Q98 396 88 386" stroke="#7c3aed" stroke-width="7" fill="none" stroke-linecap="round" opacity="0.35"/>
+  <!-- Suckers L1 -->
+  <circle cx="118" cy="306" r="5" fill="#2e1065" opacity="0.65"/>
+  <circle cx="74" cy="356" r="4.5" fill="#2e1065" opacity="0.65"/>
+  <circle cx="62" cy="394" r="4" fill="#2e1065" opacity="0.65"/>
+  <circle cx="76" cy="414" r="3.5" fill="#2e1065" opacity="0.65"/>
+
+  <!-- LEFT tentacle 2 - YELLOW lock (inner left, tighter curl) -->
+  <path d="M175 288 Q155 318 148 352 Q142 378 150 400 Q158 416 170 412 Q180 408 178 394 Q176 382 166 380" stroke="url(#tentacleGrad)" stroke-width="18" fill="none" stroke-linecap="round" filter="url(#shadow)"/>
+  <path d="M175 288 Q155 318 148 352 Q142 378 150 400 Q158 416 170 412 Q180 408 178 394 Q176 382 166 380" stroke="#7c3aed" stroke-width="6" fill="none" stroke-linecap="round" opacity="0.35"/>
+  <!-- Suckers L2 -->
+  <circle cx="152" cy="328" r="4.5" fill="#2e1065" opacity="0.65"/>
+  <circle cx="144" cy="370" r="4" fill="#2e1065" opacity="0.65"/>
+  <circle cx="152" cy="404" r="3.5" fill="#2e1065" opacity="0.65"/>
+
+  <!-- RIGHT tentacle 1 - GREEN lock (sweeps right) -->
+  <path d="M272 280 Q310 305 336 338 Q356 364 352 394 Q348 414 334 418 Q320 422 314 408 Q308 394 318 384" stroke="url(#tentacleGrad)" stroke-width="20" fill="none" stroke-linecap="round" filter="url(#shadow)"/>
+  <path d="M272 280 Q310 305 336 338 Q356 364 352 394 Q348 414 334 418 Q320 422 314 408 Q308 394 318 384" stroke="#7c3aed" stroke-width="7" fill="none" stroke-linecap="round" opacity="0.35"/>
+  <!-- Suckers R1 -->
+  <circle cx="308" cy="312" r="5" fill="#2e1065" opacity="0.65"/>
+  <circle cx="346" cy="366" r="4.5" fill="#2e1065" opacity="0.65"/>
+  <circle cx="350" cy="400" r="4" fill="#2e1065" opacity="0.65"/>
+  <circle cx="330" cy="416" r="3.5" fill="#2e1065" opacity="0.65"/>
+
+  <!-- === MAIN BODY === -->
+  <ellipse cx="210" cy="200" rx="115" ry="108" fill="url(#bodyGrad)" filter="url(#shadow)"/>
+  <ellipse cx="208" cy="215" rx="68" ry="62" fill="url(#bellyGrad)" opacity="0.38"/>
+
+  <!-- Spiky top bumps -->
+  <path d="M108 155 Q100 132 116 138 Q112 112 128 122 Q128 98 144 112 Q146 88 158 104 Q160 80 168 98" fill="#5b21b6" opacity="0.85"/>
+  <path d="M312 155 Q320 132 304 138 Q308 112 292 122 Q292 98 276 112 Q274 88 262 104 Q260 80 252 98" fill="#5b21b6" opacity="0.85"/>
+
+  <!-- Left ear -->
+  <polygon points="128,170 104,108 156,152" fill="#6d28d9"/>
+  <polygon points="130,166 112,124 150,155" fill="#8b5cf6" opacity="0.4"/>
+
+  <!-- Right ear -->
+  <polygon points="292,170 316,108 264,152" fill="#6d28d9"/>
+  <polygon points="290,166 308,124 270,155" fill="#8b5cf6" opacity="0.4"/>
+
+  <!-- EYES -->
+  <ellipse cx="178" cy="195" rx="24" ry="24" fill="#7f1d1d" filter="url(#redGlow)"/>
+  <ellipse cx="178" cy="195" rx="19" ry="19" fill="url(#eyeGlow)"/>
+  <ellipse cx="178" cy="193" rx="9" ry="10" fill="#ff1111" opacity="0.9"/>
+  <circle cx="183" cy="189" r="4.5" fill="white" opacity="0.35"/>
+
+  <ellipse cx="242" cy="195" rx="24" ry="24" fill="#7f1d1d" filter="url(#redGlow)"/>
+  <ellipse cx="242" cy="195" rx="19" ry="19" fill="url(#eyeGlow)"/>
+  <ellipse cx="242" cy="193" rx="9" ry="10" fill="#ff1111" opacity="0.9"/>
+  <circle cx="247" cy="189" r="4.5" fill="white" opacity="0.35"/>
+
+  <!-- Wide toothless grin -->
+  <path d="M170 228 Q210 260 250 228" fill="#1e0040"/>
+  <path d="M170 228 Q210 246 250 228" fill="none" stroke="#0d0020" stroke-width="2"/>
+
+  <!-- === PADLOCKS at tentacle tips === -->
+
+  <!-- RED lock - left tentacle 1 tip (~88, 390) -->
+  <g transform="translate(62, 378) rotate(-30)" filter="url(#softShadow)">
+    <path d="M11 20 Q11 4 21 4 Q31 4 31 20" stroke="#fca5a5" stroke-width="5" fill="none" stroke-linecap="round"/>
+    <rect x="4" y="18" width="34" height="26" rx="6" fill="url(#lockRed)"/>
+    <rect x="4" y="18" width="34" height="10" rx="3" fill="#ef4444" opacity="0.45"/>
+    <circle cx="21" cy="29" r="5" fill="#7f1d1d"/>
+    <rect x="19" y="32" width="4" height="7" rx="1.5" fill="#7f1d1d"/>
+    <rect x="7" y="21" width="9" height="3" rx="1.5" fill="#fca5a5" opacity="0.5"/>
+  </g>
+
+  <!-- YELLOW lock - left tentacle 2 tip (~166, 395) -->
+  <g transform="translate(140, 386) rotate(-12)" filter="url(#softShadow)">
+    <path d="M11 20 Q11 4 21 4 Q31 4 31 20" stroke="#fef08a" stroke-width="5" fill="none" stroke-linecap="round"/>
+    <rect x="4" y="18" width="34" height="26" rx="6" fill="url(#lockYellow)"/>
+    <rect x="4" y="18" width="34" height="10" rx="3" fill="#eab308" opacity="0.45"/>
+    <circle cx="21" cy="29" r="5" fill="#78350f"/>
+    <rect x="19" y="32" width="4" height="7" rx="1.5" fill="#78350f"/>
+    <rect x="7" y="21" width="9" height="3" rx="1.5" fill="#fef08a" opacity="0.5"/>
+  </g>
+
+  <!-- GREEN lock - right tentacle 1 tip (~318, 390) -->
+  <g transform="translate(296, 378) rotate(28)" filter="url(#softShadow)">
+    <path d="M11 20 Q11 4 21 4 Q31 4 31 20" stroke="#86efac" stroke-width="5" fill="none" stroke-linecap="round"/>
+    <rect x="4" y="18" width="34" height="26" rx="6" fill="url(#lockGreen)"/>
+    <rect x="4" y="18" width="34" height="10" rx="3" fill="#22c55e" opacity="0.45"/>
+    <circle cx="21" cy="29" r="5" fill="#14532d"/>
+    <rect x="19" y="32" width="4" height="7" rx="1.5" fill="#14532d"/>
+    <rect x="7" y="21" width="9" height="3" rx="1.5" fill="#86efac" opacity="0.5"/>
+  </g>
+
+  <!-- Floating sparkles -->
+  <circle cx="142" cy="130" r="3" fill="#c084fc" opacity="0.7"/>
+  <circle cx="128" cy="150" r="2" fill="#a78bfa" opacity="0.5"/>
+  <circle cx="278" cy="130" r="3" fill="#c084fc" opacity="0.7"/>
+  <circle cx="292" cy="150" r="2" fill="#a78bfa" opacity="0.5"/>
+  <circle cx="210" cy="88" r="3" fill="#e9d5ff" opacity="0.5"/>
+</svg>

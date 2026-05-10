@@ -1,5 +1,26 @@
 # multisigmonitor
 
+<p align="center">
+  <img src="docs/msm-logo.svg" alt="MSM - Multisig Monitor" width="220"/>
+</p>
+
+<p align="center">
+  <img alt="multisigmonitor repo size" title="multisigmonitor repo size" src="https://img.shields.io/github/repo-size/W3OSC/multisigmonitor">
+  <img alt="GitHub last commit" title="GitHub last commit" src="https://img.shields.io/github/last-commit/W3OSC/multisigmonitor">
+  <img alt="GitHub commit activity" title="GitHub commit activity" src="https://img.shields.io/github/commit-activity/m/W3OSC/multisigmonitor">
+  <a href="https://github.com/W3OSC/multisigmonitor/issues"><img alt="GitHub issues" title="GitHub issues" src="https://img.shields.io/github/issues-raw/W3OSC/multisigmonitor"></a>
+  <a href="https://github.com/W3OSC/multisigmonitor/blob/main/LICENSE"><img alt="License" title="License" src="https://img.shields.io/github/license/W3OSC/multisigmonitor"></a>
+  <a href="https://t.me/+yhmMnY2DyNBmNDlh"><img alt="Telegram" title="W3OS Telegram" src="https://img.shields.io/badge/chat-telegram-blue?logo=telegram"></a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/W3OSC/multisigmonitor/issues/new?template=bug_report.md" title="Report a bug">Report a bug</a>
+  | <a href="https://github.com/W3OSC/multisigmonitor/issues/new?template=feature_request.md" title="Feature request">Feature request</a>
+  | <a href="https://github.com/W3OSC/multisigmonitor/discussions" title="Discussions">Discussions</a>
+  | <a href="CONTRIBUTING.md" title="Contributing guide">Contributing</a>
+  | <a href="https://t.me/+yhmMnY2DyNBmNDlh" title="W3OS Telegram">Telegram</a>
+</p>
+
 multisigmonitor (MSM) is an analysis and real-time monitoring tool for Safe{wallet} multisig wallets, that identifies management transactions by examining the decoded tx data looking for any tx that changes who controls your Safe or how it operates.
 
 Monitoring management transactions means you can detect and respond to:
@@ -10,11 +31,11 @@ Monitoring management transactions means you can detect and respond to:
 - Maintain auditable records of all governance changes for compliance or transparency requirements 
 
 
-## why
+## Why
 
 Governance attacks happen at the config layer. by the time you see a malicious transfer, it's too late. monitoring owner additions, threshold changes, and module enables gives you lead time to respond.
 
-## setup
+## Setup
 
 Until the monitoring system is fully built, you can run the analysis engine locally to assess the risk of your Safe's current configuration:
 

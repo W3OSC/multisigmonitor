@@ -8,6 +8,7 @@ use tokio::sync::Mutex;
 use ethers::utils::to_checksum;
 
 const SAFE_INFO_DB_TTL_SECS: i64 = 86400;
+const PENDING_TX_CACHE_TTL_SECS: i64 = 300;
 const RATE_LIMIT_WARN_THRESHOLD: u64 = 500;
 const RATE_LIMIT_CRITICAL_THRESHOLD: u64 = 50;
 const RATE_LIMIT_RESET_CAP: Duration = Duration::from_secs(3600);
@@ -163,7 +164,7 @@ impl SafeApiClient {
             .get("x-ratelimit-reset")
             .and_then(|v| v.to_str().ok())
             .and_then(|s| s.parse::<u64>().ok())
-            .unwrap_or(60_000);
+            .unwrap_or(60);
 
         let duration = if raw > 60_000 {
             Duration::from_millis(raw)
@@ -172,6 +173,41 @@ impl SafeApiClient {
         };
 
         duration.min(RATE_LIMIT_RESET_CAP)
+    }
+
+    async fn read_db_rate_limit(&self) -> Option<tokio::time::Instant> {
+        let row: Option<(String,)> = sqlx::query_as(
+            "SELECT reset_at FROM safe_api_rate_limit WHERE id = 1"
+        )
+        .fetch_optional(&self.pool)
+        .await
+        .ok()
+        .flatten();
+
+        let reset_str = row?.0;
+        let reset_dt = chrono::DateTime::parse_from_rfc3339(&reset_str).ok()?;
+        let now_utc = chrono::Utc::now();
+        if reset_dt > now_utc {
+            let secs_remaining = (reset_dt.with_timezone(&chrono::Utc) - now_utc).num_seconds().max(0) as u64;
+            Some(tokio::time::Instant::now() + Duration::from_secs(secs_remaining))
+        } else {
+            None
+        }
+    }
+
+    async fn write_db_rate_limit(&self, wait: Duration) {
+        let reset_at = chrono::Utc::now() + chrono::Duration::from_std(wait).unwrap_or(chrono::Duration::seconds(60));
+        let now = chrono::Utc::now().to_rfc3339();
+        let _ = sqlx::query(
+            "INSERT INTO safe_api_rate_limit (id, reset_at, updated_at) VALUES (1, ?, ?)
+             ON CONFLICT(id) DO UPDATE SET
+                reset_at = CASE WHEN excluded.reset_at > reset_at THEN excluded.reset_at ELSE reset_at END,
+                updated_at = excluded.updated_at"
+        )
+        .bind(reset_at.to_rfc3339())
+        .bind(now)
+        .execute(&self.pool)
+        .await;
     }
 
     fn parse_remaining(response: &reqwest::Response) -> Option<u64> {
@@ -199,16 +235,24 @@ impl SafeApiClient {
 
     async fn get(&self, url: &str) -> Result<reqwest::Response, Box<dyn std::error::Error>> {
         {
-            let state = self.rate_limit.lock().await;
+            let mut state = self.rate_limit.lock().await;
             if let Some(reset_at) = state.reset_at {
-                let now = tokio::time::Instant::now();
-                if reset_at > now {
-                    let wait = reset_at - now;
-                    tracing::warn!("Safe API rate limit active, waiting {:?} before request", wait);
-                    drop(state);
-                    tokio::time::sleep(wait).await;
+                if reset_at > tokio::time::Instant::now() {
+                    return Err(format!(
+                        "Safe API rate limited, deferring to next cycle (url: {})", url
+                    ).into());
+                } else {
+                    state.reset_at = None;
                 }
             }
+        }
+
+        if let Some(db_deadline) = self.read_db_rate_limit().await {
+            let mut state = self.rate_limit.lock().await;
+            state.reset_at = Some(db_deadline);
+            return Err(format!(
+                "Safe API rate limited (cross-process), deferring to next cycle (url: {})", url
+            ).into());
         }
 
         let response = self.client.get(url).send().await?;
@@ -229,26 +273,11 @@ impl SafeApiClient {
                 });
             }
 
-            tokio::time::sleep(wait).await;
+            self.write_db_rate_limit(wait).await;
 
-            let retry = self.client.get(url).send().await?;
-            if retry.status() == reqwest::StatusCode::TOO_MANY_REQUESTS {
-                return Err(format!(
-                    "Safe API rate limit persists after retry (url: {})",
-                    url
-                )
-                .into());
-            }
-            return Ok(retry);
-        }
-
-        {
-            let mut state = self.rate_limit.lock().await;
-            if let Some(reset_at) = state.reset_at {
-                if tokio::time::Instant::now() >= reset_at {
-                    state.reset_at = None;
-                }
-            }
+            return Err(format!(
+                "Safe API rate limited, deferring to next cycle (url: {})", url
+            ).into());
         }
 
         if let Some(remaining) = Self::parse_remaining(&response) {
@@ -267,33 +296,48 @@ impl SafeApiClient {
 
     async fn get_safe_info_url(&self, url: &str, network: &str) -> Result<reqwest::Response, Box<dyn std::error::Error>> {
         {
-            let state = self.rate_limit.lock().await;
+            let mut state = self.rate_limit.lock().await;
             if let Some(reset_at) = state.reset_at {
-                let now = tokio::time::Instant::now();
-                if reset_at > now {
-                    tracing::warn!("Primary Safe API rate limited, trying fallback for safe info");
+                if reset_at > tokio::time::Instant::now() {
                     drop(state);
                     if let Some(fallback_url) = self.fallback_url_for(url, network) {
-                        tracing::info!("Using unauthenticated fallback: {}", fallback_url);
+                        tracing::warn!("Primary Safe API rate limited, trying fallback for safe info");
                         return Ok(self.fallback_client.get(&fallback_url).send().await?);
                     }
                     return Err("Safe API rate limited and no fallback available".into());
+                } else {
+                    state.reset_at = None;
                 }
             }
+        }
+
+        if let Some(db_deadline) = self.read_db_rate_limit().await {
+            let mut state = self.rate_limit.lock().await;
+            state.reset_at = Some(db_deadline);
+            drop(state);
+            if let Some(fallback_url) = self.fallback_url_for(url, network) {
+                tracing::warn!("Primary Safe API rate limited (cross-process), trying fallback for safe info");
+                return Ok(self.fallback_client.get(&fallback_url).send().await?);
+            }
+            return Err("Safe API rate limited (cross-process) and no fallback available".into());
         }
 
         let response = self.client.get(url).send().await?;
 
         if response.status() == reqwest::StatusCode::TOO_MANY_REQUESTS {
             let reset_duration = Self::parse_reset_duration(&response);
+            let wait = reset_duration;
+
             {
                 let mut state = self.rate_limit.lock().await;
-                let new_deadline = tokio::time::Instant::now() + reset_duration;
+                let new_deadline = tokio::time::Instant::now() + wait;
                 state.reset_at = Some(match state.reset_at {
                     Some(existing) if existing > new_deadline => existing,
                     _ => new_deadline,
                 });
             }
+
+            self.write_db_rate_limit(wait).await;
 
             tracing::warn!("Primary Safe API quota exhausted, trying fallback for safe info");
             if let Some(fallback_url) = self.fallback_url_for(url, network) {
@@ -347,6 +391,29 @@ impl SafeApiClient {
         safe_address: &str,
         network: &str,
     ) -> Result<Vec<SafeTransaction>, Box<dyn std::error::Error>> {
+        let row: Option<(String, String)> = sqlx::query_as(
+            "SELECT pending_tx_json, pending_tx_cached_at FROM safe_cache
+             WHERE safe_address = ? AND network = ? AND pending_tx_json IS NOT NULL"
+        )
+        .bind(safe_address)
+        .bind(network)
+        .fetch_optional(&self.pool)
+        .await
+        .ok()
+        .flatten();
+
+        if let Some((json, cached_at_str)) = row {
+            if let Ok(cached_at) = chrono::DateTime::parse_from_rfc3339(&cached_at_str) {
+                let age = chrono::Utc::now().signed_duration_since(cached_at.with_timezone(&chrono::Utc));
+                if age.num_seconds() < PENDING_TX_CACHE_TTL_SECS {
+                    if let Ok(txs) = serde_json::from_str::<Vec<SafeTransaction>>(&json) {
+                        tracing::debug!("Pending tx DB cache hit for {}:{}", network, safe_address);
+                        return Ok(txs);
+                    }
+                }
+            }
+        }
+
         let config = self.network_configs.get(network)
             .ok_or(format!("Unsupported network: {}", network))?;
 
@@ -360,7 +427,28 @@ impl SafeApiClient {
 
         tracing::debug!("Fetching pending transactions from: {}", url);
 
-        self.fetch_all_pages(url).await
+        let txs = self.fetch_all_pages(url).await?;
+
+        if let Ok(json) = serde_json::to_string(&txs) {
+            let now = chrono::Utc::now().to_rfc3339();
+            let _ = sqlx::query(
+                "INSERT INTO safe_cache (safe_address, network, pending_tx_json, pending_tx_cached_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?)
+                 ON CONFLICT(safe_address, network) DO UPDATE SET
+                    pending_tx_json = excluded.pending_tx_json,
+                    pending_tx_cached_at = excluded.pending_tx_cached_at,
+                    updated_at = excluded.updated_at"
+            )
+            .bind(safe_address)
+            .bind(network)
+            .bind(&json)
+            .bind(&now)
+            .bind(&now)
+            .execute(&self.pool)
+            .await;
+        }
+
+        Ok(txs)
     }
 
     pub async fn fetch_executed_since(

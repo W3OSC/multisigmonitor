@@ -104,6 +104,20 @@ fi
 
 cd ..
 
+for binary in "multisigmonitor-backend" "monitor-worker"; do
+    orphan_pids=$(pgrep -f "target/release/$binary" 2>/dev/null) || true
+    if [ -n "$orphan_pids" ]; then
+        pm2_pids=$(pm2 jlist 2>/dev/null | grep -o '"pid":[0-9]*' | grep -o '[0-9]*' | tr '\n' ' ') || true
+        for pid in $orphan_pids; do
+            if ! echo "$pm2_pids" | grep -qw "$pid"; then
+                echo "Killing orphaned $binary process: $pid"
+                kill "$pid" 2>/dev/null || true
+            fi
+        done
+    fi
+done
+sleep 1
+
 if pm2 list | grep -q "multisig-backend"; then
     echo "Reloading existing PM2 processes..."
     pm2 reload ecosystem.prod.config.js --update-env

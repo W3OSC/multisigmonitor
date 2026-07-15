@@ -420,6 +420,18 @@ mod tests {
         assert!(Uuid::parse_str(&nonce1).is_ok(), "Nonce should be valid UUID");
     }
 
+    #[test]
+    fn test_generate_and_verify_token_roundtrip() {
+        let token = AuthService::generate_token("user-123", "user@example.com", "test-secret")
+            .expect("token generation should not panic or error");
+
+        let claims = AuthService::verify_token(&token, "test-secret")
+            .expect("token verification should not panic or error");
+
+        assert_eq!(claims.sub, "user-123");
+        assert_eq!(claims.email, "user@example.com");
+    }
+
     #[tokio::test]
     async fn test_nonce_store() {
         let store = NonceStore::new();

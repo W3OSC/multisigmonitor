@@ -48,29 +48,6 @@ make start
 You then should be able to access the local dashboard at http://localhost:7110
 
 
-## Contributors
-
-<br>
-<table>
-<tr>
-    <td align="center">
-        <a href="https://github.com/fredrik0x">
-            <img src="https://avatars.githubusercontent.com/u/84518844?v=4" width="100;" alt="fredrik0x"/>
-            <br />
-            <sub><b>fredrik0x</b></sub>
-        </a>
-    </td>
-    <td align="center">
-        <a href="https://github.com/forefy">
-            <img src="https://avatars.githubusercontent.com/u/166978930?v=4" width="100;" alt="forefy"/>
-            <br />
-            <sub><b>forefy</b></sub>
-        </a>
-    </td>
-</tr>
-</table>
-<br>
-
 > **📢 Contributing to W3OS**
 >
 > W3OS is an open standard developed collaboratively by the Web3 security community. Contributions by anyone are welcome.
